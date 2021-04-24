@@ -31,7 +31,7 @@ import model.metrics as metrics
 from model.models import cnn_3d
 from model.train_model import train
 
-
+import gc
 import datetime
 
 def run_model(expDate,runOnCluster=0,
@@ -136,25 +136,26 @@ def run_model(expDate,runOnCluster=0,
     mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm)
     fname_excel = 'performance_'+fname_model+'.csv'
     print('-----RUNNING MODEL-----')
-    mdl_history = train(mdl, data_train, data_val, fname_excel,counter_train,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = 5000,validation_freq=1)
+    mdl_history = train(mdl, data_train, data_val, fname_excel,counter_train,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = 5000,validation_freq=1000)
     
     mdl_history = mdl_history.history
     
     
-    obs_rate_lstm = data_val.y
-    fev_median_allEpochs = np.empty(nb_epochs)
+    obs_rate = data_val.y
+    fev_median_allEpochs = np.empty(nb_epochs-1)
     fev_median_allEpochs[:] = np.nan
-    fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+    fev_allUnits_allEpochs = np.zeros((nb_epochs-1,n_cells))
     fev_allUnits_allEpochs[:] = np.nan
     
     print('-----EVALUATING PERFORMANCE-----')
     for i in range(nb_epochs-1):
         weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
-        est_rate_lstm = mdl.predict(data_val.X)
-        rgb = metrics.fraction_of_explainable_variance_explained(obs_rate_lstm,est_rate_lstm,unit_noise)
+        est_rate = mdl.predict(data_val.X)
+        rgb = metrics.fraction_of_explainable_variance_explained(obs_rate,est_rate,unit_noise)
         fev_allUnits_allEpochs[i,:] = rgb
         fev_median_allEpochs[i] = np.nanmedian(rgb)
+        _ = gc.collect()
     
     idx_bestEpoch = np.nanargmax(fev_median_allEpochs)
     fev_median_bestEpoch = np.round(fev_median_allEpochs[idx_bestEpoch],2)
@@ -237,7 +238,17 @@ def run_model(expDate,runOnCluster=0,
 
     print('-----FINISHED-----')
 
-
+    fname_validation_excel = os.path.join(path_save_performance,expDate+'_validation_'+fname_model+'.csv')
+    csv_header = ['epoch','val_fev']
+    with open(fname_validation_excel,'w',encoding='utf-8') as csvfile:
+        csvwriter = csv.writer(csvfile) 
+        csvwriter.writerow(csv_header) 
+        
+        for i in range(fev_median_allEpochs.shape[0]):
+            csvwriter.writerow([str(i),str(np.round(fev_median_allEpochs[i],2))]) 
+        
+        
+        
 if __name__ == "__main__":
     args = parser_run_model()
     # Raw print arguments
