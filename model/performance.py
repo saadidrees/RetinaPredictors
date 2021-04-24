@@ -8,22 +8,22 @@ Created on Thu Apr 22 09:54:56 2021
 import h5py
 import numpy as np
 
-def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val):
+def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred):
 
-    f = h5py.File(fname_save_performance,'a')
+    f = h5py.File(fname_save_performance,'w')
     
-    grpName_mdl = fname_model
-    grp_exist = '/'+grpName_mdl in f
-    if grp_exist:
-        del f[grpName_mdl]
+    # grpName_mdl = fname_model
+    # grp_exist = '/'+grpName_mdl in f
+    # if grp_exist:
+    #     del f[grpName_mdl]
         
-    grp_model = f.create_group(grpName_mdl)
+    # grp_model = f.create_group(grpName_mdl)
     
     keys = list(metaInfo.keys())
     for i in range(len(metaInfo)):
-        grp_model.create_dataset(keys[i], data=metaInfo[keys[i]])
+        f.create_dataset(keys[i], data=metaInfo[keys[i]])
     
-    grp = f.create_group(grpName_mdl+'/data_quality')
+    grp = f.create_group('/data_quality')
     keys = list(data_quality.keys())
     for i in range(len(data_quality)):
         if data_quality[keys[i]].dtype == 'O':
@@ -31,19 +31,19 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
         else:
             grp.create_dataset(keys[i], data=data_quality[keys[i]])
     
-    grp = f.create_group(grpName_mdl+'/model_performance')
+    grp = f.create_group('/model_performance')
     keys = list(model_performance.keys())
     for i in range(len(model_performance)):
         grp.create_dataset(keys[i], data=model_performance[keys[i]])
     
     
-    grp = f.create_group(grpName_mdl+'/model_params')
+    grp = f.create_group('/model_params')
     keys = list(model_params.keys())
     for i in range(len(model_params)):
         grp.create_dataset(keys[i], data=model_params[keys[i]])
     
     
-    grp = f.create_group(grpName_mdl+'/stim_info')
+    grp = f.create_group('/stim_info')
     keys = list(stim_info.keys())
     for i in range(len(stim_info)):
         grp.create_dataset(keys[i], data=stim_info[keys[i]])
@@ -59,16 +59,23 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
                 grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]],compression='gzip')
             
             
-    grp_exist = '/val_test_data' in f
-    if not grp_exist:
+    # grp_exist = '/val_test_data' in f
+    # if not grp_exist:
         
-        keys = list(datasets_val.keys())
-        grp = f.create_group('/val_test_data')
+    #     keys = list(datasets_val.keys())
+    #     grp = f.create_group('/val_test_data')
         
-        for i in range(len(datasets_val)):
-            grp.create_dataset(keys[i], data=datasets_val[keys[i]],compression='gzip')
+    #     for i in range(len(datasets_val)):
+    #         grp.create_dataset(keys[i], data=datasets_val[keys[i]],compression='gzip')
+            
+            
+    grp = f.create_group('/dataset_pred')
+    keys = list(dataset_pred.keys())
+    for i in range(len(dataset_pred)):
+        grp.create_dataset(keys[i],data=dataset_pred[keys[i]],compression='gzip')
     
      
     f.close()
+
 
     

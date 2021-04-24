@@ -97,7 +97,7 @@ def run_model(expDate,runOnCluster=0,
     
     # retinal reliability
     fractionExplainableVariance_allUnits = (data_quality['fractionExplainableVariance_allUnits'][idx_unitsToTake] - unit_noise) / data_quality['fractionExplainableVariance_allUnits'][idx_unitsToTake]
-    retinalReliability = np.nanmedian(fractionExplainableVariance_allUnits)
+    retinalReliability = np.round(np.nanmedian(fractionExplainableVariance_allUnits),2)
     
     # Model params
     BatchNorm = True
@@ -124,11 +124,15 @@ def run_model(expDate,runOnCluster=0,
                                                                                  chan2_n,filt2_size,filt2_3rdDim,
                                                                                  chan3_n,filt3_size,filt3_3rdDim)
     
-    fname_save_performance = os.path.join(path_save_performance,(expDate+'_performance_models_cnn3d.h5'))
     path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)
+    
     if not os.path.exists(path_model_save):
         os.makedirs(path_model_save)
     
+    path_save_model_performance = os.path.join(path_model_save,'performance')
+    if not os.path.exists(path_save_model_performance):
+        os.makedirs(path_save_model_performance)
+                
     counter_train = 0
     x = Input(shape=data_train.X.shape[1:])
     n_cells = data_train.y.shape[1]
@@ -142,9 +146,9 @@ def run_model(expDate,runOnCluster=0,
     
     
     obs_rate = data_val.y
-    fev_median_allEpochs = np.empty(nb_epochs-1)
+    fev_median_allEpochs = np.empty(nb_epochs)
     fev_median_allEpochs[:] = np.nan
-    fev_allUnits_allEpochs = np.zeros((nb_epochs-1,n_cells))
+    fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
     fev_allUnits_allEpochs[:] = np.nan
     
     print('-----EVALUATING PERFORMANCE-----')
@@ -161,10 +165,13 @@ def run_model(expDate,runOnCluster=0,
     fev_median_bestEpoch = np.round(fev_median_allEpochs[idx_bestEpoch],2)
     fev_allUnits_bestEpoch = fev_allUnits_allEpochs[(idx_bestEpoch),:]
     fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
-    
+    mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
+    pred_rate = mdl.predict(data_val.X)
     
     
 # %% Save performance
+    fname_save_performance = os.path.join(path_save_model_performance,(expDate+'_'+fname_model+'.h5'))
+
     print('-----SAVING PERFORMANCE STUFF TO H5-----')
     model_performance = {
         'fev_median_allEpochs': fev_median_allEpochs,
@@ -218,7 +225,15 @@ def run_model(expDate,runOnCluster=0,
         'data_test_y': data_test.y,
         }
     
-    save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val)
+    
+    dataset_pred = {
+        'obs_rate': obs_rate,
+        'pred_rate': pred_rate,
+        }
+
+    save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred)
+
+    
     
 # %% Write performance to csv file
     print('-----WRITING TO CSV FILE-----')
@@ -238,7 +253,7 @@ def run_model(expDate,runOnCluster=0,
 
     print('-----FINISHED-----')
 
-    fname_validation_excel = os.path.join(path_save_performance,expDate+'_validation_'+fname_model+'.csv')
+    fname_validation_excel = os.path.join(path_save_model_performance,expDate+'_validation_'+fname_model+'.csv')
     csv_header = ['epoch','val_fev']
     with open(fname_validation_excel,'w',encoding='utf-8') as csvfile:
         csvwriter = csv.writer(csvfile) 
