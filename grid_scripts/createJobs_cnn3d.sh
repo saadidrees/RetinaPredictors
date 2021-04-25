@@ -31,4 +31,10 @@ thresh_rr='0.6'
 typeset -i bz_ms=10000
 
 
-sbatch --export=LOG_DIR=$LOG_DIR,expDate=$EXP_DATE,runOnCluster=$runOnCluster,chan1_n=$chan1_n,filt1_size=$filt1_size,filt1_3rdDim=$filt1_3rdDim,chan2_n=$chan2_n,filt2_size=$filt2_size,filt2_3rdDim=$filt2_3rdDim,chan3_n=$chan3_n,filt3_size=$filt3_size,filt3_3rdDim=$filt3_3rdDim,nb_epochs=$nb_epochs,thresh_rr=$thresh_rr,temporal_width=$temporal_width,bz_ms=$bz_ms cnn3d_launcher.sh
+JOB_ID=$(sbatch --export=LOG_DIR=$LOG_DIR,expDate=$EXP_DATE,runOnCluster=$runOnCluster,chan1_n=$chan1_n,filt1_size=$filt1_size,filt1_3rdDim=$filt1_3rdDim,chan2_n=$chan2_n,filt2_size=$filt2_size,filt2_3rdDim=$filt2_3rdDim,chan3_n=$chan3_n,filt3_size=$filt3_size,filt3_3rdDim=$filt3_3rdDim,nb_epochs=$nb_epochs,thresh_rr=$thresh_rr,temporal_width=$temporal_width,bz_ms=$bz_ms cnn3d_launcher.sh)
+
+echo $JOB_ID
+JOB_ID=$(echo "$JOB_ID" | grep -Eo '[0-9]{1,6}')
+
+
+printf '%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t' $JOB_ID $EXP_DATE $thresh_rr $temporal_width $bz_ms $nb_epochs $chan1_n $filt1_size $filt1_3rdDim $chan2_n $filt2_size $filt2_3rdDim $chan3_n $filt3_size $filt3_3rdDim| paste -sd '\t' >> job_list.csv
