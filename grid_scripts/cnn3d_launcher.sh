@@ -5,8 +5,8 @@
 #SBATCH --time=30:00:00
 #SBATCH --gres=gpu:1 --cpus-per-task=2
 #SBATCH --mem-per-cpu=36000M
-#SBATCH -o $LOG_DIR/%j-out.txt
-#SBATCH -e $LOG_DIR/%j-error.txt
+#SBATCH -o logs/%j-out.txt
+#SBATCH -e logs/%j-error.txt
 
 
 
