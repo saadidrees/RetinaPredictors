@@ -3,8 +3,8 @@
 #SBATCH --job-name=CNN_3D
 #SBATCH --account=def-joelzy
 #SBATCH --time=30:00:00
-#SBATCH --gres=gpu:1 --cpus-per-task=2
-#SBATCH --mem-per-cpu=36000M
+#SBATCH --gres=gpu:1 --cpus-per-task=1
+#SBATCH --mem-per-cpu=24000M
 #SBATCH -o logs/%j-out.txt
 #SBATCH -e logs/%j-error.txt
 
