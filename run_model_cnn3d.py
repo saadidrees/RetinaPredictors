@@ -39,9 +39,27 @@ def run_model(expDate,runOnCluster=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000):
+                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1):
 
 
+    # expDate='20180502_s3'
+    # runOnCluster=0
+    # temporal_width=120
+    # thresh_rr=0.45
+    # chan1_n=13
+    # filt1_size=13
+    # filt1_3rdDim=20
+    # chan2_n=25
+    # filt2_size=13
+    # filt2_3rdDim=40
+    # chan3_n=25
+    # filt3_size=3
+    # filt3_3rdDim=62
+    # nb_epochs=100
+    # bz_ms=10000
+    # BatchNorm=1
+    # MaxPool=0
+    
     
     print('expDate: '+expDate)
     print('runOnCluster: '+str(runOnCluster))
@@ -65,9 +83,9 @@ def run_model(expDate,runOnCluster=0,
     
     if runOnCluster==1:
         #Cluster
-        path_dataset = os.path.join('/home/sidrees/scratch/dynamic_retina/data',expDate,'datasets')
-        path_save_performance = '/home/sidrees/scratch/dynamic_retina/models/cnn3d/performance_cnn3d'
-        path_model_save_base = os.path.join('/home/sidrees/scratch/dynamic_retina/data',expDate)
+        path_dataset = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate,'datasets')
+        path_save_performance = '/home/sidrees/scratch/RetinaPredictors/performance'
+        path_model_save_base = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate)
     else:
         # Local
         path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad',expDate,'datasets')
@@ -100,8 +118,19 @@ def run_model(expDate,runOnCluster=0,
     retinalReliability = np.round(np.nanmedian(fractionExplainableVariance_allUnits),2)
     
     # Model params
-    BatchNorm = True
-    MaxPool = True
+    
+    if BatchNorm:
+        bn_val=1
+        BatchNorm=True
+    else:
+        bn_val=0
+        BatchNorm=False
+    if MaxPool:
+        mp_val=1
+        MaxPool=True
+    else:
+        mp_val=0       
+        MaxPool=False
     
     # chan1_n = 8
     # filt1_size = 13
@@ -120,9 +149,10 @@ def run_model(expDate,runOnCluster=0,
     bz = math.ceil(bz_ms/t_frame)
     
     
-    fname_model = 'T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d' %(temporal_width,chan1_n,filt1_size,filt1_3rdDim,
+    fname_model = 'T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(temporal_width,chan1_n,filt1_size,filt1_3rdDim,
                                                                                  chan2_n,filt2_size,filt2_3rdDim,
-                                                                                 chan3_n,filt3_size,filt3_3rdDim)
+                                                                                 chan3_n,filt3_size,filt3_3rdDim,
+                                                                                 bn_val,mp_val)
     
     path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)
     
@@ -137,7 +167,7 @@ def run_model(expDate,runOnCluster=0,
     x = Input(shape=data_train.X.shape[1:])
     n_cells = data_train.y.shape[1]
     
-    mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm)
+    mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
     fname_excel = 'performance_'+fname_model+'.csv'
     print('-----RUNNING MODEL-----')
     mdl_history = train(mdl, data_train, data_val, fname_excel,counter_train,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = 5000,validation_freq=1000)
@@ -237,8 +267,8 @@ def run_model(expDate,runOnCluster=0,
     
 # %% Write performance to csv file
     print('-----WRITING TO CSV FILE-----')
-    csv_header = ['arg_unit','RR','Temp_filt','batch_size','epochs','chans','filt','temp','chans','filt','temp','chans','filt','temp','FEV_median']
-    csv_data = [thresh_rr,retinalReliability,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,fev_median_bestEpoch]
+    csv_header = ['arg_unit','RR','Temp_filt','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','FEV_median']
+    csv_data = [thresh_rr,retinalReliability,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,fev_median_bestEpoch]
     
     fname_csv_file = 'performance_'+expDate+'_'+mdl.name+'.csv'
     fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
@@ -251,8 +281,6 @@ def run_model(expDate,runOnCluster=0,
         csvwriter = csv.writer(csvfile) 
         csvwriter.writerow(csv_data) 
 
-    print('-----FINISHED-----')
-
     fname_validation_excel = os.path.join(path_save_model_performance,expDate+'_validation_'+fname_model+'.csv')
     csv_header = ['epoch','val_fev']
     with open(fname_validation_excel,'w',encoding='utf-8') as csvfile:
@@ -263,6 +291,8 @@ def run_model(expDate,runOnCluster=0,
             csvwriter.writerow([str(i),str(np.round(fev_median_allEpochs[i],2))]) 
         
         
+    print('-----FINISHED-----')
+
         
 if __name__ == "__main__":
     args = parser_run_model()

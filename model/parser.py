@@ -26,6 +26,8 @@ def parser_run_model():
     parser.add_argument('--nb_epochs',type=int,default=100)
     parser.add_argument('--bz_ms',type=int,default=10000)
     parser.add_argument('--runOnCluster',type=int,default=0)
+    parser.add_argument('--BatchNorm',type=int,default=1)
+    parser.add_argument('--MaxPool',type=int,default=1)
 
     args = parser.parse_args()
     

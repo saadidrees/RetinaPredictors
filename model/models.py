@@ -127,7 +127,7 @@ def cnn_inception(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=24, filt2_si
     mdl_name = 'CNN_inception'
     return Model(inputs, outputs, name=mdl_name)
 
-def cnn_3d(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True):
+def cnn_3d(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
     sigma = 0.1
     filt_temporal_width=inputs.shape[-1]
 
@@ -137,7 +137,8 @@ def cnn_3d(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25,
     y = Reshape((inputs.shape[1],n2, n1,filt_temporal_width))(BatchNormalization(axis=-1)(Flatten()(inputs)))
     # with tf.device(tf.DeviceSpec(device_type="GPU", device_index=0)):
     y = Conv3D(chan1_n, (filt1_size,filt1_size,filt1_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
-    y = MaxPool3D(2,data_format='channels_first')(y)
+    if MaxPool:
+        y = MaxPool3D(2,data_format='channels_first')(y)
     y = Activation('relu')(GaussianNoise(sigma)(y))
 
 
