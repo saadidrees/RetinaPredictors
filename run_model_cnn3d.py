@@ -143,7 +143,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     x = Input(shape=data_train.X.shape[1:])
     n_cells = data_train.y.shape[1]
 
-    if mdl_name == 'CNN_3d':       
+    if mdl_name == 'CNN_3D':       
         mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
         fname_model = 'T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(temporal_width,chan1_n,filt1_size,filt1_3rdDim,
                                                                                      chan2_n,filt2_size,filt2_3rdDim,
@@ -159,6 +159,8 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
         filt2_3rdDim=0
         filt3_3rdDim=0
 
+    else:
+        raise ValueError('Wrong model name')
     
     path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)
     
