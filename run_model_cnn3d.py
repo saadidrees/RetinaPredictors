@@ -74,7 +74,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d
     from model.performance import save_modelPerformance
     import model.metrics as metrics
-    from model.models import cnn_3d, cnn_2d
+    from model.models import cnn_3d, cnn_2d, cnn_3d_inception
     from model.train_model import train
     
     import gc
@@ -107,7 +107,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
 # Arrange data according to needs
     idx_unitsToTake = data_quality['dist_cc']>thresh_rr
     
-    if mdl_name == 'CNN_3D':
+    if mdl_name == 'CNN_3D' or mdl_name == 'CNN_3D_INCEP':
         data_train = prepare_data_cnn3d(data_train,temporal_width,idx_unitsToTake)
         data_test = prepare_data_cnn3d(data_test,temporal_width,idx_unitsToTake)
         data_val = prepare_data_cnn3d(data_val,temporal_width,idx_unitsToTake)
@@ -158,6 +158,13 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
         filt1_3rdDim=0
         filt2_3rdDim=0
         filt3_3rdDim=0
+        
+    elif mdl_name == 'CNN_3D_INCEP':       
+        mdl = cnn_3d_inception(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
+        fname_model = 'T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(temporal_width,chan1_n,filt1_size,filt1_3rdDim,
+                                                                                     chan2_n,filt2_size,filt2_3rdDim,
+                                                                                     chan3_n,filt3_size,filt3_3rdDim,
+                                                                                     bn_val,mp_val)
 
     else:
         raise ValueError('Wrong model name')

@@ -1,0 +1,17 @@
+expDate,mdl_name,path_model_save_base,thresh_rr,Temp_width,bz_ms,nb_epochs,chan1_n,fitl1_size,filt1_3rdDim,chans2_n,filt2_size,filt2_3rdDim,chan3_n,filt3_size,filt3_3rdDim,BatchNorm,MaxPool
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,5,40,25,11,5,25,4,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,5,40,25,11,21,0,0,0,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,60,25,7,1,25,4,1,1,1
+20180502_s3,CNN_3D_INCEP,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,40,25,7,5,25,3,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,40,25,11,16,25,3,6,1,0
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,40,25,11,5,25,3,17,1,0
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,9,40,25,9,5,25,3,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,8,9,40,25,9,5,25,3,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,45,25,7,3,25,3,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,45,25,7,5,25,3,4,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,40,25,7,5,25,3,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,40,13,7,5,25,3,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,59,25,7,1,25,3,1,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,80,10000,80,13,11,60,25,7,5,25,3,6,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,60,10000,80,13,11,40,25,7,1,25,3,10,1,1
+20180502_s3,CNN_3D,/home/sidrees/scratch/RetinaPredictors/data,0.15,80,10000,80,13,11,60,25,7,1,25,3,10,1,1

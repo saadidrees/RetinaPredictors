@@ -19,9 +19,9 @@ Created on Tue Mar 23 20:42:39 2021
 
 import tensorflow as tf
 from tensorflow.keras import Model, Sequential
-from tensorflow.keras.layers import Dense, Activation, Flatten, Reshape, ConvLSTM2D, LSTM, TimeDistributed, MaxPool3D, MaxPool2D, Concatenate, Permute, AveragePooling2D, AveragePooling3D, LayerNormalization
+from tensorflow.keras.layers import Dense, Activation, Flatten, Reshape, ConvLSTM2D, LSTM, TimeDistributed, MaxPool3D, MaxPool2D, Concatenate, Permute, AveragePooling2D, AveragePooling3D
 from tensorflow.keras.layers import Conv2D, Conv3D
-from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.layers import BatchNormalization, Dropout, concatenate
 from tensorflow.keras.layers import GaussianNoise
 from tensorflow.keras.regularizers import l1, l2
 import numpy as np
@@ -45,7 +45,6 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
     
     if MaxPool is True:
         y = MaxPool2D(2,data_format='channels_first')(y)
-        
     y = Activation('relu')(GaussianNoise(sigma)(y))
 
 
@@ -56,8 +55,7 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
             n2 = int(y.shape[-2])
             y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
             
-        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
-                   
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)                  
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
     # Third layer
@@ -67,12 +65,28 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
             n2 = int(y.shape[-2])
             y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
             
-        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
-        
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)       
         y = Activation('relu')(GaussianNoise(sigma)(y))
+        
+    # # Fourth layer
+    # if BatchNorm is True: 
+    #     n1 = int(y.shape[-1])
+    #     n2 = int(y.shape[-2])
+    #     y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    y = Conv2D(25, 3, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)   
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+
     
     # Dense layer
     y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    y = Activation('softplus')(y)
+
+    
+    # y = Flatten()(y)
     if BatchNorm is True: 
         y = BatchNormalization(axis=-1)(y)
     y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
@@ -84,7 +98,7 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
 
 def LSTM_alone(inputs, n_out, lstm_timeStep = 1, BatchNorm=True):
     y = Reshape((lstm_timeStep, inputs.shape[-1]))(BatchNormalization(axis=-1)(Flatten()(inputs)))
-    lstm_out = int(np.floor(n_out*2))
+    lstm_out = int(np.floor(n_out))
     y = LSTM(lstm_out,input_shape = y.shape, kernel_regularizer=l2(1e-3),activity_regularizer=l1(1e-3))(y)
     y = Activation('relu')(y)
     # outputs = Activation('softplus')(y)
@@ -168,6 +182,57 @@ def cnn_3d(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25,
         y = Conv3D(chan3_n, (filt3_size,filt3_size,filt3_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
         # y = MaxPool3D(2,data_format='channels_first')(y)
         y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # Dense layer
+    y = Flatten()(y)
+    y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+    
+    mdl_name = 'CNN_3D'
+    return Model(inputs, outputs, name=mdl_name)
+
+def cnn_3d_inception(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
+    sigma = 0.1
+    filt_temporal_width=inputs.shape[-1]
+
+    # first layer  
+    n1 = int(inputs.shape[-2])
+    n2 = int(inputs.shape[-3])
+    y = Reshape((inputs.shape[1],n2, n1,filt_temporal_width))(BatchNormalization(axis=-1)(Flatten()(inputs)))
+    # with tf.device(tf.DeviceSpec(device_type="GPU", device_index=0)):
+    y = Conv3D(chan1_n, (filt1_size,filt1_size,filt1_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    if MaxPool:
+        y = MaxPool3D(2,data_format='channels_first')(y)
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+
+
+    # second layer
+    if chan2_n>0:
+        n1 = int(y.shape[-2])
+        n2 = int(y.shape[-3])
+        y = Reshape((y.shape[1],y.shape[2], y.shape[3],y.shape[4]))(BatchNormalization(axis=-1)(Flatten()(y)))
+            
+        y = Conv3D(chan2_n, (filt2_size,filt2_size,filt2_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        # y = MaxPool3D(2,data_format='channels_first')(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+       
+    # Third layer
+    if chan3_n>0:
+        y = Reshape((y.shape[1],y.shape[2], y.shape[3],y.shape[4]))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Conv3D(chan3_n, (filt3_size,filt3_size,filt3_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        # y = MaxPool3D(2,data_format='channels_first')(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+        
+    # Inception layer  
+    n1 = int(inputs.shape[-2])
+    n2 = int(inputs.shape[-3])
+    y_i = Reshape((inputs.shape[1],n2, n1,filt_temporal_width))(BatchNormalization(axis=-1)(Flatten()(inputs)))
+    y_i = Conv3D(25, (30,41,filt_temporal_width), data_format="channels_first", kernel_regularizer=l2(1e-3))(y_i)
+    y_i = Activation('relu')(GaussianNoise(sigma)(y_i))
+    
+    y = concatenate([y,y_i],axis=1)
+    
     
     # Dense layer
     y = Flatten()(y)
