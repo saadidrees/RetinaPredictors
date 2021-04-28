@@ -11,7 +11,9 @@ def parser_run_model():
     parser = argparse.ArgumentParser()
     
     parser.add_argument('expDate',type=str)
-    
+    parser.add_argument('mdl_name',type=str)
+    parser.add_argument('path_model_save_base',type=str)
+    parser.add_argument('--saveToCSV',type=int,default=1)
     parser.add_argument('--temporal_width',type=int,default=40)
     parser.add_argument('--thresh_rr',type=str2int,default=0)
     parser.add_argument('--chan1_n',type=int,default=8)

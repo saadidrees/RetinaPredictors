@@ -19,7 +19,7 @@ Created on Tue Mar 23 20:42:39 2021
 
 import tensorflow as tf
 from tensorflow.keras import Model, Sequential
-from tensorflow.keras.layers import Dense, Activation, Flatten, Reshape, ConvLSTM2D, LSTM, TimeDistributed, MaxPool3D, MaxPool2D, Concatenate, Permute, AveragePooling2D, AveragePooling3D
+from tensorflow.keras.layers import Dense, Activation, Flatten, Reshape, ConvLSTM2D, LSTM, TimeDistributed, MaxPool3D, MaxPool2D, Concatenate, Permute, AveragePooling2D, AveragePooling3D, LayerNormalization
 from tensorflow.keras.layers import Conv2D, Conv3D
 from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import GaussianNoise
@@ -30,9 +30,7 @@ import numpy as np
 
 # Model definitions - Keras Models
 
-def cnn(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=24, filt2_size=13, BatchNorm=True):
-    """NIPS 2016 CNN Model"""
-    # injected noise strength
+def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, MaxPool=False):
     sigma = 0.1
     filt_temporal_width=inputs.shape[1]
 
@@ -44,7 +42,10 @@ def cnn(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=24, filt2_size=13, Bat
         y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     else:
         y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(inputs)
-    y = AveragePooling2D(2,data_format='channels_first')(y)
+    
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+        
     y = Activation('relu')(GaussianNoise(sigma)(y))
 
 
@@ -56,26 +57,35 @@ def cnn(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=24, filt2_size=13, Bat
             y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
             
         y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
-        y = AveragePooling2D(2,data_format='channels_first')(y)
+                   
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # Third layer
+    if chan3_n>0:
+        if BatchNorm is True: 
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+            
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        
         y = Activation('relu')(GaussianNoise(sigma)(y))
     
-    # third layer
+    # Dense layer
     y = Flatten()(y)
     if BatchNorm is True: 
         y = BatchNormalization(axis=-1)(y)
     y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
     outputs = Activation('softplus')(y)
 
-    if BatchNorm is True:
-        mdl_name = 'CNN_BN'
-    else:
-        mdl_name = 'CNN_ST'
+    mdl_name = 'CNN_2D'
     return Model(inputs, outputs, name=mdl_name)
 
 
-def LSTM_alone(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=24, filt2_size=13, lstm_timeStep = 1, BatchNorm=True):
+def LSTM_alone(inputs, n_out, lstm_timeStep = 1, BatchNorm=True):
     y = Reshape((lstm_timeStep, inputs.shape[-1]))(BatchNormalization(axis=-1)(Flatten()(inputs)))
-    y = LSTM(n_out,input_shape = y.shape, kernel_regularizer=l2(1e-3),activity_regularizer=l1(1e-3))(y)
+    lstm_out = int(np.floor(n_out*2))
+    y = LSTM(lstm_out,input_shape = y.shape, kernel_regularizer=l2(1e-3),activity_regularizer=l1(1e-3))(y)
     y = Activation('relu')(y)
     # outputs = Activation('softplus')(y)
     
