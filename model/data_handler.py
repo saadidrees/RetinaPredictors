@@ -294,6 +294,7 @@ def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,
     var_noise_dset_all = np.nanmean(var_rate_uniqueTrials,axis=0)
        
     rate_all = np.array([]).reshape(0,numCells) 
+    
     for s in dataset_rr_stims:
         for t in range(dataset_rr[s][dset_key].shape[0]):
             rgb = dataset_rr[s][dset_key][t,:,:]
@@ -301,14 +302,14 @@ def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,
     
     var_rate_dset_all = np.var(rate_all,axis=0) 
     fractionExplainableVariance_allUnits = (var_rate_dset_all - var_noise_dset_all)/var_rate_dset_all
-    retinalReliability = np.nanmean(fractionExplainableVariance_allUnits)
+    retinalReliability = np.nanmedian(fractionExplainableVariance_allUnits)
 
     data_quality = {
         'retinalReliability': retinalReliability,
         'dist_cc': dist_cc_meanAcrossStims,         # old metric for compatibility
         'uname_selectedUnits': uname_unitsToTake,   # old metric for compatibility
         'idx_unitsToTake': idx_unitsToTake,         # old metric for compatibility
-        'fractionExplainableVariance_allUnits': fractionExplainableVariance_allUnits,
+        'fractionExplainableVariance_allUnits': fractionExplainableVariance_allUnits,   # This is for all the units!
         'retinalReliability': retinalReliability,
         'var_noise_dset_all': var_noise_dset_all
         }

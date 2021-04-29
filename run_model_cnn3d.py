@@ -117,10 +117,9 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
         data_val = prepare_data_cnn2d(data_val,temporal_width,idx_unitsToTake)       
     
     t_frame = parameters['t_frame']
-    unit_noise = data_quality['var_noise_dset_all'][idx_unitsToTake]
     
     # retinal reliability
-    fractionExplainableVariance_allUnits = (data_quality['fractionExplainableVariance_allUnits'][idx_unitsToTake] - unit_noise) / data_quality['fractionExplainableVariance_allUnits'][idx_unitsToTake]
+    fractionExplainableVariance_allUnits = data_quality['fractionExplainableVariance_allUnits'][idx_unitsToTake]
     retinalReliability = np.round(np.nanmedian(fractionExplainableVariance_allUnits),2)
     
     
