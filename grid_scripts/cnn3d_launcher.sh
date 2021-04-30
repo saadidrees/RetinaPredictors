@@ -25,4 +25,4 @@ pip install --no-index scipy matplotlib tensorflow_gpu
 
 
 
-python run_model_cnn3d.py $expDate $mdl_name $path_model_save_base --runOnCluster=$runOnCluster --chan1_n=$chan1_n --filt1_size=$filt1_size --filt1_3rdDim=$filt1_3rdDim --chan2_n=$chan2_n --filt2_size=$filt2_size --filt2_3rdDim=$filt2_3rdDim --chan3_n=$chan3_n --filt3_size=$filt3_size --filt3_3rdDim=$filt3_3rdDim --nb_epochs=$nb_epochs --thresh_rr=$thresh_rr --temporal_width=$temporal_width --bz_ms=$bz_ms --BatchNorm=$BatchNorm --MaxPool=$MaxPool
+python run_model_cnn3d.py $expDate $mdl_name $path_model_save_base --runOnCluster=$runOnCluster --chan1_n=$chan1_n --filt1_size=$filt1_size --filt1_3rdDim=$filt1_3rdDim --chan2_n=$chan2_n --filt2_size=$filt2_size --filt2_3rdDim=$filt2_3rdDim --chan3_n=$chan3_n --filt3_size=$filt3_size --filt3_3rdDim=$filt3_3rdDim --nb_epochs=$nb_epochs --thresh_rr=$thresh_rr --temporal_width=$temporal_width --bz_ms=$bz_ms --BatchNorm=$BatchNorm --MaxPool=$MaxPool --c_trial=$c_trial

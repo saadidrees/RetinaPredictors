@@ -19,7 +19,7 @@ thresh_rr=0.15
 chan1_n=13
 filt1_size=11
 filt1_3rdDim=0
-chan2_n=25
+chan2_n=13
 filt2_size=7
 filt2_3rdDim=0
 chan3_n=25
@@ -31,6 +31,7 @@ BatchNorm=1
 MaxPool=1
 saveToCSV=1
 runOnCluster=0
+c_trial=1
 
 path_model_save_base = os.path.join('/home/saad/data/analyses/data_saad',expDate)
 
@@ -39,7 +40,5 @@ model_performance = run_model(expDate,mdl_name,path_model_save_base,saveToCSV=sa
                     chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                     chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                     chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
-                    nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,MaxPool=MaxPool)
+                    nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,MaxPool=MaxPool,c_trial=c_trial)
     
-
-# %% Feed in output to another model
