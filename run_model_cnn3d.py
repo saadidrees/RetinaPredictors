@@ -119,6 +119,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     t_frame = parameters['t_frame']
     
     # retinal reliability
+    unit_noise = data_quality['var_noise_dset_all'][idx_unitsToTake]
     fractionExplainableVariance_allUnits = data_quality['fractionExplainableVariance_allUnits'][idx_unitsToTake]
     retinalReliability = np.round(np.nanmedian(fractionExplainableVariance_allUnits),2)
     
