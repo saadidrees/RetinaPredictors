@@ -16,7 +16,8 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1):
+                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1,
+                            path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 
     # mdl_name = 'CNN_3D'
@@ -52,8 +53,8 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     print('chan3_n: '+str(chan3_n))
     print('filt3_size: '+str(filt3_size))
     print('filt3_3rdDim: '+str(filt3_3rdDim))   
-    print('nb_epochs: '+str(filt3_size))
-    print('bz_ms: '+str(filt3_3rdDim))   
+    print('nb_epochs: '+str(nb_epochs))
+    print('bz_ms: '+str(bz_ms))   
     
 
     import numpy as np
@@ -64,7 +65,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     import tensorflow as tf
     config = tf.compat.v1.ConfigProto(log_device_placement=True)
     config.gpu_options.allow_growth = True
-    # config.gpu_options.per_process_gpu_memory_fraction = .9
+    config.gpu_options.per_process_gpu_memory_fraction = .9
     tf.compat.v1.Session(config=config)
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -91,7 +92,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
         # path_model_save_base = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate)
     else:
         # Local
-        path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad',expDate,'datasets')
+        path_dataset = os.path.join(path_dataset_base,expDate,'datasets')
         path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
         # path_model_save_base = os.path.join('/home/saad/data/analyses/data_saad',expDate)
     
@@ -106,6 +107,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     
 # Arrange data according to needs
     idx_unitsToTake = data_quality['dist_cc']>thresh_rr
+    idx_unitsToTake
     
     if mdl_name == 'CNN_3D' or mdl_name == 'CNN_3D_INCEP':
         data_train = prepare_data_cnn3d(data_train,temporal_width,idx_unitsToTake)

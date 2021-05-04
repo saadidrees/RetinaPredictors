@@ -35,311 +35,144 @@ models_list = []
 
 
 # perf_allModels_allExps = np.empty(len(expDates),dtype='object')
-perf_allModels_allExps = {}
-data_val = {}
 
 
     
 # %
+perf_allExps = {}
 for idx_exp in range(len(expDates)):
     perf_allModels = {}
-    fname_performanceFile = expDates[idx_exp]+postFix_file
-    f = h5py.File(os.path.join(path_base,fname_performanceFile),'r')
-    fname_performanceFile_rr = expDates[idx_exp]+postFix_file_rr
-    f_rr = h5py.File(os.path.join(path_base_rr,fname_performanceFile_rr),'r')
-    modelsInFile = f.keys()
-    for m in modelsInFile:
-        level1_keys = m
-        level2_keys = list(f[level1_keys].keys())
+    exp_select = expDates[idx_exp]
+    for mdl_select in models_all:
+        paramNames = os.listdir(os.path.join(path_mdl_drive,exp_select,mdl_select))
         
-        perf_chan = {}
-        select_groups = ('model_performance','data_quality','model_params','stim_info')
-        for c in level2_keys[:-1]:
+        perf_paramNames = {}
+        
+        for param_select in paramNames:
+            paramName_path = os.path.join(path_mdl_drive,exp_select,mdl_select,param_select)
+            fname_performanceFile = os.path.join(paramName_path,'performance',exp_select+'_'+param_select+'.h5')
+    
+            f = h5py.File(fname_performanceFile,'r')
+        
+            select_groups = ('model_performance','model_params','data_quality')
+            
             performance = {}
 
             for j in select_groups:
+                perf_group = {}
                 
-                level3_keys = list(f[m][c][j].keys())
+                keys = list(f[j].keys())
                 
-                for i in level3_keys:
-                    data_key = m+'/'+c+'/'+j+'/'+i
-                    rgb = np.array(f[data_key])
+                for i in keys:
+                    rgb = np.array(f[j][i])
                     rgb_type = rgb.dtype.name
                        
                     if 'bytes' in rgb_type:
-                        performance[i] = utils_si.h5_tostring(rgb)
+                        perf_group[i] = utils_si.h5_tostring(rgb)
                     else:
-                        performance[i] = rgb
-                        
+                        perf_group[i] = rgb
+                
+                performance[j] = perf_group
+            performance['model_params']['thresh_rr'] = np.array(f['thresh_rr'])
+            performance['model_params']['idx_unitsToTake'] = np.array(f['idx_unitsToTake'])
             
+            # dataset_pred = {
+            #     'obs_rate': np.array(f['dataset_pred']['obs_rate']),
+            #     'pred_rate': np.array(f['dataset_pred']['pred_rate'])
+            #     }
+            # performance['dataset_pred'] = dataset_pred
+            perf_paramNames[param_select] = performance
             
-            perf_chan[c] = performance
-        perf_chan['data_test'] = np.array(f[m]['val_test_data']['data_test_y'])
-        perf_chan['data_val'] = np.array(f[m]['val_test_data']['data_val_y'])
+        perf_allModels[mdl_select] = perf_paramNames
         
-        
-        select_groups = ('dataset_rr')
-        level3_keys = list(f_rr[m]['C1-15_C2-25'][select_groups].keys())
-        temp_1 = {}
-        for i in level3_keys:
-            key_name = f_rr[m]['C1-15_C2-25'][select_groups][i]
-            level4_keys = list(f_rr[m]['C1-15_C2-25'][select_groups][i].keys())
-            
-            temp_2 = {}
-
-            for d in level4_keys:
-                data_key = m+'/'+'C1-15_C2-25'+'/'+select_groups+'/'+i+'/'+d
-            
-                rgb = np.array(f_rr[data_key])
-                temp_2[d] = rgb
-            temp_1[i] = temp_2
-        perf_chan['dataset_rr'] = temp_1
-        
-        perf_allModels[m] = perf_chan
-        models_list.append(m)
-        # units_all = utils_si.h5_tostring(units_all)
-        
+    perf_allExps[exp_select] = perf_allModels       
     f.close()
-    f_rr.close()
-    perf_allModels_allExps[expDates[idx_exp]] = perf_allModels
     
-    data_val[expDates[idx_exp]] = load_test_data(os.path.join(path_base,fname_performanceFile))
-
-
-
-c1_list = np.empty(len(level2_keys[:-1]))
-c2_list = np.empty(len(level2_keys[:-1]))
-
-for i in range(len(level2_keys[:-1])):
-    c1_list[i] = int(re.findall("C1-(\d*)",level2_keys[i])[0])
-    c2_list[i] = int(re.findall("C2-(\d*)",level2_keys[i])[0])
-
-c1_list = np.unique(c1_list).astype('int32')
-c2_list = np.unique(c2_list).astype('int32')    
+del perf_allModels, perf_paramNames, performance, perf_group
 
 # %% Correlation Coefficient
 
-select_chan1 = 15
-select_chan2 = 25
+thresh_rr = 0.15
+thresh_fev = 0.8
 
-stats_allExps_allModels_allParams = {}
 
-stats_retina = {} 
+exp_select = ('20180502_s3',)
+mdl_select = ('CNN_3D','CNN_2D')
+thresh_rr_select = 0.15
 
-for exp_select_idx in range(len(expDates)):
 
+fontsize_title = 16
+font_size_ticks = 18
+fig,axs = plt.subplots(1,1,figsize=(50,10))
+axs = np.atleast_1d(axs)
+fig.suptitle('FEV',fontsize=fontsize_title)
+
+exp_select_idx = -1
+for e in exp_select:
+    exp_select_idx+=1
+    
+    fev_median_all = np.zeros((100))
+    fev_ci_all = np.zeros((100))
+    
+    mdl_labels = ['ExplainableVariance']
+    
+    counter=-1
+    
+    for m in mdl_select:
+        rgb = list(perf_allExps[e][m].keys())
+        param_key = re.compile('U-'+str(thresh_rr_select)+'_')
+        paramNames_idxs = [i for i, item in enumerate(rgb) if re.match(param_key, item)]
+        paramNames = [rgb[i] for i in paramNames_idxs]
         
-    exp_select = expDates[exp_select_idx]
-
-
-
-    dataset_rr = perf_allModels_allExps[exp_select][models_list[0]]['dataset_rr']
-    dataset_rr_stims = list(dataset_rr.keys())
-    numUnits = dataset_rr[dataset_rr_stims[0]]['val'].shape[-1]
-
-   
-    # Validation data
-    var_rate_uniqueTrials = np.array([]).reshape(0,numUnits)    # cells correspond to different repeats; unique stimulis has been concatenated below  
-    dset_key = 'val'
-    for s in dataset_rr_stims:
-        rate_sameStim_trials = dataset_rr[s][dset_key]
-        rate_sameStim_avgTrials = np.nanmean(rate_sameStim_trials,axis=0)
-        
-        rate_avgTrials_sub = rate_sameStim_trials - rate_sameStim_avgTrials[None,:,:]
-        var_sameStims = np.mean(rate_avgTrials_sub**2,axis=0)
-        
-        var_rate_uniqueTrials = np.concatenate((var_rate_uniqueTrials,var_sameStims),axis=0)
-    
-    var_noise_dset_val = np.nanmean(var_rate_uniqueTrials,axis=0)
-    
-    
-    rate_all = np.array([]).reshape(0,numUnits) 
-    for s in dataset_rr_stims:
-        for t in range(dataset_rr[s][dset_key].shape[0]):
-            rgb = dataset_rr[s][dset_key][t,:,:]
-            rate_all = np.vstack((rate_all,rgb))
-    
-    var_rate_dset_val = np.var(rate_all,axis=0) 
-    
-    # Test data
-    var_rate_uniqueTrials = np.array([]).reshape(0,numUnits)    # cells correspond to different repeats; unique stimulis has been concatenated below  
-    dset_key = 'test'
-    for s in dataset_rr_stims:
-        rate_sameStim_trials = dataset_rr[s][dset_key]
-        rate_sameStim_avgTrials = np.nanmean(rate_sameStim_trials,axis=0)
-        
-        rate_avgTrials_sub = rate_sameStim_trials - rate_sameStim_avgTrials[None,:,:]
-        var_sameStims = np.mean(rate_avgTrials_sub**2,axis=0)
-        
-        var_rate_uniqueTrials = np.concatenate((var_rate_uniqueTrials,var_sameStims),axis=0)
-    
-    var_noise_dset_test = np.nanmean(var_rate_uniqueTrials,axis=0)
-    
-    
-    rate_all = np.array([]).reshape(0,numUnits) 
-    for s in dataset_rr_stims:
-        for t in range(dataset_rr[s][dset_key].shape[0]):
-            rgb = dataset_rr[s][dset_key][t,:,:]
-            rate_all = np.vstack((rate_all,rgb))
-    
-    var_rate_dset_test = np.var(rate_all,axis=0) 
-
-
-    # All data
-    var_rate_uniqueTrials = np.array([]).reshape(0,numUnits)    # cells correspond to different repeats; unique stimulis has been concatenated below  
-    dset_key = 'test_val_train'
-    for s in dataset_rr_stims:
-        rate_sameStim_trials = dataset_rr[s][dset_key]
-        rate_sameStim_avgTrials = np.nanmean(rate_sameStim_trials,axis=0)
-        
-        rate_avgTrials_sub = rate_sameStim_trials - rate_sameStim_avgTrials[None,:,:]
-        var_sameStims = np.mean(rate_avgTrials_sub**2,axis=0)
-        
-        var_rate_uniqueTrials = np.concatenate((var_rate_uniqueTrials,var_sameStims),axis=0)
-    
-    var_noise_dset_all = np.nanmean(var_rate_uniqueTrials,axis=0)
-       
-    rate_all = np.array([]).reshape(0,numUnits) 
-    for s in dataset_rr_stims:
-        for t in range(dataset_rr[s][dset_key].shape[0]):
-            rgb = dataset_rr[s][dset_key][t,:,:]
-            rate_all = np.vstack((rate_all,rgb))
-    
-    var_rate_dset_all = np.var(rate_all,axis=0) 
-                            
-
-    RR_bp_dset_val = (var_rate_dset_val - var_noise_dset_val)/var_rate_dset_val 
-    RR_bp_dset_test = (var_rate_dset_test - var_noise_dset_test)/var_rate_dset_test
-    RR_bp_dset_all = (var_rate_dset_all - var_noise_dset_all)/var_rate_dset_all
-             
-
-    dict_keys = ['numUnits',
-                 'var_noise_dset_val','var_rate_dset_val','RR_bp_dset_val',
-                 'var_noise_dset_test','var_rate_dset_test','RR_bp_dset_test',
-                 'var_noise_dset_all','var_rate_dset_all','RR_bp_dset_all',]    
-    rgb1 = {}
-    for variable in dict_keys:
-        rgb1[variable] = eval(variable)
-
-    stats_retina[exp_select] = rgb1
-
-
-    stats_allModels_allParams = {}
-
-    for mdl_select in models_list:
-        rgb2 = {}
-
-        for select_chan1 in c1_list:
-            for select_chan2 in c2_list:
-                code_chans = 'C1-%02d_C2-%02d' %(select_chan1,select_chan2)
-          
-                
-                dset_select = 'val'
-                dset_noise_select = 'all'
-                
-                cc_allTrials_allUnits = perf_allModels_allExps[expDates[exp_select_idx]][mdl_select][code_chans]['allTrials_allUnits_cc']
-                cc_meanTrials_allUnits = np.mean(cc_allTrials_allUnits,axis=0)
-                cc_meanTrials_meanUnits = np.around(np.mean(cc_meanTrials_allUnits),2)
-                cc_std_acrossUnits = np.around(np.std(cc_meanTrials_allUnits),2)
-                cc_sem_acrossUnits = np.round(np.std(cc_meanTrials_allUnits)/cc_meanTrials_allUnits.shape[0],3)
-                
-                numUnits = cc_meanTrials_allUnits.shape[0]
-                rgb = perf_allModels_allExps[expDates[exp_select_idx]][mdl_select][code_chans]['data_test_allTrials_allUnits_cc']
-                idx_bestTrial = np.argsort(np.mean(rgb,axis=1))[-1]
-                cc_bestTrials_allUnits_allExps = perf_allModels_allExps[expDates[exp_select_idx]][mdl_select][code_chans]['allTrials_allUnits_cc'][idx_bestTrial,:]
-                
-                # data_pred = perf_allModels_allExps[expDates[exp_select_idx]][mdl_select][code_chans]['predictions_'+dset_select+'_allTrials'][:,:,idx_bestTrial]
-                # data_test = perf_allModels_allExps[expDates[exp_select_idx]][mdl_select]['data_'+dset_select]
-                
-                idx_minLoss = perf_allModels_allExps[expDates[exp_select_idx]][mdl_select][code_chans]['allTrials_idx_minLoss'][idx_bestTrial]
-                mdl_fname = mdl_select+'_TRIAL-%02d_T-040_C1-%02d_F1-13_C2-%02d_F2-13_B-10000' %(idx_bestTrial,select_chan1,select_chan2)
-                mdl_file = os.path.join(path_mdl_drive,exp_select,'model_data_paramSearch',mdl_fname)
-                fname_bestWeights = 'weights_'+mdl_fname+'_epoch-%03d.h5' %idx_minLoss
-                 
-                mdl = load(mdl_file)
-                mdl.compile(loss='poisson', metrics=[metrics.cc, metrics.rmse, metrics.fev])
-                mdl.load_weights(os.path.join(path_mdl_drive,exp_select,'model_data_paramSearch',fname_bestWeights))
+        for i in range(len(paramNames_idxs)):
+            p = paramNames[i]
+            counter+=1
             
-                data_pred = mdl.predict(data_val[exp_select][mdl_select]['stim'])
-                data_test = data_val[exp_select][mdl_select]['resp']
+            idx_origUnitsToTake = perf_allExps[e][m][p]['model_params']['idx_unitsToTake']
+            dist_cc = perf_allExps[e][m][p]['data_quality']['dist_cc'][idx_origUnitsToTake]
+            
+            fracExplainableVar_allUnits = perf_allExps[e][m][p]['data_quality']['fractionExplainableVariance_allUnits'][idx_origUnitsToTake]
+            
+            idx_unitsToTake = dist_cc>thresh_rr
+            # idx_unitsToTake = fracExplainableVar_allUnits>thresh_fev
+            fracExplainableVar = fracExplainableVar_allUnits[idx_unitsToTake]
+            
+            
+            fev = perf_allExps[e][m][p]['model_performance']['fev_allUnits_bestEpoch'][idx_unitsToTake]
+            fev_median = np.nanmedian(fev)
+            fev_std = np.nanstd(fev)
+            fev_ci = 1.96*(fev_std/fev.shape[0]**.5)
+            
+            fev_median_all[counter] =  np.nanmedian(fev)
+            fev_std = np.std(fev)
+            fev_ci_all[counter] = fev_ci
+            
+            mdl_labels.append(m+'_'+str(paramNames_idxs[i]))
+            
 
-                 
-                resid = data_test - data_pred
-                mse_resid = np.mean(resid**2,axis=0)
-                var_resid = np.var(resid)
-                var_test = np.var(data_test,axis=0)
-                var_noise = stats_retina[exp_select]['var_noise_dset_'+dset_noise_select]
-                fev = 1 - ((mse_resid - var_noise)/(var_test-var_noise))
-                fev_mean = np.mean(fev)
-                fev_std = np.std(fev)
-        
-                
-                dict_keys = ['cc_allTrials_allUnits','cc_meanTrials_allUnits','cc_meanTrials_meanUnits','cc_std_acrossUnits','cc_sem_acrossUnits',
-                             'numUnits','idx_bestTrial','cc_bestTrials_allUnits_allExps','fev','fev_mean','fev_std',
-                             'data_pred','data_test']
-                rgb1 = {}
-                for variable in dict_keys:
-                    rgb1[variable] = eval(variable)
-                    
-                rgb2[code_chans] = rgb1
-        
-        stats_allModels_allParams[mdl_select] = rgb2   
-        
-        del cc_allTrials_allUnits, cc_meanTrials_allUnits, cc_meanTrials_meanUnits, cc_std_acrossUnits, cc_sem_acrossUnits
+            
+    fev_median_all = fev_median_all[:counter+1]
+    fev_ci_all = fev_ci_all[:counter+1]
     
-    stats_allExps_allModels_allParams[exp_select] = stats_allModels_allParams
-
-
-
-# %% Plot heatmaps
-select_exp = '20180502_s3'
-select_thresh_rr= .1
-fev_allModels_allExps = {}
-fev_allModels_meanExps = {}
-
-for select_mdl in models_list:
-    fev_allExps = {}
-    fev_chans_meanExps = np.zeros((len(c1_list),len(c2_list)))
-
-    for select_exp in expDates:
-        idx_unitsToTake = stats_retina[select_exp]['RR_bp_dset_all'] > 0.5
-        fev_chans = np.empty((len(c1_list),len(c2_list)))
-        for ctr_c1 in range(len(c1_list)):
-            for ctr_c2 in range(len(c2_list)):
-                
-                
-                chan_key = 'C1-%02d_C2-%02d' %(c1_list[ctr_c1],c2_list[ctr_c2])
-                rgb = stats_allExps_allModels_allParams[select_exp][select_mdl][chan_key]
-                rgb_allUnits_fev = rgb['fev'][idx_unitsToTake]
-                fev_mean = np.mean(rgb_allUnits_fev)
-                
-                fev_chans[ctr_c1,ctr_c2] = fev_mean
-        
-        fev_chans_meanExps = fev_chans_meanExps + fev_chans
-        fev_allExps[select_exp] = np.round(fev_chans,2)
-        
-
+    fracExplainableVar_median = np.atleast_1d(np.median(fracExplainableVar))
+    fracExplainableVar_std = np.nanstd(fracExplainableVar)
+    fracExplainableVar_ci = np.atleast_1d(1.96*(fracExplainableVar_std/fracExplainableVar.shape[0]**.5))
     
-    fev_allModels_allExps[select_mdl] = fev_allExps
-    fev_allModels_meanExps[select_mdl] = np.round(fev_chans_meanExps,2)
-    # cc_allModels_meanExps[select_mdl] = cc_chans_meanExps
-
-
-
-    fig,axs = plt.subplots(1,1)
-    color_map = plt.cm.get_cmap('hot')
-    reversed_color_map = color_map.reversed()
-    im = axs.imshow(fev_allModels_meanExps[select_mdl],cmap=reversed_color_map)
-    # axs[0].set_yticklabels(['6','7','8','9','10','11','12','14','15','16'])
-    axs.set_yticks(range(0,len(c1_list)))
-    axs.set_yticklabels(c1_list)
-    axs.set_xticks(range(0,len(c2_list)))
-    axs.set_xticklabels(c2_list)
-    axs.set_xlabel('# chans in layer 2')
-    axs.set_ylabel('# chans in layer 1')
-    axs.set_title(select_mdl)
+    idx_bestModel = np.argmax(fev_median_all)
+    fev_bestModel = np.round(fev_median_all[idx_bestModel],2)
     
-    fig.colorbar(im)
+         
+    fev = np.concatenate((fracExplainableVar_median,fev_median_all),axis=0)
+    ci = np.concatenate((fracExplainableVar_ci,fev_ci_all),axis=0)
+    
+    # ax.yaxis.grid(True)
+    axs[exp_select_idx].bar(mdl_labels,fev,yerr=ci,align='center',capsize=6,alpha=.7)
+    axs[exp_select_idx].plot([0,fev.shape[0]],[fev_bestModel,fev_bestModel])
+    axs[exp_select_idx].set_ylabel('FEV',fontsize=font_size_ticks)
+    axs[exp_select_idx].set_title('Exp: ' + e,fontsize=font_size_ticks)
+    axs[exp_select_idx].set_ylim((0,0.9))
+    axs[exp_select_idx].tick_params(axis='both',labelsize=font_size_ticks)
+
 
 # %% plots - Best trials
 

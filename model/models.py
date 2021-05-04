@@ -72,10 +72,9 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
     # if BatchNorm is True: 
     #     n1 = int(y.shape[-1])
     #     n2 = int(y.shape[-2])
-    #     y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
-        
-    y = Conv2D(25, 3, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)   
-    y = Activation('relu')(GaussianNoise(sigma)(y))
+    #     y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))       
+    # y = Conv2D(25, 3, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)   
+    # y = Activation('relu')(GaussianNoise(sigma)(y))
 
     
     # Dense layer
@@ -346,3 +345,4 @@ def convLSTM(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=24, filt2_size=13
     mdl_name = 'convLSTM'
     
     return Model(inputs, outputs, name=mdl_name)
+

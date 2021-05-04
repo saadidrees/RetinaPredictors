@@ -12,30 +12,31 @@ import os
 
 from run_model_cnn3d import run_model
 
-expDate = '20180502_s3'
+expDate = 'retina1'
 mdl_name = 'CNN_2D'
 temporal_width=60
 thresh_rr=0.15
 chan1_n=13
-filt1_size=11
+filt1_size=7
 filt1_3rdDim=0
 chan2_n=13
-filt2_size=7
+filt2_size=3
 filt2_3rdDim=0
 chan3_n=25
-filt3_size=3
+filt3_size=2
 filt3_3rdDim=0
-nb_epochs=80
+nb_epochs=150
 bz_ms=10000
 BatchNorm=1
-MaxPool=1
+MaxPool=0
 saveToCSV=1
 runOnCluster=0
 c_trial=1
 
-path_model_save_base = os.path.join('/home/saad/data/analyses/data_saad',expDate)
+path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate)
+path_dataset_base = os.path.join('/home/saad/data/Dropbox/postdoc/analyses/data_kiersten')
 
-model_performance = run_model(expDate,mdl_name,path_model_save_base,saveToCSV=saveToCSV,runOnCluster=0,
+model_performance = run_model(expDate,mdl_name,path_model_save_base,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
                     temporal_width=temporal_width, thresh_rr=thresh_rr,
                     chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                     chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
