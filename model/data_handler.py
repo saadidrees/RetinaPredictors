@@ -573,8 +573,9 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
         'idx_unitsToTake': idx_unitsToTake,         # old metric for compatibility
         'fractionExplainableVariance_allUnits': fractionExplainableVariance_allUnits,
         'fractionExplainableVariance_allUnits_m2': fractionExplainableVariance_allUnits_method2,
+        'fractionExplainableVariance_allUnits_m2_allTrials': fractionExplainableVariance_allUnits_allTrials,        
         'var_noise_dset_all': var_noise_dset_all,
-        'var_noise_dset_m2': var_noise_dset_allTrials
+        'var_noise_dset_m2_allTrials': var_noise_dset_allTrials
         }
     print('Retinal Reliability - m1: '+str(np.round(retinalReliability,2)))
     print('Retinal Reliability - m2: '+str(np.round(retinalReliability_method2,2)))
