@@ -13,6 +13,7 @@ import math
 from scipy.stats import zscore
 from collections import namedtuple
 from model import utils_si
+from model.performance import model_evaluate
 
 
 def rolling_window(array, window, time_axis=0):
@@ -74,8 +75,9 @@ def rolling_window(array, window, time_axis=0):
         return array
                 
 def unroll_data(data,time_axis=0,rolled_axis=1):
-    rgb = data[0,0:,:]
+    rgb = data[0]
     rgb = np.concatenate((rgb,data[1:,data.shape[1]-1,:]),axis=0)
+    # rgb = np.concatenate((rgb,data[-1:,0,:]),axis=0)
     return rgb
         
 def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,idx_cells=None,thresh_rr=0.45):
@@ -395,7 +397,7 @@ def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,
     else:
         return data_train,data_val,data_test,data_quality,dataset_rr
 
-def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,idx_cells=None,thresh_rr=0.15):
+def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15):
     
     # Data
     t_start = 0    # of frames to skip in the begining of stim file (each frame is 16 or 17 ms)   
@@ -408,11 +410,11 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
     units_all = np.array(f['/units'])
     units_all = utils_si.h5_tostring(units_all)
     
-    if idx_cells is None:
+    if idx_cells_orig is None:
         idx_cells_temp = np.array([np.arange(len(units_all))])
         idx_cells = idx_cells_temp[0,:]
     else:
-        idx_cells = idx_cells
+        idx_cells = idx_cells_orig
 
     
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
@@ -426,15 +428,20 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
         
         # stim info
         code_stim = '/'+data_key+'/'+s
-        stim_len = np.array(f[code_stim+'/spikeRate']).shape[0]
+        stim_len = np.array(f[code_stim+'/spikeRate']).shape[0]        
         idx_time = np.arange(t_start,stim_len)
-         
+          
         # firing rates
-        resp = np.array(f[code_stim+'/spikeRate'])[idx_time,idx_cells_temp.T]
-        resp = resp.T
-        
+        resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
+        # resp = resp.T
+        if resp.ndim == 2:
+            resp = resp[:,idx_cells]
+            resp = resp[filt_temporal_width:]
+
         if resp.ndim > 2:
-            resp = np.moveaxis(resp,0,-1)
+            resp = resp[filt_temporal_width:]
+            # resp = np.moveaxis(resp,-1,0)
+            resp = resp[:,idx_cells,:]
         
         # spikeCounts = np.array(f[code_stim+'/spikeCounts'])[idx_time,idx_cells.T]
         # spikeCounts = spikeCounts.T    
@@ -446,41 +453,39 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
         num_CB_y = f[code_stim+'/stim_frames'].attrs['num_checkers_y']   # cb_info['steps_y'][0][0]
         
         stim = np.reshape(stim,(stim.shape[0],num_CB_y,num_CB_x),order='F')       
-        stim = zscore(stim)
+        # stim = zscore(stim)
         stim = rolling_window(stim,filt_temporal_width,time_axis=0) 
         
-        resp = resp[filt_temporal_width:]
+        
         # spikeCounts = spikeCounts[filt_temporal_width:,:]
         # total_spikeCounts = total_spikeCounts + np.sum(spikeCounts,axis=0)
     
         
         resp_norm = np.empty(resp.shape)
         
-        if resp_norm.ndim < 3:
+        if s == 'train': #resp_norm.ndim < 3:       Calculate the median based on training data and later apply that to test data
             resp_median = np.empty(resp.shape[1])
             for i in range(0,resp.shape[1]):
                 rgb = resp[:,i]
                 rgb[rgb==0] = np.nan
                 resp_median[i] = np.nanmedian(rgb)
+                
                 temp = resp[:,i]/resp_median[i]
                 temp[np.isnan(temp)] = 0
                 resp_norm[:,i] = temp
             
         else:
-            resp_median = np.empty((resp.shape[1],resp.shape[2]))
-            for j in range(0, resp.shape[2]):
-                for i in range(0,resp.shape[1]):
-                    rgb = resp[:,i,j]
-                    rgb[rgb==0] = np.nan
-                    resp_median[i,j] = np.nanmedian(rgb)
-                    temp = resp[:,i,j]/resp_median[i,j]
-                    temp[np.isnan(temp)] = 0
-                    resp_norm[:,i,j] = temp
+            # resp_median = np.empty((resp.shape[1],resp.shape[2]))
+            # for j in range(0, resp.shape[2]):
+            #     for i in range(0,resp.shape[1]):
+            #         rgb = resp[:,i,j]
+            #         rgb[rgb==0] = np.nan
+            #         resp_median[i,j] = np.nanmedian(rgb)
+            temp = resp/resp_median[None,:,None]
+            temp[np.isnan(temp)] = 0
+            resp_norm = temp
 
-        
-         
-        # train_stim = stim
-        # train_resp_norm = resp_norm
+            
         datasets[s] = Exptdata(stim, resp_norm)
         
     f.close()
@@ -494,18 +499,23 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
     # stim_unique = np.unique(datasets['train'].X,axis=0)
     
     # select only cells where we wont have so many zero spikerate in a batch   
-    rgb = np.sum(datasets['train'].y,axis=0)
-    thresh = 0.75*np.median(rgb)
-    idx_unitsToTake = np.arange(len(units_all))
-    idx_unitsToTake = idx_unitsToTake[rgb>thresh]
-    units_all = units_all[idx_unitsToTake]
+    if idx_cells_orig is None:
+        rgb = np.sum(datasets['train'].y,axis=0)
+        thresh = 0.75*np.median(rgb)
+        idx_unitsToTake = np.arange(len(units_all))
+        idx_unitsToTake = idx_unitsToTake[rgb>thresh]
+        units_all = units_all[idx_unitsToTake]
+    else:
+        idx_unitsToTake = idx_cells
+        units_all = units_all[idx_unitsToTake]
+        
 # dataset for retinal reliability
               
-    numCells = len(units_all)
     dataset_rr = {}
     
     temp_val = np.moveaxis(datasets['val'].y,-1,0)
-    temp_val = temp_val[:,:,idx_unitsToTake]
+    if idx_cells_orig is None:
+        temp_val = temp_val[:,:,idx_unitsToTake]
 
     dict_vars = {
          'val': temp_val,
@@ -515,116 +525,71 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
      
     
 # Retinal reliability method 1
+
+
+    numCells = len(idx_unitsToTake)
     rate_sameStim_trials = dataset_rr['stim_0']['val']
-    rate_sameStim_avgTrials = np.nanmean(rate_sameStim_trials,axis=0)
-    
-    rate_avgTrials_sub = rate_sameStim_trials - rate_sameStim_avgTrials[None,:,:]
-    var_sameStims = np.mean(rate_avgTrials_sub**2,axis=0)
-        
-    var_noise_dset_all = np.nanmean(var_sameStims,axis=0)
-       
-    rate_all = np.array([]).reshape(0,numCells) 
-    
-    for t in range(dataset_rr['stim_0']['val'].shape[0]):
-        rgb = dataset_rr['stim_0']['val'][t,:,:]
-        rate_all = np.vstack((rate_all,rgb))
-    
-    var_rate_dset_all = np.var(rate_all,axis=0) 
-    fractionExplainableVariance_allUnits = (var_rate_dset_all - var_noise_dset_all)/var_rate_dset_all
-    retinalReliability = np.nanmedian(fractionExplainableVariance_allUnits)
-    
-# Retinal reliability method 2
-    num_trials = dataset_rr['stim_0']['val'].shape[0]
-    idx_allTrials = np.arange(num_trials)
-
-    fractionExplainableVariance_allUnits_allTrials = np.zeros((num_trials,numCells))
-    var_noise_dset_allTrials = np.zeros((num_trials,numCells))
-    
-    for idx_trialToIsolate in range(num_trials):
-        idx_trialsToAvg = np.setdiff1d(idx_allTrials,idx_trialToIsolate)
-        rgb1 = np.nanmean(dataset_rr['stim_0']['val'][idx_trialsToAvg,:,:],axis=0)
-        rgb1 = rgb1[np.newaxis,:,:]
-        rgb2 = dataset_rr['stim_0']['val'][idx_trialToIsolate,:,:]
-        rgb2 = rgb2[np.newaxis,:,:]
-        rate_sameStim_trials = np.concatenate((rgb1,rgb2),axis=0)
-        rate_sameStim_avgTrials = np.nanmean(rate_sameStim_trials,axis=0)   
-        rate_avgTrials_sub = rate_sameStim_trials - rate_sameStim_avgTrials[None,:,:]
-        var_sameStims = np.mean(rate_avgTrials_sub**2,axis=0)
-            
-        var_noise_dset_allTrials[idx_trialToIsolate,:] = np.nanmean(var_sameStims,axis=0)
-        rate_all = np.array([]).reshape(0,numCells) 
-        
-        for t in range(2):
-            rgb = rate_sameStim_trials[t,:,:]
-            rate_all = np.vstack((rate_all,rgb))
-        
-        var_rate_dset_allTrials = np.var(rate_all,axis=0) 
-        fractionExplainableVariance_allUnits_allTrials[idx_trialToIsolate,:] = (var_rate_dset_allTrials - var_noise_dset_allTrials[idx_trialToIsolate,:])/var_rate_dset_allTrials
-        
-    fractionExplainableVariance_allUnits_method2 = np.nanmean(fractionExplainableVariance_allUnits_allTrials,axis=0)
-    retinalReliability_method2 = np.nanmedian(fractionExplainableVariance_allUnits_method2)
-
+    _, fracExVar_allUnits, _, corr_allUnits = model_evaluate(rate_sameStim_trials,None,filt_temporal_width,RR_ONLY=True)
+    retinalReliability_fev = np.round(np.median(fracExVar_allUnits),2)
+    retinalReliability_corr = np.round(np.median(corr_allUnits),2)
 
     data_quality = {
-        'retinalReliability': retinalReliability,
-        'retinalReliability_m2': retinalReliability_method2,
-        'dist_cc': np.ones(len(units_all)),         # old metric for compatibility
-        'uname_selectedUnits': units_all,   # old metric for compatibility
-        'idx_unitsToTake': idx_unitsToTake,         # old metric for compatibility
-        'fractionExplainableVariance_allUnits': fractionExplainableVariance_allUnits,
-        'fractionExplainableVariance_allUnits_m2': fractionExplainableVariance_allUnits_method2,
-        'fractionExplainableVariance_allUnits_m2_allTrials': fractionExplainableVariance_allUnits_allTrials,        
-        'var_noise_dset_all': var_noise_dset_all,
-        'var_noise_dset_m2_allTrials': var_noise_dset_allTrials
+        'retinalReliability_fev': retinalReliability_fev,
+        'retinalReliability_corr': retinalReliability_corr,
+        'uname_selectedUnits': units_all,  
+        'idx_unitsToTake': idx_unitsToTake,
+        'fracExVar_allUnits': fracExVar_allUnits,
+        'corr_allUnits': corr_allUnits,
         }
-    print('Retinal Reliability - m1: '+str(np.round(retinalReliability,2)))
-    print('Retinal Reliability - m2: '+str(np.round(retinalReliability_method2,2)))
-    print('Number of selected cells: ',str(len(units_all)))
-    numCells = len(idx_unitsToTake)
+    print('Retinal Reliability - FEV: '+str(np.round(retinalReliability_fev,2)))
+    print('Retinal Reliability - Corr: '+str(np.round(retinalReliability_corr,2)))
+    print('Number of selected cells: ',str(len(idx_unitsToTake)))
 
-    # dataset_rr = {}
-    # for s in range(len(same_stims)):
-    #    temp = np.empty((len(same_stims[s]),maxLen,numCells))
-    #    for t in range(len(same_stims[s])):
-    #         temp[t,:,:] = datasets[same_stims[s][t]].y[idx_start:idx_start+maxLen,idx_unitsToTake]
-    #    dataset_rr['stim_'+str(s)]  = temp
-
-    
     
     # Split dataset into train, validation and test 
-    rgb = datasets['train'].y[:,idx_unitsToTake]
-    data_train = Exptdata(datasets['train'].X,rgb)
     
     rgb = np.nanmean(datasets['val'].y,-1)
-    data_val = Exptdata(datasets['val'].X,rgb[:,idx_unitsToTake])      # for validation i take the mean rate across all trials
-    data_test = data_val
+    if idx_cells_orig is None:
+        data_val = Exptdata(datasets['val'].X,rgb[:,idx_unitsToTake])      # for validation i take the mean rate across all trials
+    else:
+        data_val = Exptdata(datasets['val'].X,rgb)
+    
+    if frac_test>0:
+        nsamples_test = int(np.floor(datasets['train'].X.shape[0]*frac_test))
+        idx_test = np.arange(datasets['train'].X.shape[0]-nsamples_test,datasets['train'].X.shape[0]-1)
+        if idx_test.shape[0] % 2 != 0:
+            idx_test = idx_test[2:]
+            # idx_test = np.insert(idx_test,0,idx_test[0]-1)
+            
+
+        stim_test = datasets['train'].X[idx_test]
+        resp_test = datasets['train'].y[idx_test,:]
+        if idx_cells_orig is None:
+            resp_test = resp_test[:,idx_unitsToTake]
+        data_test = Exptdata(stim_test,resp_test)
         
-    # make sure no validation or test samples are in training
-    if filt_temporal_width > 0:
-        a = unroll_data(data_train.X)
-        a = a.reshape(a.shape[0],a.shape[1]*a.shape[2])
+        idx_train = np.setdiff1d(np.arange(0,datasets['train'].X.shape[0]),idx_test)
+        stim_train = datasets['train'].X[idx_train]
+        resp_train = datasets['train'].y[idx_train,:]   
+        if idx_cells_orig is None:
+            resp_train = resp_train[:,idx_unitsToTake] 
+        
+        data_train = Exptdata(stim_train,resp_train)
+        
     else:
-        a = data_train.X
-    a = np.unique(a,axis=0)
-    
-    if filt_temporal_width > 0:
-        b = unroll_data(data_val.X)
-        b = b.reshape(b.shape[0],b.shape[1]*b.shape[2])
-        b = b[filt_temporal_width-1:,:]
-    else:
-        b = data_val.X
-    b = np.unique(b,axis=0)
-    
-    c = np.concatenate((a,b),axis=0)
-    train_val_unique = np.unique(c,axis=0)
-    train_val_unique = train_val_unique.shape[0]==c.shape[0]
-    
-    del a, b, c
-    
-    if train_val_unique is False:
-        raise ValueError('Training and Validation sets not unique!')
-    else:
-        return data_train,data_val,data_test,data_quality,dataset_rr
+        data_test = data_val
+        
+        if idx_cells_orig is None:
+            rgb = datasets['train'].y[:,idx_unitsToTake]
+            data_train = Exptdata(datasets['train'].X,rgb)
+        else:
+            data_train = Exptdata(datasets['train'].X,datasets['train'].y)
+        
+    # check_trainVal_contamination(data_train.X,data_val.X)
+    # check_trainVal_contamination(data_train.X,data_test.X)
+        
+                     
+    return data_train,data_val,data_test,data_quality,dataset_rr
 
 
 def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
@@ -749,5 +714,32 @@ def load_h5Dataset(fname):
     f.close()
 
     return data_train,data_val,data_test,data_quality,dataset_rr,parameters
+    
+    
+def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_width):
+    
+    if filt_temporal_width>0:
+        rgb = unroll_data(stimFrames_train)
+        stimFrames_train_flattened = np.reshape(rgb,(rgb.shape[0],np.prod(rgb.shape[1:])))
+
+        rgb = unroll_data(stimFrames_val)
+        stimFrames_val_flattened = np.reshape(rgb,(rgb.shape[0],np.prod(rgb.shape[1:])))
+        
+    else:
+        stimFrames_train_flattened = np.reshape(stimFrames_train,(stimFrames_train.shape[0],np.prod(stimFrames_train.shape[1:])))
+        stimFrames_val_flattened = np.reshape(stimFrames_val,(stimFrames_val.shape[0],np.prod(stimFrames_val.shape[1:])))
+    
+    if np.unique(stimFrames_train_flattened,axis=0).shape[0] != stimFrames_train_flattened.shape[0]:
+        Warning('training dataset contains repeated stimulus frames')
+    
+    if np.unique(stimFrames_val_flattened,axis=0).shape[0] != stimFrames_val_flattened.shape[0]:
+        Warning('validation dataset contains repeated stimulus frames')
+    
+    a = np.unique(stimFrames_train_flattened,axis=0)
+    b = np.unique(stimFrames_val_flattened,axis=0)   
+    c = np.concatenate((a,b),axis=0)
+    if np.abs(np.unique(c,axis=0).shape[0] - c.shape[0]) > 1:
+       raise ValueError('training samples contains validation samples')
+    
     
     
