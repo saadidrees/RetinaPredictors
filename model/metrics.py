@@ -15,7 +15,7 @@ __all__ = ['cc', 'rmse', 'fev', 'CC', 'RMSE', 'FEV', 'np_wrap',
            'fraction_of_explained_variance','correlation_coefficient_distribution','fraction_of_explainable_variance_explained']
 
 
-def correlation_coefficient(obs_rate, est_rate):
+def correlation_coefficient(obs_rate, est_rate):    # (y_true, y_pred)
     """Pearson correlation coefficient"""
     x_mu = obs_rate - K.mean(obs_rate, axis=0, keepdims=True)
     x_std = K.std(obs_rate, axis=0, keepdims=True)

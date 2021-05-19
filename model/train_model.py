@@ -14,7 +14,7 @@ from tensorflow.keras.layers import Input
 from tensorflow.keras.optimizers import Adam
 import model.metrics as metrics
 
-def train(mdl, data_train, data_val,fname_excel,training_trial,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10):
+def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10):
     lr = 1e-2
     mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
 
@@ -36,7 +36,7 @@ def train(mdl, data_train, data_val,fname_excel,training_trial,path_model_base, 
     rgb = mdl_history.history
     keys = list(rgb.keys())
     
-    fname_history = 'history_'+mdl.name+'_%02d.h5' %training_trial
+    fname_history = 'history_'+mdl.name+'.h5'
     fname_history = os.path.join(path_model_base,fname_history)                            
     f = h5py.File(fname_history,'w')
     for i in range(len(rgb)):
