@@ -78,14 +78,14 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
 
     
     # Dense layer
-    y = Flatten()(y)
-    if BatchNorm is True: 
-        y = BatchNormalization(axis=-1)(y)
-    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
-    y = Activation('softplus')(y)
+    # y = Flatten()(y)
+    # if BatchNorm is True: 
+    #     y = BatchNormalization(axis=-1)(y)
+    # y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    # y = Activation('softplus')(y)
 
     
-    # y = Flatten()(y)
+    y = Flatten()(y)
     if BatchNorm is True: 
         y = BatchNormalization(axis=-1)(y)
     y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
