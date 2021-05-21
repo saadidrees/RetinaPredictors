@@ -194,7 +194,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     # %% Model Evaluation
     obs_rate = data_val.y
     val_loss_allEpochs = np.empty(nb_epochs)
-    val_loss_allEpochs[:] = nan
+    val_loss_allEpochs[:] = np.nan
     fev_medianUnits_allEpochs = np.empty(nb_epochs)
     fev_medianUnits_allEpochs[:] = np.nan
     fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
