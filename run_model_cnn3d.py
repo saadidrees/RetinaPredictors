@@ -188,12 +188,13 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     
     
     print('-----RUNNING MODEL-----')
-    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = 5000,validation_freq=1000)  
+    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=5)  
     mdl_history = mdl_history.history
     
     # %% Model Evaluation
     obs_rate = data_val.y
-    
+    val_loss_allEpochs = np.empty(nb_epochs)
+    val_loss_allEpochs[:] = nan
     fev_medianUnits_allEpochs = np.empty(nb_epochs)
     fev_medianUnits_allEpochs[:] = np.nan
     fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
@@ -224,6 +225,8 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
         weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
         pred_rate = mdl.predict(data_val.X)
+        val_loss,_,_,_ = mdl.evaluate(data_val.X,data_val.y,batch_size=data_val.X.shape[0])
+        val_loss_allEpochs[i] = val_loss
         
         fev_loop = np.zeros((num_iters,n_cells))
         fracExVar_loop = np.zeros((num_iters,n_cells))
@@ -316,6 +319,8 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
         
         'fname_bestWeight': fname_bestWeight,
         'idx_bestEpoch': idx_bestEpoch,
+        
+        'val_loss_allEpochs': val_loss_allEpochs,
        
         }
     
