@@ -11,7 +11,7 @@ Created on Wed Apr 21 23:29:28 2021
 from model.parser import parser_run_model
 
 
-def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
+def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
@@ -104,8 +104,8 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     
     
 # load train val and test datasets from saved h5 file
-    fname_data_train_val_test = os.path.join(path_dataset,(expDate+"_dataset_train_val_test_photopic.h5"))
-    data_train,data_val,data_test,data_quality,dataset_rr,parameters = load_h5Dataset(fname_data_train_val_test)
+    fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
+    data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test)
     
 # Arrange data according to needs
     idx_unitsToTake = data_quality['idx_unitsToTake']
@@ -214,7 +214,6 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     rrCorr_allUnits_allEpochs[:] = np.nan
     
 
-    
     obs_rate_allStimTrials = dataset_rr['stim_0']['val']
     num_iters = 10
 
@@ -277,7 +276,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
     mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
     pred_rate = mdl.predict(data_val.X)
-    
+    fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
     
     # plt.plot(obs_rate[:,0])
     # plt.plot(pred_rate[:,0])
@@ -317,11 +316,11 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
         'rrCorr_medianUnits': rrCorr_medianUnits,
         'rrCorr_allUnits': rrCorr_allUnits,          
         
-        'fname_bestWeight': fname_bestWeight,
+        'fname_bestWeight': np.atleast_1d(fname_bestWeight),
         'idx_bestEpoch': idx_bestEpoch,
         
         'val_loss_allEpochs': val_loss_allEpochs,
-       
+        'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
         }
     
 
@@ -370,6 +369,7 @@ def run_model(expDate,mdl_name,path_model_save_base,saveToCSV=1,runOnCluster=0,
     dataset_pred = {
         'obs_rate': obs_rate,
         'pred_rate': pred_rate,
+        'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
         }
 
     dataset_rr = None

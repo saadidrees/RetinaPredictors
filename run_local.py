@@ -16,16 +16,16 @@ expDate = 'retina1'
 mdl_name = 'CNN_2D'
 temporal_width=60
 thresh_rr=0.15
-chan1_n=13
-filt1_size=1
+chan1_n=20
+filt1_size=3
 filt1_3rdDim=0
-chan2_n=13
-filt2_size=4
+chan2_n=24
+filt2_size=2
 filt2_3rdDim=0
-chan3_n=25
+chan3_n=22
 filt3_size=1
 filt3_3rdDim=0
-nb_epochs=150
+nb_epochs=500
 bz_ms=10000
 BatchNorm=1
 MaxPool=0
@@ -33,14 +33,32 @@ saveToCSV=1
 runOnCluster=0
 num_trials=1
 
-path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate,'test')
-path_dataset_base = os.path.join('/home/saad/data/Dropbox/postdoc/analyses/data_kiersten')
 
-for c_trial in range(num_trials):
-    model_performance = run_model(expDate,mdl_name,path_model_save_base,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
+# %%
+path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate,'scotopic_photopic')
+path_dataset_base = os.path.join('/home/saad/data/Dropbox/postdoc/analyses/data_kiersten/')
+name_datasetFile = expDate+'_dataset_train_val_test_scotopic_photopic.h5'
+
+for c_trial in range(1,num_trials+1):
+    model_performance = run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
                         temporal_width=temporal_width, thresh_rr=thresh_rr,
                         chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                         chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                         chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
                         nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,MaxPool=MaxPool,c_trial=c_trial)
     
+
+# %%
+path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate)
+path_dataset_base = os.path.join('/home/saad/data/Dropbox/postdoc/analyses/data_kiersten')
+
+params_array = params_array.astype(int)
+select_range = np.arange(237+5,params_array.shape[0])
+for i in select_range:
+    for c_trial in range(1,num_trials+1):
+        model_performance = run_model(expDate,mdl_name,path_model_save_base,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
+                            temporal_width=temporal_width, thresh_rr=thresh_rr,
+                            chan1_n=params_array[i,0], filt1_size=params_array[i,1], filt1_3rdDim=params_array[i,2],
+                            chan2_n=params_array[i,3], filt2_size=params_array[i,4], filt2_3rdDim=params_array[i,5],
+                            chan3_n=params_array[i,6], filt3_size=params_array[i,7], filt3_3rdDim=params_array[i,8],
+                            nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,MaxPool=MaxPool,c_trial=c_trial)

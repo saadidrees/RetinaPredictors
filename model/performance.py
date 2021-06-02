@@ -41,7 +41,10 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
     grp = f.create_group('/model_performance')
     keys = list(model_performance.keys())
     for i in range(len(model_performance)):
-        grp.create_dataset(keys[i], data=model_performance[keys[i]])
+        if model_performance[keys[i]].dtype == 'O':
+            grp.create_dataset(keys[i], data=np.array(model_performance[keys[i]],dtype='bytes'))        
+        else:
+            grp.create_dataset(keys[i], data=model_performance[keys[i]])
     
     
     grp = f.create_group('/model_params')
@@ -64,7 +67,10 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
                 grp = f.create_group('/dataset_rr/'+j)
                 keys_2 = list(dataset_rr[j].keys())
                 for i in range(len(keys_2)):
-                    grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]],compression='gzip')
+                    if 'bytes' in dataset_rr[j][keys_2[i]].dtype.name:
+                        grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]])
+                    else:
+                        grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]],compression='gzip')
             
             
     # grp_exist = '/val_test_data' in f
@@ -80,7 +86,10 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
     grp = f.create_group('/dataset_pred')
     keys = list(dataset_pred.keys())
     for i in range(len(dataset_pred)):
-        grp.create_dataset(keys[i],data=dataset_pred[keys[i]],compression='gzip')
+        if dataset_pred[keys[i]].dtype == 'O':
+            grp.create_dataset(keys[i],data=np.array(dataset_pred[keys[i]],dtype='bytes'))
+        else:
+            grp.create_dataset(keys[i],data=dataset_pred[keys[i]],compression='gzip')
     
      
     f.close()
@@ -145,23 +154,30 @@ def getModelParams(fname_modelFolder):
     return params
 
 def paramsToName(mdl_name,U=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=1,MP=0,TR=0):
-    paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,
-                                                                                                 C2_n,C2_s,
-                                                                                                 C3_n,C3_s,
-                                                                                                 BN,MP)
+    if mdl_name=='CNN_2D':
+        paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,
+                                                                                                     C2_n,C2_s,
+                                                                                                     C3_n,C3_s,
+                                                                                                     BN,MP)
+    elif mdl_name=='CNN_3D':
+        paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,C1_3d,
+                                                                                                             C2_n,C2_s,C2_3d,
+                                                                                                             C3_n,C3_s,C3_3d,
+                                                                                                             BN,MP)
+
     
     return paramFileName
     
     
 
-def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=False):
+def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=False,lag = 2):
     numCells = obs_rate_allStimTrials.shape[-1]
     num_trials = obs_rate_allStimTrials.shape[0]
     idx_allTrials = np.arange(num_trials)
     
-    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,:-2,:]
+    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,:-lag,:]
     if RR_ONLY is False:
-        pred_rate_corrected = pred_rate[2:,:]
+        pred_rate_corrected = pred_rate[lag:,:]
     
 
 # for predicting trial averaged responses
@@ -193,6 +209,48 @@ def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=
     
 
     return fev, fracExplainableVar, pred_corr, rr_corr
+
+def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=False,lag = 2):
+    numCells = obs_rate_allStimTrials.shape[-1]
+    num_trials = obs_rate_allStimTrials.shape[0]
+    idx_allTrials = np.arange(num_trials)
+    
+    t_start = 10
+    t_end = obs_rate_allStimTrials.shape[0]-t_start-10
+    
+    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,t_start:t_end-lag,:]
+    if RR_ONLY is False:
+        pred_rate_corrected = pred_rate[t_start+lag:t_end,:]
+# for predicting trial averaged responses
+
+    idx_trials_r1 = np.array(random.sample(range(0,len(idx_allTrials)),int(np.ceil(len(idx_allTrials)/2))))
+    assert(np.unique(idx_trials_r1).shape[0] == idx_trials_r1.shape[0])
+    idx_trials_r2 = np.setdiff1d(idx_allTrials,idx_trials_r1)
+
+    r1 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r1,filt_temporal_width:,:],axis=0)
+    r2 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r2,filt_temporal_width:,:],axis=0)
+    
+    noise_trialAveraged = np.mean((r1-r2)**2,axis=0)
+    fracExplainableVar = (np.var(r2,axis=0) - noise_trialAveraged)/np.var(r2,axis=0)
+    
+    if RR_ONLY is True:
+        fev = None
+    else:
+        r_pred = pred_rate_corrected
+        mse_resid = np.mean((r_pred-r2)**2,axis=0)
+        fev = 1 - ((mse_resid-noise_trialAveraged)/(np.var(r2,axis=0)-noise_trialAveraged))
+    
+    
+# Pearson correlation
+    rr_corr = correlation_coefficient_distribution(r1,r2)
+    if RR_ONLY is True:
+        pred_corr = None
+    else:
+        pred_corr = correlation_coefficient_distribution(r2,r_pred)
+    
+
+    return fev, fracExplainableVar, pred_corr, rr_corr
+
 
 # fig,axs = plt.subplots(1,1)
 # axs.plot(r2[:,0])

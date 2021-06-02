@@ -473,6 +473,7 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
                 temp = resp[:,i]/resp_median[i]
                 temp[np.isnan(temp)] = 0
                 resp_norm[:,i] = temp
+                resp_orig = resp
             
         else:
             # resp_median = np.empty((resp.shape[1],resp.shape[2]))
@@ -484,9 +485,11 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
             temp = resp/resp_median[None,:,None]
             temp[np.isnan(temp)] = 0
             resp_norm = temp
+            resp_orig = resp
 
             
         datasets[s] = Exptdata(stim, resp_norm)
+        resp_non_norm[s] = resp_orig
         
     f.close()
     
@@ -505,9 +508,11 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
         idx_unitsToTake = np.arange(len(units_all))
         idx_unitsToTake = idx_unitsToTake[rgb>thresh]
         units_all = units_all[idx_unitsToTake]
+        resp_median_allUnits = resp_median[idx_unitsToTake]
     else:
         idx_unitsToTake = idx_cells
         units_all = units_all[idx_unitsToTake]
+        resp_median_allUnits = resp_median
         
 # dataset for retinal reliability
               
@@ -540,6 +545,7 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
         'idx_unitsToTake': idx_unitsToTake,
         'fracExVar_allUnits': fracExVar_allUnits,
         'corr_allUnits': corr_allUnits,
+        'resp_median_allUnits' : resp_median_allUnits,
         }
     print('Retinal Reliability - FEV: '+str(np.round(retinalReliability_fev,2)))
     print('Retinal Reliability - Corr: '+str(np.round(retinalReliability_corr,2)))
@@ -591,6 +597,228 @@ def load_data_kr(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=
                      
     return data_train,data_val,data_test,data_quality,dataset_rr
 
+def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15):
+    
+    valSets = ['scotopic','photopic']   # embed this in h5 file
+    
+    # Data
+    t_start = 0    # of frames to skip in the begining of stim file (each frame is 16 or 17 ms)   
+    
+    f = h5py.File(fname_dataFile,'r')
+    data_key = dataset
+    stims_keys = list(f[data_key].keys())
+    
+    #units
+    units_all = np.array(f['/units'])
+    units_all = utils_si.h5_tostring(units_all)
+    
+    if idx_cells_orig is None:
+        idx_cells_temp = np.array([np.arange(len(units_all))])
+        idx_cells = idx_cells_temp[0,:]
+    else:
+        idx_cells = idx_cells_orig
+
+    
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    datasets = {}
+    resp_non_norm = {}
+    # total_spikeCounts = np.zeros(len(idx_cells))
+    
+    # same_stims = ((0,2),(1,3))
+    
+    
+    for s in stims_keys:
+        
+        # stim info
+        code_stim = '/'+data_key+'/'+s
+        stim_len = np.array(f[code_stim+'/spikeRate']).shape[0]        
+        idx_time = np.arange(t_start,stim_len)
+          
+        # firing rates
+        resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
+        # resp = resp.T
+        if resp.ndim == 2:
+            resp = resp[:,idx_cells]
+            resp = resp[filt_temporal_width:]
+
+        if resp.ndim > 2:
+            resp = resp[filt_temporal_width:]
+            # resp = np.moveaxis(resp,-1,0)
+            resp = resp[:,idx_cells,:]
+        
+        # spikeCounts = np.array(f[code_stim+'/spikeCounts'])[idx_time,idx_cells.T]
+        # spikeCounts = spikeCounts.T    
+       
+        #  stim
+        stim = np.array(f[code_stim+'/stim_frames'][idx_time,:])
+        t_frame = f[code_stim+'/stim_frames'].attrs['t_frame']   
+        num_CB_x = f[code_stim+'/stim_frames'].attrs['num_checkers_x']   # cb_info['steps_x'][0][0]
+        num_CB_y = f[code_stim+'/stim_frames'].attrs['num_checkers_y']   # cb_info['steps_y'][0][0]
+        
+        stim = np.reshape(stim,(stim.shape[0],num_CB_y,num_CB_x),order='F')       
+        # stim = zscore(stim)
+        stim = rolling_window(stim,filt_temporal_width,time_axis=0) 
+        
+        
+        # spikeCounts = spikeCounts[filt_temporal_width:,:]
+        # total_spikeCounts = total_spikeCounts + np.sum(spikeCounts,axis=0)
+    
+        
+        resp_norm = np.empty(resp.shape)
+        
+        if s == 'train': #resp_norm.ndim < 3:       Calculate the median based on training data and later apply that to test data
+            resp_median = np.empty(resp.shape[1])
+            for i in range(0,resp.shape[1]):
+                rgb = resp[:,i]
+                rgb[rgb==0] = np.nan
+                resp_median[i] = np.nanmedian(rgb)
+                
+                temp = resp[:,i]/resp_median[i]
+                temp[np.isnan(temp)] = 0
+                resp_norm[:,i] = temp
+                resp_orig = resp
+            
+        else:
+            # resp_median = np.empty((resp.shape[1],resp.shape[2]))
+            # for j in range(0, resp.shape[2]):
+            #     for i in range(0,resp.shape[1]):
+            #         rgb = resp[:,i,j]
+            #         rgb[rgb==0] = np.nan
+            #         resp_median[i,j] = np.nanmedian(rgb)
+            temp = resp/resp_median[None,:,None]
+            temp[np.isnan(temp)] = 0
+            resp_norm = temp
+            resp_orig = resp
+
+            
+        datasets[s] = Exptdata(stim, resp_norm)
+        resp_non_norm[s] = resp_orig
+        
+    f.close()
+    
+    
+    del resp
+    del resp_norm
+    del stim
+    
+    # Check which stimuli are same i.e. repeats
+    # stim_unique = np.unique(datasets['train'].X,axis=0)
+    
+    # select only cells where we wont have so many zero spikerate in a batch   
+    if idx_cells_orig is None:
+        rgb = np.sum(datasets['train'].y,axis=0)
+        thresh = 0 #0.75*np.median(rgb)
+        idx_unitsToTake = np.arange(len(units_all))
+        idx_unitsToTake = idx_unitsToTake[rgb>thresh]
+        units_all = units_all[idx_unitsToTake]
+        resp_median_allUnits = resp_median[idx_unitsToTake]
+    else:
+        idx_unitsToTake = idx_cells
+        units_all = units_all[idx_unitsToTake]
+        resp_median_allUnits = resp_median
+        
+# dataset for retinal reliability
+    try:
+        temp_val = np.moveaxis(datasets['val'].y,-1,0)
+        dset_name = np.array(dataset)
+     
+    except:
+        select_val = valSets[-1]
+        temp_val = np.moveaxis(datasets['val_'+select_val].y,-1,0)
+        dset_name = select_val
+    
+    dataset_rr = {}    
+    if idx_cells_orig is None:
+        temp_val = temp_val[:,:,idx_unitsToTake]
+
+    dict_vars = {
+         'val': temp_val,
+         'dataset_name': np.atleast_1d(np.array(dset_name,dtype='bytes'))
+         }
+     
+    dataset_rr['stim_0'] = dict_vars
+     
+    
+# Retinal reliability method 1 - only take one validation set at this stage
+
+
+    numCells = len(idx_unitsToTake)
+    rate_sameStim_trials = dataset_rr['stim_0']['val']
+    _, fracExVar_allUnits, _, corr_allUnits = model_evaluate(rate_sameStim_trials,None,filt_temporal_width,RR_ONLY=True)
+    retinalReliability_fev = np.round(np.median(fracExVar_allUnits),2)
+    retinalReliability_corr = np.round(np.median(corr_allUnits),2)
+
+    data_quality = {
+        'retinalReliability_fev': retinalReliability_fev,
+        'retinalReliability_corr': retinalReliability_corr,
+        'uname_selectedUnits': units_all,  
+        'idx_unitsToTake': idx_unitsToTake,
+        'fracExVar_allUnits': fracExVar_allUnits,
+        'corr_allUnits': corr_allUnits,
+        'resp_median_allUnits' : resp_median_allUnits,
+        }
+    print('Retinal Reliability - FEV: '+str(np.round(retinalReliability_fev,2)))
+    print('Retinal Reliability - Corr: '+str(np.round(retinalReliability_corr,2)))
+    print('Number of selected cells: ',str(len(idx_unitsToTake)))
+    
+
+    
+    # Split dataset into train, validation and test 
+    # For validation at model running stage, only take one dataset. 
+    try:
+        datasets['val'].y.shape
+        val_dset_name = 'val'
+    except:
+        val_dset_name = 'val_'+dset_name
+        
+    rgb = np.nanmean(datasets[val_dset_name].y,-1)
+    if idx_cells_orig is None:
+        data_val = Exptdata(datasets[val_dset_name].X,rgb[:,idx_unitsToTake])      # for validation i take the mean rate across all trials
+    else:
+        data_val = Exptdata(datasets[val_dset_name].X,rgb)
+    
+    if frac_test>0:
+        nsamples_test = int(np.floor(datasets['train'].X.shape[0]*frac_test))
+        idx_test = np.arange(datasets['train'].X.shape[0]-nsamples_test,datasets['train'].X.shape[0]-1)
+        if idx_test.shape[0] % 2 != 0:
+            idx_test = idx_test[2:]
+            # idx_test = np.insert(idx_test,0,idx_test[0]-1)
+            
+
+        stim_test = datasets['train'].X[idx_test]
+        resp_test = datasets['train'].y[idx_test,:]
+        if idx_cells_orig is None:
+            resp_test = resp_test[:,idx_unitsToTake]
+        data_test = Exptdata(stim_test,resp_test)
+        
+        idx_train = np.setdiff1d(np.arange(0,datasets['train'].X.shape[0]),idx_test)
+        stim_train = datasets['train'].X[idx_train]
+        resp_train = datasets['train'].y[idx_train,:]   
+        if idx_cells_orig is None:
+            resp_train = resp_train[:,idx_unitsToTake] 
+        
+        data_train = Exptdata(stim_train,resp_train)
+        
+    else:
+        data_test = data_val
+        
+        if idx_cells_orig is None:
+            rgb = datasets['train'].y[:,idx_unitsToTake]
+            data_train = Exptdata(datasets['train'].X,rgb)
+        else:
+            data_train = Exptdata(datasets['train'].X,datasets['train'].y)
+    
+    resp_orig = {}
+    for i in resp_non_norm.keys():
+        resp_orig[i] = resp_non_norm[i][:,idx_unitsToTake]
+        
+    # check_trainVal_contamination(data_train.X,data_val.X)
+    # check_trainVal_contamination(data_train.X,data_test.X)
+        
+                     
+    return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig
+
+
 
 def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
@@ -620,7 +848,7 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
     return data
 
 
-def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters):
+def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None):
     
     f = h5py.File(fname,'a')
        
@@ -650,12 +878,22 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         grp = f.create_group('/dataset_rr/'+j)
         keys_2 = list(dataset_rr[j].keys())
         for i in range(len(keys_2)):
-            grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]],compression='gzip')
+            if 'bytes' in dataset_rr[j][keys_2[i]].dtype.name:
+                grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]])
+            else:
+                grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]],compression='gzip')
+                
             
     grp = f.create_group('/parameters')   
     keys = list(parameters.keys())
     for i in range(len(parameters)):
-        grp.create_dataset(keys[i], data=parameters[keys[i]])        
+        grp.create_dataset(keys[i], data=parameters[keys[i]]) 
+        
+    if resp_orig != None:
+        grp = f.create_group('/resp_orig')
+        keys = list(resp_orig.keys())
+        for i in keys:
+            grp.create_dataset(i, data=resp_orig[i],compression='gzip') 
             
     f.close()
     
@@ -695,7 +933,14 @@ def load_h5Dataset(fname):
             data_key ='/'+select_groups+'/'+i+'/'+d
         
             rgb = np.array(f[data_key])
-            temp_2[d] = rgb
+            try:
+                rgb_type = rgb.dtype.name
+                if 'bytes' in rgb_type:
+                    temp_2[d] = utils_si.h5_tostring(rgb)
+                else:
+                    temp_2[d] = rgb
+            except:
+                temp_2[d] = rgb
         dataset_rr[i] = temp_2
         
     select_groups = ('parameters')
@@ -711,9 +956,23 @@ def load_h5Dataset(fname):
         else:
             parameters[i] = rgb
             
+    select_groups = ('resp_orig')
+    level_keys = list(f[select_groups].keys())
+    resp_orig = {}
+    for i in level_keys:
+        data_key = '/'+select_groups+'/'+i
+        rgb = np.array(f[data_key])
+        rgb_type = rgb.dtype.name
+           
+        if 'bytes' in rgb_type:
+            resp_orig[i] = utils_si.h5_tostring(rgb)
+        else:
+            resp_orig[i] = rgb
+
+            
     f.close()
 
-    return data_train,data_val,data_test,data_quality,dataset_rr,parameters
+    return data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig
     
     
 def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_width):
