@@ -14,15 +14,16 @@ from run_model_cnn3d import run_model
 
 expDate = 'retina1'
 mdl_name = 'CNN_2D'
+dataset = 'photopic_preproc_added_norm_1'
 temporal_width=60
-thresh_rr=0.15
-chan1_n=20
+thresh_rr=0
+chan1_n=18
 filt1_size=3
 filt1_3rdDim=0
-chan2_n=24
+chan2_n=25
 filt2_size=2
 filt2_3rdDim=0
-chan3_n=22
+chan3_n=18
 filt3_size=1
 filt3_3rdDim=0
 nb_epochs=500
@@ -33,11 +34,14 @@ saveToCSV=1
 runOnCluster=0
 num_trials=1
 
+BatchNorm_train = 0
+
 
 # %%
-path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate,'scotopic_photopic')
-path_dataset_base = os.path.join('/home/saad/data/Dropbox/postdoc/analyses/data_kiersten/')
-name_datasetFile = expDate+'_dataset_train_val_test_scotopic_photopic.h5'
+name_datasetFile = expDate+'_dataset_train_val_test_'+dataset+'.h5'
+path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate,dataset)
+path_dataset_base = os.path.join('/home/saad/data/analyses/data_kiersten/')
+
 
 for c_trial in range(1,num_trials+1):
     model_performance = run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
@@ -45,10 +49,10 @@ for c_trial in range(1,num_trials+1):
                         chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                         chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                         chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
-                        nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,MaxPool=MaxPool,c_trial=c_trial)
+                        nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial)
     
 
-# %%
+# %% for reading from params array
 path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate)
 path_dataset_base = os.path.join('/home/saad/data/Dropbox/postdoc/analyses/data_kiersten')
 

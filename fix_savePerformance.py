@@ -23,7 +23,7 @@ tf.config.experimental.set_memory_growth(physical_devices[0], True)
 from tensorflow.keras.layers import Input
 
 from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d
-from model.performance import save_modelPerformance, model_evaluate
+from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
 import model.metrics as metrics
 from model.models import cnn_3d, cnn_2d
 from model.train_model import train
@@ -37,7 +37,7 @@ import gc
 import datetime
 
 # %%
-def run_fixPerformance(expDate,mdl_name,path_model_save_base,fname_performance_excel,saveToCSV=1,runOnCluster=0,
+def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fname_performance_excel,saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
@@ -45,6 +45,7 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,fname_performance_e
                             nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
+    
 # expDate = 'retina1'
 # mdl_name = 'CNN_2D'
 
@@ -70,32 +71,33 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,fname_performance_e
 # path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
 # path_model_save_base = os.path.join('/home/saad/data/analyses/data_saad',expDate)
 
-    path_dataset = os.path.join(path_dataset_base,expDate,'datasets')
+    
+# load train val and test datasets from saved h5 file
+    path_dataset = os.path.join(path_dataset_base,'datasets')
     path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
     # path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate)
     
     
-    fname_data_train_val_test = os.path.join(path_dataset,(expDate+"_dataset_train_val_test.h5"))
-    data_train,data_val,data_test,data_quality,dataset_rr,parameters = load_h5Dataset(fname_data_train_val_test)
-        
     # load train val and test datasets from saved h5 file
-    fname_data_train_val_test = os.path.join(path_dataset,(expDate+"_dataset_train_val_test.h5"))
-    data_train,data_val,data_test,data_quality,dataset_rr,parameters = load_h5Dataset(fname_data_train_val_test)
+    fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
+    data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test)
+
         
     # Arrange data according to needs
-    idx_unitsToTake = data_quality['dist_cc']>thresh_rr
+    idx_unitsToTake = data_quality['idx_unitsToTake']
     idx_unitsToTake
     
     if mdl_name == 'CNN_3D' or mdl_name == 'CNN_3D_INCEP':
-        data_train = prepare_data_cnn3d(data_train,temporal_width,idx_unitsToTake)
-        data_test = prepare_data_cnn3d(data_test,temporal_width,idx_unitsToTake)
-        data_val = prepare_data_cnn3d(data_val,temporal_width,idx_unitsToTake)
+        data_train = prepare_data_cnn3d(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_cnn3d(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_cnn3d(data_val,temporal_width,np.arange(len(idx_unitsToTake)))
     elif mdl_name == 'CNN_2D':
-        data_train = prepare_data_cnn2d(data_train,temporal_width,idx_unitsToTake)
-        data_test = prepare_data_cnn2d(data_test,temporal_width,idx_unitsToTake)
-        data_val = prepare_data_cnn2d(data_val,temporal_width,idx_unitsToTake)       
+        data_train = prepare_data_cnn2d(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_cnn2d(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_cnn2d(data_val,temporal_width,np.arange(len(idx_unitsToTake)))       
     
     t_frame = parameters['t_frame']
+    
         
     
     
@@ -143,259 +145,219 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,fname_performance_e
     else:
         raise ValueError('Wrong model name')
     
-    path_model_save = os.path.join(path_model_save_base,fname_model)
+    path_model_save = path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)
     path_save_model_performance = os.path.join(path_model_save,'performance')
+    if not os.path.exists(path_save_model_performance):
+        os.mkdir(path_save_model_performance)
+        
     
     # fname_excel = 'performance_'+fname_model+'_chansVary_newFEV.csv'
     
     
-    # %% Evaluate performance of the model
+    #%% Evaluate performance of the model
     
     
-    # x = Input(shape=data_train.X.shape[1:])
-    # n_cells = data_train.y.shape[1]
-    # lr = 1e-2
+    x = Input(shape=data_train.X.shape[1:])
+    n_cells = data_train.y.shape[1]
+    lr = 1e-2
     
-    # # mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm)
+    # mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm)
     
-    # mdl = load(os.path.join(path_model_save,fname_model))
-    # mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
+    mdl = load(os.path.join(path_model_save,fname_model))
+    mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
     
-    # obs_rate = data_val.y
-    # fev_median_allEpochs = np.empty(nb_epochs)
-    # fev_median_allEpochs[:] = np.nan
-    # fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
-    # fev_allUnits_allEpochs[:] = np.nan
-    # loss_allEpochs= np.zeros((nb_epochs))
-    # loss_allEpochs[:] = np.nan
+    obs_rate = data_val.y
+    val_loss_allEpochs = np.empty(nb_epochs)
+    val_loss_allEpochs[:] = np.nan
+    fev_medianUnits_allEpochs = np.empty(nb_epochs)
+    fev_medianUnits_allEpochs[:] = np.nan
+    fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+    fev_allUnits_allEpochs[:] = np.nan
+    fracExVar_medianUnits_allEpochs = np.empty(nb_epochs)
+    fracExVar_medianUnits_allEpochs[:] = np.nan
+    fracExVar_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+    fracExVar_allUnits_allEpochs[:] = np.nan
     
+    predCorr_medianUnits_allEpochs = np.empty(nb_epochs)
+    predCorr_medianUnits_allEpochs[:] = np.nan
+    predCorr_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+    predCorr_allUnits_allEpochs[:] = np.nan
+    rrCorr_medianUnits_allEpochs = np.empty(nb_epochs)
+    rrCorr_medianUnits_allEpochs[:] = np.nan
+    rrCorr_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+    rrCorr_allUnits_allEpochs[:] = np.nan
     
-    # print('-----EVALUATING PERFORMANCE-----')
-    # for i in range(nb_epochs-1):
-    #     weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
-    #     mdl.load_weights(os.path.join(path_model_save,weight_file))
-    #     est_rate = mdl.predict(data_val.X)
-    #     rgb = metrics.fraction_of_explainable_variance_explained(obs_rate,est_rate,unit_noise)
-    #     fev_allUnits_allEpochs[i,:] = rgb
-    #     fev_median_allEpochs[i] = np.nanmedian(rgb)
-    #     _ = gc.collect()
-    #     results_eval = mdl.evaluate(data_val.X,data_val.y,batch_size=data_val.y.shape[0])
-    #     loss_allEpochs[i] = results_eval[0]
+
+    obs_rate_allStimTrials = dataset_rr['stim_0']['val']
+    num_iters = 10
+
+    # check_trainVal_contamination(data_train.X,data_val.X,temporal_width)
     
-    # idx_bestEpoch = np.nanargmax(fev_median_allEpochs)
-    # fev_median_bestEpoch = np.round(fev_median_allEpochs[idx_bestEpoch],2)
-    # fev_allUnits_bestEpoch = fev_allUnits_allEpochs[(idx_bestEpoch),:]
-    # fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
-    # mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
-    # pred_rate = mdl.predict(data_val.X)
+    print('-----EVALUATING PERFORMANCE-----')
+    for i in range(nb_epochs-1):
+        weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
+        mdl.load_weights(os.path.join(path_model_save,weight_file))
+        pred_rate = mdl.predict(data_val.X)
+        _ = gc.collect()
+        # val_loss,_,_,_ = mdl.evaluate(data_val.X,data_val.y,batch_size=data_val.X.shape[0])
+        val_loss = None
+        val_loss_allEpochs[i] = val_loss
+        
+        fev_loop = np.zeros((num_iters,n_cells))
+        fracExVar_loop = np.zeros((num_iters,n_cells))
+        predCorr_loop = np.zeros((num_iters,n_cells))
+        rrCorr_loop = np.zeros((num_iters,n_cells))
+
+        for j in range(num_iters):
+            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=0)
+            
+        fev = np.mean(fev_loop,axis=0)
+        fracExVar = np.mean(fracExVar_loop,axis=0)
+        predCorr = np.mean(predCorr_loop,axis=0)
+        rrCorr = np.mean(rrCorr_loop,axis=0)
+
+
+        # rgb = metrics.fraction_of_explainable_variance_explained(obs_rate,est_rate,unit_noise)
+        fev_allUnits_allEpochs[i,:] = fev
+        fev_medianUnits_allEpochs[i] = np.nanmedian(fev)      
+        fracExVar_allUnits_allEpochs[i,:] = fracExVar
+        fracExVar_medianUnits_allEpochs[i] = np.nanmedian(fracExVar)      
+        
+        predCorr_allUnits_allEpochs[i,:] = predCorr
+        predCorr_medianUnits_allEpochs[i] = np.nanmedian(predCorr)
+        rrCorr_allUnits_allEpochs[i,:] = rrCorr
+        rrCorr_medianUnits_allEpochs[i] = np.nanmedian(rrCorr)
+        
+
+        _ = gc.collect()
     
-    # _ = gc.collect()
+    # fracExVar_allUnits = np.mean(fracExVar_allUnits_allEpochs,axis=0)
+    # fracExVar_medianUnits = np.round(np.median(fracExVar_allUnits,axis=0),2)
+    # rrCorr_allUnits = np.mean()
+    # rrCorr_medianUnits = np.round(np.median(rrCorr_allUnits),2)
+
     
-    # idx_minLoss = np.nanargmin(loss_allEpochs)
-    # fev_median_minLoss = np.round(fev_median_allEpochs[idx_minLoss],2)
+    idx_bestEpoch = np.nanargmax(fev_medianUnits_allEpochs)
+    fev_medianUnits_bestEpoch = np.round(fev_medianUnits_allEpochs[idx_bestEpoch],2)
+    fev_allUnits_bestEpoch = fev_allUnits_allEpochs[(idx_bestEpoch),:]
+    fracExVar_medianUnits = np.round(fracExVar_medianUnits_allEpochs[idx_bestEpoch],2)
+    fracExVar_allUnits = fracExVar_allUnits_allEpochs[(idx_bestEpoch),:]
+    
+    predCorr_medianUnits_bestEpoch = np.round(predCorr_medianUnits_allEpochs[idx_bestEpoch],2)
+    predCorr_allUnits_bestEpoch = predCorr_allUnits_allEpochs[(idx_bestEpoch),:]
+    rrCorr_medianUnits = np.round(rrCorr_medianUnits_allEpochs[idx_bestEpoch],2)
+    rrCorr_allUnits = rrCorr_allUnits_allEpochs[(idx_bestEpoch),:]
+
+    
+    fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
+    mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
+    pred_rate = mdl.predict(data_val.X)
+    fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
+    
     
  # %% Calculate new performance metrics and update the spreadsheets and model h5 files
- 
-     # retinal reliability
-    obs_rate_allStimTrials = dataset_rr['stim_0']['val']
+    
     fname_save_performance = os.path.join(path_save_model_performance,(expDate+'_'+fname_model+'.h5'))
-    f = h5py.File(fname_save_performance,'r')
-    pred_rate = np.array(f['dataset_pred']['pred_rate'])
-    filt_temporal_width = np.array(f['stim_info']['temporal_width'])
-    if filt_temporal_width==0:
-        filt_temporal_width = 60 
-    
-    
-    num_iters = 100
-    num_units = f['uname_selectedUnits'].shape[0]
-    fev_loop = np.zeros((num_iters,num_units))
-    fracExVar_loop = np.zeros((num_iters,num_units))
-    predCorr_loop = np.zeros((num_iters,num_units))
-    rrCorr_loop = np.zeros((num_iters,num_units))
-    
-    for i in range(num_iters):
-        fev_loop[i,:], fracExVar_loop[i,:], predCorr_loop[i,:], rrCorr_loop[i,:] = model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width)
-        
-    fev = np.mean(fev_loop,axis=0)
-    fracExVar = np.mean(fracExVar_loop,axis=0)
-    predCorr = np.mean(predCorr_loop,axis=0)
-    rr_corr = np.mean(rrCorr_loop,axis=0)
-        
-        
-    
-    fev_allUnits_bestEpoch = fev
-    fev_medianUnits_bestEpoch = np.round(np.nanmedian(fev_allUnits_bestEpoch),2)
-    fracExVar_allUnits = fracExVar
-    fracExVar_medianUnits = np.round(np.median(fracExVar_allUnits),2)
-    
-    predCorr_allUnits_bestEpoch = predCorr
-    predCorr_medianUnits_bestEpoch = np.round(np.nanmedian(predCorr_allUnits_bestEpoch),2)
-    rrCorr_allUnits = rr_corr
-    rrCorr_medianUnits = np.round(np.median(rrCorr_allUnits),2)
 
-    
-    f.close()
-    
-    f = h5py.File(fname_save_performance,'a')
-    grp = f['/model_performance']
-    dataset_exist = '/model_performance/retinalReliability' in f
-    if dataset_exist:        
-        if 'model_performance/fev_allUnits_bestEpoch' in f:
-            del f['model_performance/fev_allUnits_bestEpoch']
-            
-        if 'model_performance/fev_m2_allUnits_bestEpoch' in f:
-            del f['model_performance/fev_m2_allUnits_bestEpoch']
-            
-        if 'model_performance/fev_m2_median_bestEpoch' in f:    
-            del f['model_performance/fev_m2_median_bestEpoch']  
-            
-        if 'model_performance/fev_m3_allUnits_bestEpoch' in f:               
-            del f['model_performance/fev_m3_allUnits_bestEpoch']
-            
-        if 'model_performance/fev_m3_median_bestEpoch' in f:    
-            del f['model_performance/fev_m3_median_bestEpoch']
-            
-        if 'model_performance/fev_median_bestEpoch' in f:              
-            del f['model_performance/fev_median_bestEpoch']
-            
-        if 'model_performance/fractionExplainableVariance_allUnits' in f:               
-            del f['model_performance/fractionExplainableVariance_allUnits']
-            
-        if 'model_performance/retinalReliability' in f:    
-            del f['model_performance/retinalReliability']      
+    print('-----SAVING PERFORMANCE STUFF TO H5-----')
+    model_performance = {
+        'fev_medianUnits_allEpochs': fev_medianUnits_allEpochs,
+        'fev_allUnits_allEpochs': fev_allUnits_allEpochs,
+        'fev_medianUnits_bestEpoch': fev_medianUnits_bestEpoch,
+        'fev_allUnits_bestEpoch': fev_allUnits_bestEpoch,
         
-    dataset_exist = '/model_performance/fracExVar_allUnits' in f
-    if dataset_exist:        
-        del f['/model_performance/fev_allUnits_bestEpoch']   
-        del f['/model_performance/fev_medianUnits_bestEpoch']
-        del f['/model_performance/fracExVar_allUnits']
-        del f['/model_performance/fracExVar_medianUnits']
+        'fracExVar_medianUnits': fracExVar_medianUnits,
+        'fracExVar_allUnits': fracExVar_allUnits,
         
-        del f['/model_performance/predCorr_allUnits_bestEpoch']
-        del f['/model_performance/predCorr_medianUnits_bestEpoch']
-        del f['/model_performance/rrCorr_allUnits']
-        del f['/model_performance/rrCorr_medianUnits']
-              
-             
-    grp.create_dataset('fev_allUnits_bestEpoch', data=fev_allUnits_bestEpoch)        
-    grp.create_dataset('fev_medianUnits_bestEpoch', data=fev_medianUnits_bestEpoch)
-    grp.create_dataset('fracExVar_allUnits', data=fracExVar_allUnits)
-    grp.create_dataset('fracExVar_medianUnits', data=fracExVar_medianUnits)
-    
-    grp.create_dataset('predCorr_allUnits_bestEpoch', data=predCorr_allUnits_bestEpoch)        
-    grp.create_dataset('predCorr_medianUnits_bestEpoch', data=predCorr_medianUnits_bestEpoch)
-    grp.create_dataset('rrCorr_allUnits', data=rrCorr_allUnits)
-    grp.create_dataset('rrCorr_medianUnits', data=rrCorr_medianUnits)
-
-    f.close()
-
-    # num_iters = 5
-    # fev_1a_loop = np.zeros((num_iters,num_units))
-    # fev_1b_loop = np.zeros((num_iters,num_units))
-    # fev_2_loop = np.zeros((num_iters,num_units))
-    
-    # for j in range(0,num_iters):
-    #     fev_1a, fev_1b, fev_2 = newFEV(noise_allStimTrials,fracExplainableVar_allStimTrials,obs_rate_allStimTrials,pred_rate,filt_temporal_width)
-
-    #     fev_1a_loop[j,:] = fev_1a
-    #     fev_1b_loop[j,:] = fev_1b
-    #     fev_2_loop[j,:] = fev_2
+        'predCorr_medianUnits_allEpochs': predCorr_medianUnits_allEpochs,
+        'predCorr_allUnits_allEpochs': predCorr_allUnits_allEpochs,
+        'predCorr_medianUnits_bestEpoch': predCorr_medianUnits_bestEpoch,
+        'predCorr_allUnits_bestEpoch': predCorr_allUnits_bestEpoch,
         
-    # fev_1a = np.mean(fev_1a_loop,axis=0)
-    # fev_1b = np.mean(fev_1b_loop,axis=0)
-    # fev_2 = np.mean(fev_2_loop,axis=0)
-
- 
-    # %% Save performance
-    # fname_save_performance = os.path.join(path_save_model_performance,(expDate+'_'+fname_model+'.h5'))
-    
-    # print('-----SAVING PERFORMANCE STUFF TO H5-----')
-    # model_performance = {
-    #     'fev_median_allEpochs': fev_median_allEpochs,
-    #     'fev_allUnits_allEpochs': fev_allUnits_allEpochs,
-    #     'idx_bestEpoch': idx_bestEpoch,
-    #     'fev_median_bestEpoch': fev_median_bestEpoch,
-    #     'fev_allUnits_bestEpoch': fev_allUnits_bestEpoch,
-    #     'fname_bestWeight': fname_bestWeight,
-    #     'fractionExplainableVariance_allUnits': fractionExplainableVariance_allUnits,
-    #     'retinalReliability': retinalReliability,
-    #     }
-    
-    # metaInfo = {
-    #    ' mdl_name': mdl.name,
-    #     'path_model_save': path_model_save,
-    #     'uname_selectedUnits': np.array(data_quality['uname_selectedUnits'][idx_unitsToTake],dtype='bytes'),
-    #     'idx_unitsToTake': idx_unitsToTake,
-    #     'thresh_rr': thresh_rr,
-    #     'N_TRIALS': counter_train+1,
-    #     'Date': np.array(datetime.datetime.now(),dtype='bytes')
-    #     }
+        'rrCorr_medianUnits': rrCorr_medianUnits,
+        'rrCorr_allUnits': rrCorr_allUnits,          
         
-    # model_params = {
-    #             'chan1_n' : chan1_n,
-    #             'filt1_size' : filt1_size,
-    #             'filt1_3rdDim': filt1_3rdDim,
-    #             'chan2_n' : chan2_n,
-    #             'filt2_size' : filt2_size,
-    #             'filt2_3rdDim': filt2_3rdDim,
-    #             'chan3_n' : chan3_n,
-    #             'filt3_size' : filt3_size,
-    #             'filt3_3rdDim': filt3_3rdDim,            
-    #             'bz_ms' : bz_ms,
-    #             'nb_epochs' : nb_epochs,
-    #             'BatchNorm': BatchNorm,
-    #             'MaxPool': MaxPool,
-    #             }
+        'fname_bestWeight': np.atleast_1d(fname_bestWeight),
+        'idx_bestEpoch': idx_bestEpoch,
+        
+        'val_loss_allEpochs': val_loss_allEpochs,
+        'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
+        }
     
-    # stim_info = {
-    #      'fname_data_train_val_test':fname_data_train_val_test,
-    #      'n_trainingSamps': data_train.X.shape[0],
-    #      'n_valSamps': data_val.X.shape[0],
-    #      'n_testSamps': data_test.X.shape[0],
-    #      'temporal_width':temporal_width,
-    #      }
+
+    metaInfo = {
+       ' mdl_name': mdl.name,
+        'path_model_save': path_model_save,
+        'uname_selectedUnits': np.array(data_quality['uname_selectedUnits'],dtype='bytes'),#[idx_unitsToTake],dtype='bytes'),
+        'idx_unitsToTake': idx_unitsToTake,
+        'thresh_rr': thresh_rr,
+        'trial_num': c_trial,
+        'Date': np.array(datetime.datetime.now(),dtype='bytes')
+        }
+        
+    model_params = {
+                'chan1_n' : chan1_n,
+                'filt1_size' : filt1_size,
+                'filt1_3rdDim': filt1_3rdDim,
+                'chan2_n' : chan2_n,
+                'filt2_size' : filt2_size,
+                'filt2_3rdDim': filt2_3rdDim,
+                'chan3_n' : chan3_n,
+                'filt3_size' : filt3_size,
+                'filt3_3rdDim': filt3_3rdDim,            
+                'bz_ms' : bz_ms,
+                'nb_epochs' : nb_epochs,
+                'BatchNorm': BatchNorm,
+                'MaxPool': MaxPool,
+                }
     
-    # datasets_val = {
-    #     'data_val_X': data_val.X,
-    #     'data_val_y': data_val.y,
-    #     'data_test_X': data_test.X,
-    #     'data_test_y': data_test.y,
-    #     }
+    stim_info = {
+         'fname_data_train_val_test':fname_data_train_val_test,
+         'n_trainingSamps': data_train.X.shape[0],
+         'n_valSamps': data_val.X.shape[0],
+         'n_testSamps': data_test.X.shape[0],
+         'temporal_width':temporal_width,
+         }
+    
+    datasets_val = {
+        'data_val_X': data_val.X,
+        'data_val_y': data_val.y,
+        'data_test_X': data_test.X,
+        'data_test_y': data_test.y,
+        }
     
     
-    # dataset_pred = {
-    #     'obs_rate': obs_rate,
-    #     'pred_rate': pred_rate,
-    #     }
-    
-    # save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred)
+    dataset_pred = {
+        'obs_rate': obs_rate,
+        'pred_rate': pred_rate,
+        'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
+        }
+
+    dataset_rr = None
+    save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred)
+
     
     
     
     # %% Write performance to csv file
+    
+    
     print('-----WRITING TO CSV FILE-----')
-    csv_header = ['mdl_name','expDate','thresh_rr','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','corr_median','rr_corr_median']
-    csv_data = [mdl_name,expDate,thresh_rr,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits]
-    
-    fname_csv_file = fname_performance_excel#'performance_'+expDate+'_newFEV_chansVary.csv'
-    # fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
-    if not os.path.exists(fname_csv_file):
-        with open(fname_csv_file,'w',encoding='utf-8') as csvfile:
-            csvwriter = csv.writer(csvfile) 
-            csvwriter.writerow(csv_header) 
-            
-    with open(fname_csv_file,'a',encoding='utf-8') as csvfile:
-        csvwriter = csv.writer(csvfile) 
-        csvwriter.writerow(csv_data) 
-    
-    # fname_validation_excel = os.path.join(path_save_model_performance,expDate+'_validation_'+fname_model+'_loss.csv')
-    # csv_header = ['epoch','val_fev','loss']
-    # with open(fname_validation_excel,'w',encoding='utf-8') as csvfile:
-    #     csvwriter = csv.writer(csvfile) 
-    #     csvwriter.writerow(csv_header) 
+    if saveToCSV==1:
+        csv_header = ['mdl_name','expDate','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median']
+        csv_data = [mdl_name,expDate,thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits]
         
-    #     for i in range(fev_median_allEpochs.shape[0]):
-    #         csvwriter.writerow([str(i),str(np.round(fev_median_allEpochs[i],2))]) 
+        fname_csv_file = fname_performance_excel
+        if not os.path.exists(fname_csv_file):
+            with open(fname_csv_file,'w',encoding='utf-8') as csvfile:
+                csvwriter = csv.writer(csvfile) 
+                csvwriter.writerow(csv_header) 
+                
+        with open(fname_csv_file,'a',encoding='utf-8') as csvfile:
+            csvwriter = csv.writer(csvfile) 
+            csvwriter.writerow(csv_data) 
+
+        
         
         
     print('-----FINISHED-----')

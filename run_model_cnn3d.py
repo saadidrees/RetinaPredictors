@@ -16,7 +16,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1,
+                            nb_epochs=100,bz_ms=10000,BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 
@@ -39,7 +39,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
     # BatchNorm=1
     # MaxPool=0
     
-    
+# %% prepare data
     print('expDate: '+expDate)
     print('runOnCluster: '+str(runOnCluster))
     print('temporal_width: '+str(temporal_width))
@@ -73,7 +73,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
     from tensorflow.keras.layers import Input
     
     from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, check_trainVal_contamination
-    from model.performance import save_modelPerformance, model_evaluate
+    from model.performance import save_modelPerformance, model_evaluate,model_evaluate_new
     import model.metrics as metrics
     from model.models import cnn_3d, cnn_2d, cnn_3d_inception
     from model.train_model import train
@@ -135,6 +135,11 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
     else:
         mp_val=0       
         MaxPool=False
+        
+    if BatchNorm_train:
+        BatchNorm_train = True
+    else:
+        BatchNorm_train = False
     
     bz = math.ceil(bz_ms/t_frame)
     
@@ -155,7 +160,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
                                                                                      chan3_n,filt3_size,filt3_3rdDim,
                                                                                      bn_val,mp_val,c_trial)
     elif mdl_name=='CNN_2D':
-        mdl = cnn_2d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
+        mdl = cnn_2d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
         fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,
                                                                                      chan2_n,filt2_size,
                                                                                      chan3_n,filt3_size,
@@ -186,9 +191,9 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
     
     fname_excel = 'performance_'+fname_model+'.csv'
     
-    
+    # %% run model
     print('-----RUNNING MODEL-----')
-    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=5)  
+    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=10)  
     mdl_history = mdl_history.history
     
     # %% Model Evaluation
@@ -216,6 +221,8 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
 
     obs_rate_allStimTrials = dataset_rr['stim_0']['val']
     num_iters = 10
+    samps_shift = parameters['samps_shift']
+
 
     check_trainVal_contamination(data_train.X,data_val.X,temporal_width)
     
@@ -224,7 +231,9 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
         weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
         pred_rate = mdl.predict(data_val.X)
-        val_loss,_,_,_ = mdl.evaluate(data_val.X,data_val.y,batch_size=data_val.X.shape[0])
+        _ = gc.collect()
+        # val_loss,_,_,_ = mdl.evaluate(data_val.X,data_val.y,batch_size=data_val.X.shape[0])
+        val_loss = None
         val_loss_allEpochs[i] = val_loss
         
         fev_loop = np.zeros((num_iters,n_cells))
@@ -233,7 +242,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
         rrCorr_loop = np.zeros((num_iters,n_cells))
 
         for j in range(num_iters):
-            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate(obs_rate_allStimTrials,pred_rate,temporal_width)
+            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=0)
             
         fev = np.mean(fev_loop,axis=0)
         fracExVar = np.mean(fracExVar_loop,axis=0)

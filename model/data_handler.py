@@ -778,8 +778,10 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         data_val = Exptdata(datasets[val_dset_name].X,rgb)
     
     if frac_test>0:
-        nsamples_test = int(np.floor(datasets['train'].X.shape[0]*frac_test))
-        idx_test = np.arange(datasets['train'].X.shape[0]-nsamples_test,datasets['train'].X.shape[0]-1)
+        nsamples_test = int(np.floor(datasets['train'].X.shape[0]*frac_test))       
+        idx_test = np.floor(np.arange((datasets['train'].X.shape[0]/2)-(nsamples_test/2),(datasets['train'].X.shape[0]/2)))
+        idx_test = np.concatenate((idx_test,np.arange(datasets['train'].X.shape[0]-(nsamples_test/2),datasets['train'].X.shape[0]-1)),axis=0)
+        idx_test = idx_test.astype('int')
         if idx_test.shape[0] % 2 != 0:
             idx_test = idx_test[2:]
             # idx_test = np.insert(idx_test,0,idx_test[0]-1)
@@ -880,6 +882,8 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         for i in range(len(keys_2)):
             if 'bytes' in dataset_rr[j][keys_2[i]].dtype.name:
                 grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]])
+            elif dataset_rr[j][keys_2[i]].dtype == 'O':
+                grp.create_dataset(keys_2[i], data=np.array(dataset_rr[j][keys_2[i]],dtype='bytes'))
             else:
                 grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]],compression='gzip')
                 
@@ -996,9 +1000,46 @@ def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_w
     
     a = np.unique(stimFrames_train_flattened,axis=0)
     b = np.unique(stimFrames_val_flattened,axis=0)   
-    c = np.concatenate((a,b),axis=0)
-    if np.abs(np.unique(c,axis=0).shape[0] - c.shape[0]) > 1:
-       raise ValueError('training samples contains validation samples')
+    c = np.concatenate((b,a),axis=0)
+    d,d_idx = np.unique(c,axis=0,return_index=True)
+    # d_idx = d_idx[d_idx>b.shape[0]] - b.shape[0]
+    # idx_discard = np.setdiff1d(np.arange(0,a.shape[0]),d_idx)
+    idx_discard = np.atleast_1d(np.empty(0))
+    if np.abs(np.unique(c,axis=0).shape[0] - c.shape[0]) > 2:
+        Warning('Training samples contains validation samples. Finding training indices to remove')
+        
+        idx_discard = get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened)
+        return idx_discard
     
+    else:
+        print('No contamination found')
+        return idx_discard
+              
+    # if idx_discard.size!=0:
+    #     print('training samples contains validation samples')
+    #     Warning('training dataset contains repeated stimulus frames')
+    # return idx_discard
     
+        
+def get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened):
+        
+    a = stimFrames_train_flattened
+    b = stimFrames_val_flattened
     
+    progress_vals = np.arange(0,1,0.1)
+    progress = progress_vals*a.shape[0]
+    idx_discard = np.atleast_1d([])
+    for i in range(a.shape[0]):
+        train_frame = a[i]
+        for j in range(b.shape[0]):
+            val_frame = b[j]
+            
+            if np.all(train_frame == val_frame):
+                idx_discard = np.append(idx_discard,i)
+                break
+            
+        if any(progress == i):
+            rgb = progress_vals[progress == i]
+            print('progresss: '+str(rgb*100)+'%')
+            
+    return idx_discard

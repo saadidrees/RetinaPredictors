@@ -5,6 +5,7 @@
 # updating repo
 cd from_git
 git fetch --all
+git pull
 cd ..
 echo "Fetched latest files from git"
 
@@ -47,7 +48,7 @@ do
  expDate=${expDate_all[i]}
  mdl_name=${mdl_name_all[i]}
  path_model_save_base=${path_model_save_base_all[i]}
- path_model_save_base=$path_model_save_base/$expDate
+# path_model_save_base=$path_model_save_base/$expDate
  name_datasetFile=${name_datasetFile_all[i]}
  
  thresh_rr=${thresh_rr_all[i]}

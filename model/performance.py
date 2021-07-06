@@ -175,9 +175,15 @@ def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=
     num_trials = obs_rate_allStimTrials.shape[0]
     idx_allTrials = np.arange(num_trials)
     
-    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,:-lag,:]
-    if RR_ONLY is False:
-        pred_rate_corrected = pred_rate[lag:,:]
+    if lag != 0:
+        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,:-lag,:]
+        if RR_ONLY is False:
+            pred_rate_corrected = pred_rate[lag:,:]
+    else:
+        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials
+        if RR_ONLY is False:
+            pred_rate_corrected = pred_rate
+        
     
 
 # for predicting trial averaged responses
@@ -210,15 +216,16 @@ def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=
 
     return fev, fracExplainableVar, pred_corr, rr_corr
 
-def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=False,lag = 2):
+def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False,lag = 2):
     numCells = obs_rate_allStimTrials.shape[-1]
     num_trials = obs_rate_allStimTrials.shape[0]
     idx_allTrials = np.arange(num_trials)
     
     t_start = 10
-    t_end = obs_rate_allStimTrials.shape[0]-t_start-10
+    t_end = obs_rate_allStimTrials.shape[1]-t_start-10
     
-    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,t_start:t_end-lag,:]
+    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,filt_width:,:]
+    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials_corrected[:,t_start:t_end-lag,:]
     if RR_ONLY is False:
         pred_rate_corrected = pred_rate[t_start+lag:t_end,:]
 # for predicting trial averaged responses
@@ -227,8 +234,8 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_O
     assert(np.unique(idx_trials_r1).shape[0] == idx_trials_r1.shape[0])
     idx_trials_r2 = np.setdiff1d(idx_allTrials,idx_trials_r1)
 
-    r1 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r1,filt_temporal_width:,:],axis=0)
-    r2 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r2,filt_temporal_width:,:],axis=0)
+    r1 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r1,:,:],axis=0)
+    r2 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r2,:,:],axis=0)
     
     noise_trialAveraged = np.mean((r1-r2)**2,axis=0)
     fracExplainableVar = (np.var(r2,axis=0) - noise_trialAveraged)/np.var(r2,axis=0)
@@ -239,6 +246,7 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_O
         r_pred = pred_rate_corrected
         mse_resid = np.mean((r_pred-r2)**2,axis=0)
         fev = 1 - ((mse_resid-noise_trialAveraged)/(np.var(r2,axis=0)-noise_trialAveraged))
+        # fev = 1 - ((mse_resid)/(np.var(r2,axis=0)-noise_trialAveraged))
     
     
 # Pearson correlation

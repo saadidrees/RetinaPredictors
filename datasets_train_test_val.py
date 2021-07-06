@@ -12,18 +12,20 @@ import os
 import h5py
 import numpy as np
 from model.data_handler import load_data, load_data_kr, load_data_kr_allLightLevels, save_h5Dataset, check_trainVal_contamination
+from collections import namedtuple
+Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
 whos_data = 'kiersten'
 lightLevel = 'allLightLevels'     # ['scotopic', 'photopic','scotopic_photopic']
-datasetsToLoad = ['scotopic','photopic','scotopic_photopic']
+datasetsToLoad = ['scotopic']#['scotopic','photopic','scotopic_photopic']
 
 
 if whos_data == 'saad':
     expDate = '20180502_s3'     # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3')
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad/',expDate,'datasets')
 elif whos_data == 'kiersten':
-    expDate = 'retina1'     # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3')
-    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets')
+    expDate = 'retina1'     # ('retina1', 'retina2','retina3')
+    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/temp')
 
 
 fname_dataFile = os.path.join(path_dataset,(expDate+'_dataset_CB_'+lightLevel+'.h5'))
@@ -44,13 +46,6 @@ elif whos_data == 'kiersten':
     frac_test = 0.05  
 
 
-parameters = {
-    't_frame': t_frame,
-    'filt_temporal_width': filt_temporal_width,
-    'frac_val': frac_val,
-    'frac_test':frac_test,
-    'thresh_rr': thresh_rr
-    }
 
 for d in datasetsToLoad:
     fname_data_train_val_test = os.path.join(path_dataset,(expDate+'_dataset_train_val_test_'+d+'.h5'))
@@ -72,7 +67,57 @@ for d in datasetsToLoad:
             data_train,data_val,data_test,data_quality,dataset_rr = load_data_kr(fname_dataFile,frac_val=frac_val,frac_test=frac_test,filt_temporal_width=filt_temporal_width,idx_cells_orig=idx_cells,thresh_rr=thresh_rr)
             
     
-    check_trainVal_contamination(data_train.X,data_val.X,0)
-    check_trainVal_contamination(data_train.X,data_test.X,0)
-            
+    idx_discard = check_trainVal_contamination(data_train.X,data_val.X,0)
+    if idx_discard.size!=0:
+        idx_toKeep = np.sort(np.setdiff1d(np.arange(0,data_train.X.shape[0]),idx_discard))
+        rgb_x = data_train.X[idx_toKeep]
+        rgb_y = data_train.y[idx_toKeep]
+        data_train = Exptdata(rgb_x,rgb_y)
+        check_trainVal_contamination(data_train.X,data_val.X,0)
+        
+    # check_trainVal_contamination(data_train.X,data_test.X,0)
+    
+    f = h5py.File(fname_dataFile,'r')
+    samps_shift = np.array(f[d]['val']['spikeRate'].attrs['samps_shift'])
+    parameters = {
+    't_frame': t_frame,
+    'filt_temporal_width': filt_temporal_width,
+    'frac_val': frac_val,
+    'frac_test':frac_test,
+    'thresh_rr': thresh_rr,
+    'samps_shift': samps_shift
+    }
+
+    
     save_h5Dataset(fname_data_train_val_test,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
+    
+    
+# %% Shift photopic data by 5 samples
+rgb_X = data_train.X
+rgb_y = data_train.y
+
+samps_shift = -5    # delay the responses by 5 frames
+
+if samps_shift>0:
+    rgb_X_shifted = rgb_X[:-samps_shift]
+    rgb_y_shifted = rgb_y[samps_shift:]
+    sign='+'
+
+else:
+    rgb_X_shifted = rgb_X[abs(samps_shift):]
+    rgb_y_shifted = rgb_y[:-abs(samps_shift)]
+    sign = ''
+
+
+
+X_new = np.concatenate((data_train.X,rgb_X_shifted),axis=0)
+y_new = np.concatenate((data_train.y,rgb_y_shifted),axis=0)
+
+data_train = Exptdata(X_new,y_new)
+
+    
+fname_data_train_val_test = os.path.join(path_dataset,(expDate+'_dataset_train_val_test_'+d+'_'+'shifted'+d+'_'+sign+str(samps_shift)+'.h5'))
+save_h5Dataset(fname_data_train_val_test,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
+
+
+    
