@@ -2,9 +2,9 @@
 Custom keras activations
 """
 import numpy as np
-from keras.engine import Layer
-from keras import backend as K
-from keras.initializers import Constant, Zeros
+from tensorflow.keras.engine import Layer
+from tensorflow.keras import backend as K
+from tensorflow.keras.initializers import Constant, Zeros
 
 __all__ = ['ParametricSoftplus', 'psp', 'PSP', 'requ', 'ReQU', 'rbf', 'RBF', 'selu', 'SELU']
 
