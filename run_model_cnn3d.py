@@ -94,7 +94,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
         # path_model_save_base = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate)
     else:
         # Local
-        path_dataset = os.path.join(path_dataset_base,expDate,'datasets')
+        path_dataset = os.path.join(path_dataset_base,'datasets')
         path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
         # path_model_save_base = os.path.join('/home/saad/data/analyses/data_saad',expDate)
     

@@ -36,8 +36,8 @@ import gc
 # path_mdl_drive = '/home/saad/data/analyses/data_saad/'
 # expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
 expDates = ('retina1',)
-subFold = ''
-lightLevel_1 = 'scotopic_preproc_added_norm_1'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic_preproc','scotopic_preproc']
+subFold = '8ms' # test_coneParams
+lightLevel_1 = 'photopic-10000_preproc-cones_norm-1_rfac-2'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic_preproc','scotopic_preproc']
 models_all = ('CNN_2D',)    # CNN_3D, CNN_2D  lightLevel_1 chansVary lightLevel_1
 
 writeToCSV = False
@@ -279,23 +279,23 @@ params_mdl = params_allExps[select_exp][select_mdl]
 
 val_dataset_1 = lightLevel_1      # ['scotopic','photopic']
 correctMedian = False
-samps_shift = 0+2
+samps_shift = 0+4
 
 # [20,3,0,24,2,0,22,1,0]
 # [20,3,25,24,2,5,22,1,32]
 
 select_U = 0#0.15
-select_T = 60
+select_T = 120
 select_BN = 1
 select_MP = 0
 # select_TR = 1
-select_C1_n = 18#20
+select_C1_n = 13#13#9#18#20
 select_C1_s = 3
 select_C1_3d = 25
-select_C2_n = 25#24#24
+select_C2_n = 26#26#24#25#24#24
 select_C2_s = 2#2
 select_C2_3d = 5
-select_C3_n = 18#22
+select_C3_n = 24#24#15#18#22
 select_C3_s = 1#1
 select_C3_3d = 32
 
@@ -340,7 +340,8 @@ else:
     data_val = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
     # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
 
-obs_rate_allStimTrials_d1pic = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
+filt_temporal_width = select_T
+obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
 obs_rate = data_val.y
 
 if correctMedian==True:
@@ -368,7 +369,7 @@ predCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
 rrCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
 
 for i in range(num_iters):
-    fev_d1_allUnits[:,i], fracExplainableVar[:,i], predCorr_d1_allUnits[:,i], rrCorr_d1_allUnits[:,i] = model_evaluate_new(obs_rate_allStimTrials_d1pic,pred_rate,0,RR_ONLY=False,lag = samps_shift)
+    fev_d1_allUnits[:,i], fracExplainableVar[:,i], predCorr_d1_allUnits[:,i], rrCorr_d1_allUnits[:,i] = model_evaluate_new(obs_rate_allStimTrials_d1,pred_rate,0,RR_ONLY=False,lag = samps_shift)
 
 
 fev_d1_allUnits = np.mean(fev_d1_allUnits,axis=1)
@@ -398,10 +399,10 @@ rrCorr_d1_medianUnits = np.median(rrCorr_d1_allUnits[idx_d1_valid])
 rrCorr_d1_stdUnits = np.std(rrCorr_d1_allUnits[idx_d1_valid])
 rrCorr_d1_ci = 1.96*(rrCorr_d1_stdUnits/len(idx_d1_valid)**.5)
 
-idx_units_sorted = np.argsort(predCorr_d1_allUnits[idx_d1_valid])
+idx_units_sorted = np.argsort(fev_d1_allUnits[idx_d1_valid])
 idx_units_sorted = idx_d1_valid[idx_units_sorted]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1],idx_units_sorted[0]]
-# idx_unitsToPred = [39,42,34,51]
+# idx_unitsToPred = [15,1,5,16]
 
 t_start = 10
 t_dur = obs_rate.shape[0]
@@ -409,7 +410,7 @@ t_end = t_start+t_dur-20
 win_display = (t_start,t_start+t_dur)
 font_size_ticks = 14
 
-t_frame = 17
+t_frame = 8
 t_axis = np.arange(0,obs_rate.shape[0]*t_frame,t_frame)
 
 col_mdl = ('r')
@@ -462,9 +463,9 @@ axs[0].tick_params(axis='both',labelsize=16)
 _ = gc.collect()
 
 # %% D2: Test model
-val_dataset_2 = 'scotopic_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
+val_dataset_2 = 'scotopic-100_s-30_p-10_preproc-rods_norm-1_rfac-2' #'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
 correctMedian = True
-samps_shift = 0+2
+samps_shift = 0+4
 
 # assert val_dataset_2 != val_dataset_1, 'same datasets selected'
 
@@ -501,6 +502,8 @@ else:
 obs_rate_allStimTrials_scotpic = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
 obs_rate = data_val.y
 
+pred_rate = mdl.predict(data_val.X)
+
 if correctMedian==True:
     fname_data_train_val_test_d1 = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
     _,_,_,_,_,_,resp_med_d1 = load_h5Dataset(fname_data_train_val_test_d1)
@@ -508,16 +511,16 @@ if correctMedian==True:
     resp_med_d2 = np.nanmedian(resp_orig,axis=0)
     resp_mulFac = resp_med_d2/resp_med_d1;
     
-    pred_rate = mdl.predict(data_val.X)
-    pred_rate = pred_rate * resp_mulFac[None,:]
+    # pred_rate = pred_rate * resp_mulFac[None,:]
     
     obs_rate_allStimTrials_scotpic = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
-    obs_rate_allStimTrials_scotpic = obs_rate_allStimTrials_scotpic * resp_mulFac[None,None,:]
+    obs_rate_allStimTrials_scotpic = obs_rate_allStimTrials_scotpic / resp_mulFac[None,None,:]
     
+    obs_rate = obs_rate / resp_mulFac[None,:]
 
     
 else:       
-    pred_rate = mdl.predict(data_val.X)
+    # pred_rate = mdl.predict(data_val.X)
     obs_rate_allStimTrials_scotpic = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
 
 # obs_rate = data_test.y
@@ -540,8 +543,11 @@ predCorr_scot_allUnits = np.mean(predCorr_scot_allUnits,axis=1)
 rrCorr_scot_allUnits = np.mean(rrCorr_scot_allUnits,axis=1)
 
 idx_allUnits = np.arange(fev_scot_allUnits.shape[0])
+idx_scotopic_valid = idx_allUnits
+# idx_scotopic_valid = fev_scot_allUnits<1.1
 idx_scotopic_valid = np.logical_and(fev_scot_allUnits>-1,fev_scot_allUnits<1.1)
 idx_scotopic_valid = idx_allUnits[idx_scotopic_valid]
+
 
 # fev_scot_validUnits = fev_scot_allUnits[idx_scotopic_valid]
 # predCorr_scot_validUnits = predCorr_scot_allUnits[idx_scotopic_valid]
@@ -560,10 +566,11 @@ rrCorr_scot_medianUnits = np.median(rrCorr_scot_allUnits[idx_scotopic_valid])
 rrCorr_scot_stdUnits = np.std(rrCorr_scot_allUnits[idx_scotopic_valid])
 rrCorr_scot_ci = 1.96*(rrCorr_scot_stdUnits/len(idx_scotopic_valid)**.5)
 
-idx_units_sorted = np.argsort(predCorr_scot_allUnits[idx_scotopic_valid])
+# idx_units_sorted = np.argsort(predCorr_scot_allUnits[idx_scotopic_valid])
+idx_units_sorted = np.argsort(fev_scot_allUnits[idx_scotopic_valid])
 idx_units_sorted = idx_scotopic_valid[idx_units_sorted]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1],idx_units_sorted[0]]
-# idx_unitsToPred = [10,9,46,24]
+# idx_unitsToPred = [6,3,16,14]
 
 t_start = 10
 t_dur = obs_rate.shape[0]
@@ -571,7 +578,7 @@ t_end = t_start+t_dur-20
 win_display = (t_start,t_start+t_dur)
 font_size_ticks = 14
 
-t_frame = 17
+t_frame = 8
 t_axis = np.arange(0,obs_rate.shape[0]*t_frame,t_frame)
 
 col_mdl = ('r')
@@ -638,12 +645,12 @@ unit_id = 54
 plt.plot(t_axis[t_start+samps_shift:t_end],obs_rate[t_start:t_end-samps_shift,unit_id],linewidth=2,color='darkgrey')
 plt.plot(t_axis[t_start+samps_shift:t_end],pred_rate[t_start+samps_shift:t_end,unit_id],cols_lightLevels[val_dataset_2],linewidth=1)
 
-# %% heat maps - dataset_1
+# %% D1: Heat maps
 select_exp = 'retina1'
 select_mdl = models_all[0]
-select_param_x = 'C1_3d'
-select_param_y = 'C2_3d'
-select_param_z = 'C3_3d'
+select_param_x = 'C1_n'
+select_param_y = 'C2_n'
+select_param_z = 'C3_n'
 thresh_fev = 0
 
 params_mdl = params_allExps[select_exp][select_mdl]
@@ -743,7 +750,7 @@ fig.colorbar(im)
 plt.setp(axs,aspect='equal')
 
 # %% D2: heatmaps
-val_dataset_2 = 'scotopic'
+val_dataset_2 = 'photopic_preproc_cones_norm_1'
 
 select_exp = 'retina1'
 select_mdl = 'CNN_2D'
@@ -801,16 +808,11 @@ for i in idx_interest:
     
     paramName = paramNames_allExps[select_exp][select_mdl][i]
     
-    mdlFolder_test = paramName+'_TR-%02d' % 0
     
     idx_bestTrial = np.argsort(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
     
-    select_TR = idx_bestTrial[-1]
+    select_TR = idx_bestTrial[-1] + 1
     
-    # if os.path.exists(os.path.join(path_mdl_drive,exp_select,mdl_select,mdlFolder_test)):
-    #     select_TR = idx_bestTrial[-1]
-    # else:
-    #     select_TR = idx_bestTrial[-1] + 1
     
     mdlFolder = paramName+'_TR-%02d' % select_TR
     
@@ -842,7 +844,8 @@ for i in idx_interest:
         fev_scot_allUnits = np.empty((pred_rate.shape[1],num_iters))
         
         for i in range(num_iters):
-            fev_scot_allUnits[:,i],_,_,_ = model_evaluate_new(obs_rate_allStimTrials_scotpic,pred_rate,0,RR_ONLY=False,lag = samps_shift)   
+            # fev_scot_allUnits[:,i],_,_,_ = model_evaluate_new(obs_rate_allStimTrials_scotpic,pred_rate,0,RR_ONLY=False,lag = samps_shift)
+            _,_,fev_scot_allUnits[:,i],_ = model_evaluate_new(obs_rate_allStimTrials_scotpic,pred_rate,0,RR_ONLY=False,lag = samps_shift)       # correlation
         fev_scot_allUnits = np.mean(fev_scot_allUnits,axis=1)
     
         idx_scotopic_valid = np.logical_and(fev_scot_allUnits>0,fev_scot_allUnits<1.1)
@@ -1217,7 +1220,8 @@ for i in range(obs_rate.shape[1]):
     
     corr,lags[i] = cross_corr(a, b)
 
-np.median(lags)
+lags = np.median(lags)
+print(lags)
 # lags = lags+2
 # lags[lags>7]=7
 # lags[lags<0]=7

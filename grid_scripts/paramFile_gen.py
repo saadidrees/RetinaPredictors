@@ -11,7 +11,7 @@ import os
 APPEND_TO_EXISTING = 1
 expDate = 'retina1'
 subfold = ''
-datasetName = 'scotopic_preproc_rods_norm_1'    # ['scotopic','photopic','scotopic_photopic','photopic_shiftedPhotopic']
+datasetName = 'photopic_preproc_added_norm_1'    # ['scotopic','photopic','scotopic_photopic','photopic_shiftedPhotopic']
 path_model_save_base = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate,subfold,datasetName)
 name_datasetFile = expDate+'_dataset_train_val_test_'+datasetName+'.h5'       # _dataset_train_val_test_scotopic_photopic
 mdl_name = 'CNN_2D'
