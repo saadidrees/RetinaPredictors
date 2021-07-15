@@ -41,6 +41,15 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     import gc
     import h5py
     
+    import tensorflow as tf
+    config = tf.compat.v1.ConfigProto(log_device_placement=True)
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = .9
+    tf.compat.v1.Session(config=config)
+    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
+    
     from model.load_savedModel import load
     from model.performance import model_evaluate_new
     import csv

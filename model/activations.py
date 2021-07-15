@@ -2,7 +2,8 @@
 Custom keras activations
 """
 import numpy as np
-from tensorflow.keras.engine import Layer
+# from tensorflow.keras.engine import Layer
+from tensorflow.keras.layers import Layer
 from tensorflow.keras import backend as K
 from tensorflow.keras.initializers import Constant, Zeros
 
