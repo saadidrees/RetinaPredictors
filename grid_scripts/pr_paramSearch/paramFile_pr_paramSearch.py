@@ -9,7 +9,7 @@ import numpy as np
 import csv
 import os
 
-APPEND_TO_EXISTING = 1
+APPEND_TO_EXISTING = 0
 
 path_mdl_drive = '/mnt/graham/scratch/RetinaPredictors/data/retina1/8ms'
 model_dataset = 'photopic-10000_preproc-cones_norm-1_rfac-2'
@@ -17,25 +17,28 @@ path_excel = '/mnt/graham/scratch/RetinaPredictors/data/retina1/8ms/pr_paramSear
 path_perFiles = '/mnt/graham/scratch/RetinaPredictors/performance/'
 
 
-r_sigma = np.arange(4,42,2) #np.atleast_1d((18)) #np.atleast_1d((18))
-r_phi = np.arange(4,42,2) #np.atleast_1d((25))     #np.array((8,10,13,15,18,20,22,24,25,26,28,30))
-r_eta = np.arange(1,42,2) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
+r_sigma = np.arange(14,17,1)
+r_phi = np.arange(14,21,1)
+r_eta = np.arange(3,6,1)
+r_k = np.arange(0.01,0.05,0.01)
+r_h = np.arange(3,11,1)
+r_beta = np.arange(5,35,5)
+r_hillcoef = np.arange(2,11,2)
 
 
-csv_header = ['model_dataset','model_dataset','path_excel','path_perFiles','r_sigma','r_phi','r_eta']
-params_array = np.zeros((100000,3))
+csv_header = ['model_dataset','model_dataset','path_excel','path_perFiles','r_sigma','r_phi','r_eta','r_k','r_h','r_beta','r_hillcoef']
+params_array = np.zeros((1000000,7))
 counter = -1
 for cc1 in r_sigma:
     for cc2 in r_phi:
         for cc3 in r_eta:
+            for cc4 in r_k:
+                for cc5 in r_h:
+                    for cc6 in r_beta:
+                        for cc7 in r_hillcoef:
             
-            c1 = cc1
-            c2 = cc2
-            c3 = cc3
-            
-            
-            counter +=1
-            params_array[counter] = [c1, c2, c3]
+                            counter +=1
+                            params_array[counter] = [cc1, cc2, cc3,cc4,cc5,cc6,cc7]
                                     
                                         
                                         

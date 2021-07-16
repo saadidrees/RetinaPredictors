@@ -5,7 +5,7 @@ Created on Tue Jun 29 13:08:47 2021
 
 @author: saad
 """
-
+import sys
 from model.RiekeModel import Model
 from model.data_handler import load_h5Dataset, save_h5Dataset, rolling_window
 import numpy as np
@@ -60,9 +60,9 @@ def model_params():
     
     # rods - mice
     params_rods = {}
-    params_rods['sigma'] = 30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
-    params_rods['phi'] =  10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_rods['eta'] = 2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_rods['sigma'] = 16 #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
+    params_rods['phi'] =  16 #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_rods['eta'] = 3 #2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
     params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
     params_rods['k'] =  0.01     # constant relating cGMP to current - default 0.02
     params_rods['h'] =  3       # cooperativity for cGMP->current - default 3
@@ -84,6 +84,7 @@ def parallel_runRiekeModel(params,stim_frames_photons,idx_pixelToTake):
     return stim_currents
 
 def run_model(stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=0,NORM=1,DOWN_SAMP=1,ROLLING_FAC=30):
+    
     stim_spatialDims = stim.shape[1:]
     stim = stim.reshape(stim.shape[0],stim.shape[1]*stim.shape[2])
     
@@ -168,7 +169,6 @@ def run_model(stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=
         
     return stim_currents_norm,resp
 
-
 def rwa_stim(X,y,temporal_window,idx_unit,t_start,t_end):
     
     stim = X[t_start:t_end,idx_unit,idx_unit]
@@ -186,8 +186,8 @@ def rwa_stim(X,y,temporal_window,idx_unit,t_start,t_end):
     
     return temporal_feature
 
-# % Single pr type
-DEBUG_MODE = 0
+# %% Single pr type
+DEBUG_MODE = 1
 expDate = 'retina1'
 lightLevel = 'scotopic'  # ['scotopic','photopic']
 pr_type = 'rods'   # ['rods','cones']

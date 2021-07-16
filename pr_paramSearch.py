@@ -20,13 +20,18 @@ def parser_pr_paramSearch():
     parser.add_argument('--r_sigma',type=str2int,default=7.66)
     parser.add_argument('--r_phi',type=str2int,default=7.66)
     parser.add_argument('--r_eta',type=str2int,default=1.62)
+    parser.add_argument('--r_k',type=str2int,default=0.01)
+    parser.add_argument('--r_h',type=str2int,default=3)
+    parser.add_argument('--r_beta',type=str2int,default=25)
+    parser.add_argument('--r_hillcoef',type=str2int,default=4)
 
     args = parser.parse_args()
     
     return args
 
 
-def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62):
+
+def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4):
 
     
     from model.RiekeModel import Model as rieke_model
@@ -201,19 +206,18 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     params_cones['timeStep'] =  1e-3  # freds default is 1e-4
     params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
     
-       
     # rods - mice
     params_rods = {}
     params_rods['sigma'] = r_sigma #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
     params_rods['phi'] =  r_phi #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
     params_rods['eta'] = r_eta #2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
     params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
-    params_rods['k'] =  0.01     # constant relating cGMP to current - default 0.02
-    params_rods['h'] =  3       # cooperativity for cGMP->current - default 3
+    params_rods['k'] =  r_k     # constant relating cGMP to current - default 0.02
+    params_rods['h'] =  r_h       # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['beta'] =  r_beta	  # rate constant for calcium removal in 1/sec - default 9
     params_rods['betaSlow'] =  0	  
-    params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
+    params_rods['hillcoef'] =  r_hillcoef  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] =  0.40		# affinity for Ca2+
     params_rods['gamma'] =  8 #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
