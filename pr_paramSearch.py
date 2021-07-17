@@ -385,8 +385,8 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     
     print('-----WRITING TO CSV FILE-----')
     if saveToCSV==1:
-        csv_header = ['params','sigma','phi','eta','FEV_median','predCorr_median']
-        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],fev_d1_medianUnits,predCorr_d1_medianUnits]
+        csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','FEV_median','predCorr_median']
+        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],fev_d1_medianUnits,predCorr_d1_medianUnits]
         
         fname_csv_file = 'pr_paramSearch'+'.csv'
         fname_csv_file = os.path.join(path_excel,fname_csv_file)
