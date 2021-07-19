@@ -25,14 +25,14 @@ if whos_data == 'saad':
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad/',expDate,'datasets')
 elif whos_data == 'kiersten':
     expDate = 'retina1'     # ('retina1', 'retina2','retina3')
-    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/8ms')
+    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/1ms')
 
 
 fname_dataFile = os.path.join(path_dataset,(expDate+'_dataset_CB_'+lightLevel+'.h5'))
 
     
 
-t_frame = 8
+t_frame = 1
 filt_temporal_width = 0
 idx_cells = None
 thresh_rr = 0

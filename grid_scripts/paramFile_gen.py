@@ -8,39 +8,40 @@ Created on Thu Apr 29 22:38:14 2021
 import numpy as np
 import csv
 import os
-APPEND_TO_EXISTING = 1
+APPEND_TO_EXISTING = 0
 expDate = 'retina1'
-subfold = ''
-datasetName = 'photopic_preproc_added_norm_1'    # ['scotopic','photopic','scotopic_photopic','photopic_shiftedPhotopic']
+subfold = '1ms'
+datasetName = 'photopic-10000_preproc-cones_norm-1'    # ['scotopic','photopic','scotopic_photopic','photopic_shiftedPhotopic']
 path_model_save_base = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate,subfold,datasetName)
 name_datasetFile = expDate+'_dataset_train_val_test_'+datasetName+'.h5'       # _dataset_train_val_test_scotopic_photopic
 mdl_name = 'CNN_2D'
 thresh_rr=0
-temporal_width=60
-bz_ms=10000
-nb_epochs=500
+temporal_width=600
+bz_ms=20000
+nb_epochs=200
 
+USE_CHUNKER=1
 BatchNorm=1
 MaxPool=0
 num_trials=1
 
-chan1_n = np.array((8,9,10,11,12,13,14,15,16,18,20)) #np.atleast_1d((18)) #np.atleast_1d((18))
+chan1_n = np.atleast_1d((13)) #np.array((8,9,10,11,12,13,14,15,16,18,20)) #np.atleast_1d((18)) #np.atleast_1d((18))
 filt1_size = np.atleast_1d((3)) #((1,2,3,4,5,6,7,8,9))
 filt1_3rdDim = np.atleast_1d((0))#np.atleast_1d((25)) #np.arange(1,60,4)#np.atleast_1d((1,10,20,30,40,50,60))
 
-chan2_n = np.array((0,15,18,20,22,24,25,26,28,30)) #np.atleast_1d((25))     #np.array((8,10,13,15,18,20,22,24,25,26,28,30))
+chan2_n = np.atleast_1d((26)) #np.array((0,15,18,20,22,24,25,26,28,30)) #np.atleast_1d((25))     #np.array((8,10,13,15,18,20,22,24,25,26,28,30))
 filt2_size = np.atleast_1d((2))   #((1,2,3,4,5,6,7,8,9))
 filt2_3rdDim = np.atleast_1d((0))#np.atleast_1d((5)) #np.arange(1,60,4) #np.atleast_1d((1,8,10,12,14,18,20,30,40,50))
 
-chan3_n = np.array((0,15,18,20,22,24,25,26,28,30)) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
+chan3_n = np.atleast_1d((24)) #np.array((0,15,18,20,22,24,25,26,28,30)) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
 filt3_size = np.atleast_1d((1))   # ((1,2,3,4,5,6,7,8,9))
 filt3_3rdDim = np.atleast_1d((0))#np.atleast_1d((32)) #np.arange(1,60,1)#np.atleast_1d((1,8,10,12,14,18,20,30,40,50))
 
 image_dim = 10
-image_tempDim = 60
+image_tempDim = temporal_width
 
 
-csv_header = ['expDate','mdl_name','path_model_save_base','name_datasetFile','thresh_rr','temp_width','bz_ms','nc_epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','num_trials']
+csv_header = ['expDate','mdl_name','path_model_save_base','name_datasetFile','thresh_rr','temp_width','bz_ms','nc_epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','num_trials','USE_CHUNKER']
 params_array = np.zeros((100000,3*3))
 counter = -1
 for cc1 in chan1_n:
@@ -142,7 +143,7 @@ for i in range(params_array.shape[0]):
     rgb = params_array[i,:].astype('int').tolist()
     csv_data = [expDate,mdl_name,path_model_save_base,name_datasetFile,thresh_rr,temporal_width,bz_ms,nb_epochs]
     csv_data.extend(rgb)
-    csv_data.extend([BatchNorm,MaxPool,num_trials])
+    csv_data.extend([BatchNorm,MaxPool,num_trials,USE_CHUNKER])
                
     # fname_model.append('U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(csv_data[3],csv_data[4],csv_data[7],csv_data[8],
     #                                                                                                  csv_data[10],csv_data[11], 

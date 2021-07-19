@@ -16,7 +16,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000,BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
+                            nb_epochs=100,bz_ms=10000,BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=1,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 
@@ -193,7 +193,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
     
     # %% run model
     print('-----RUNNING MODEL-----')
-    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=10)  
+    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=10,USE_CHUNKER=USE_CHUNKER)  
     mdl_history = mdl_history.history
     
     # %% Model Evaluation

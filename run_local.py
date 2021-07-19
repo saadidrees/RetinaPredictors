@@ -13,10 +13,11 @@ import os
 from run_model_cnn3d import run_model
 
 expDate = 'retina1'
-subFold = '8ms'
+subFold = '1ms'
 mdl_name = 'CNN_2D'
-dataset = 'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
-temporal_width=120
+dataset = 'photopic-10000_preproc-cones_norm-1' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
+USE_CHUNKER=1
+temporal_width=600
 thresh_rr=0
 chan1_n=13
 filt1_size=3
@@ -28,7 +29,7 @@ chan3_n=24
 filt3_size=1
 filt3_3rdDim=0
 nb_epochs=300
-bz_ms=10000
+bz_ms=20000 #10000
 BatchNorm=1
 MaxPool=0
 saveToCSV=1
@@ -50,7 +51,7 @@ for c_trial in range(1,num_trials+1):
                         chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                         chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                         chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
-                        nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial)
+                        nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER)
     
 
 # %% for reading from params array

@@ -11,10 +11,10 @@ import os
 
 APPEND_TO_EXISTING = 0
 
-path_mdl_drive = '/mnt/graham/scratch/RetinaPredictors/data/retina1/8ms'
+path_mdl_drive = '/home/sidrees/scratch/RetinaPredictors/data/retina1/8ms'
 model_dataset = 'photopic-10000_preproc-cones_norm-1_rfac-2'
-path_excel = '/mnt/graham/scratch/RetinaPredictors/data/retina1/8ms/pr_paramSearch_test'
-path_perFiles = '/mnt/graham/scratch/RetinaPredictors/performance/'
+path_excel = '/home/sidrees/scratch/RetinaPredictors/performance/'
+path_perFiles = '/home/sidrees/scratch/RetinaPredictors/data/retina1/8ms/pr_paramSearch'
 
 
 r_sigma = np.arange(14,17,1)
@@ -58,7 +58,8 @@ else:
 fname_model = ([])
 for i in range(params_array.shape[0]):
                         
-    rgb = params_array[i,:].astype('int').tolist()
+    # rgb = params_array[i,:].astype('int').tolist()
+    rgb = params_array[i,:].tolist()
     csv_data = [path_mdl_drive,model_dataset,path_excel,path_perFiles]
     csv_data.extend(rgb)
                

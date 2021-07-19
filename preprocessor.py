@@ -60,14 +60,14 @@ def model_params():
     
     # rods - mice
     params_rods = {}
-    params_rods['sigma'] = 16 #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
-    params_rods['phi'] =  16 #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_rods['sigma'] = 14 #16 #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
+    params_rods['phi'] =  15 #16 #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
     params_rods['eta'] = 3 #2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
     params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
-    params_rods['k'] =  0.01     # constant relating cGMP to current - default 0.02
-    params_rods['h'] =  3       # cooperativity for cGMP->current - default 3
+    params_rods['k'] =  0.04 #0.01     # constant relating cGMP to current - default 0.02
+    params_rods['h'] =  4 #3       # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['beta'] =  15#25	  # rate constant for calcium removal in 1/sec - default 9
     params_rods['betaSlow'] =  0	  
     params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] =  0.40		# affinity for Ca2+
@@ -187,14 +187,15 @@ def rwa_stim(X,y,temporal_window,idx_unit,t_start,t_end):
     return temporal_feature
 
 # %% Single pr type
-DEBUG_MODE = 1
+DEBUG_MODE = 0
 expDate = 'retina1'
-lightLevel = 'scotopic'  # ['scotopic','photopic']
-pr_type = 'rods'   # ['rods','cones']
+lightLevel = 'photopic'  # ['scotopic','photopic']
+pr_type = 'cones'   # ['rods','cones']
+folder = '1ms'
 NORM = 1
-DOWN_SAMP = 1
+DOWN_SAMP = 0
 ROLLING_FAC = 2
-upSampFac = 8 #17
+upSampFac = 1#8 #17
 downSampFac = upSampFac
 
 
@@ -205,7 +206,7 @@ elif lightLevel == 'photopic':
     meanIntensity = 10000
 
 
-t_frame = .008
+# t_frame = .008
 
 params_cones,params_rods = model_params()
 
@@ -217,13 +218,13 @@ elif pr_type == 'rods':
     y_lim = (-10,2)
 
 
-path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/8ms')
+path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/'+folder)
 fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
 fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
 
 path_dataset_save = os.path.join(path_dataset)#,'filterTest')
 # fname_dataset_save = expDate+'_dataset_train_val_test_'+lightLevel+'_'+str(meanIntensity)+'_preproc_'+pr_type+'_norm_'+str(NORM)+'.h5'
-dataset_name = lightLevel+'-'+str(meanIntensity)+'_g-'+str(params['gamma'])+'_d-'+str(params['gdark'])+'_b-'+str(params['beta'])+'_e-'+str(params['eta'])+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_h-'+str(params['h'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)
+dataset_name = lightLevel+'-'+str(meanIntensity)+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)
 fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
 fname_dataset_save = os.path.join(path_dataset_save,fname_dataset_save)
 

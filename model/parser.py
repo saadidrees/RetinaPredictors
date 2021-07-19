@@ -33,6 +33,7 @@ def parser_run_model():
     parser.add_argument('--BatchNorm',type=int,default=1)
     parser.add_argument('--MaxPool',type=int,default=1)
     parser.add_argument('--c_trial',type=int,default=1)
+    parser.add_argument('--USE_CHUNKER',type=int,default=0)
 
     args = parser.parse_args()
     

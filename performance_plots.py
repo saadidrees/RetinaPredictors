@@ -463,8 +463,8 @@ axs[0].tick_params(axis='both',labelsize=16)
 _ = gc.collect()
 
 # %% D2: Test model
-val_dataset_2 = 'scotopic-100_s-30_p-10_preproc-rods_norm-1_rfac-2' #'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
-correctMedian = True
+val_dataset_2 = 'scotopic-100_s-14_p-15_e-3_k-0.04_h-4_b-15_hc-4_preproc-rods_norm-1_rfac-2' #'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
+correctMedian = False
 samps_shift = 0+4
 
 # assert val_dataset_2 != val_dataset_1, 'same datasets selected'

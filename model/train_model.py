@@ -13,8 +13,24 @@ import tensorflow.keras.callbacks as cb
 from tensorflow.keras.layers import Input
 from tensorflow.keras.optimizers import Adam
 import model.metrics as metrics
+import numpy as np
 
-def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10):
+def chunker(data,batch_size,nsamps=0):
+    if nsamps == 0:
+        X = data.X
+        y = data.y
+    else:
+        X = data.X[:nsamps]
+        y = data.y[:nsamps]
+        
+    counter = 0
+    while True:
+        counter = (counter + 1) % X.shape[0]
+        for cbatch in range(0, X.shape[0], batch_size):
+            yield (X[cbatch:(cbatch + batch_size)], y[cbatch:(cbatch + batch_size)])
+
+
+def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0):
     lr = 1e-2
     mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
 
@@ -26,8 +42,15 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
            cb.ReduceLROnPlateau(min_lr=0, factor=0.2, patience=10),
            cb.CSVLogger(os.path.join(path_model_base, fname_excel))]
     
-    mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
-                      callbacks=cbs, validation_data=(data_val.X,data_val.y), validation_batch_size=validation_batch_size, validation_freq=validation_freq, shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
+    if USE_CHUNKER==0:
+        mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
+                          callbacks=cbs, validation_data=(data_val.X,data_val.y), validation_batch_size=validation_batch_size, validation_freq=validation_freq, shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
+        
+    else:
+        batch_size = bz
+        steps_per_epoch = int(np.ceil(data_train.X.shape[0]/batch_size))
+        gen = chunker(data_train,batch_size,0)
+        mdl_history = mdl.fit_generator(gen, steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=(data_val.X,data_val.y), shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
 
     # mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
     #                   callbacks=cbs, shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
@@ -49,3 +72,4 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
     mdl.save(os.path.join(path_model_base,fname_model))
     
     return mdl_history
+
