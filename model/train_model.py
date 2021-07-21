@@ -50,7 +50,7 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
         batch_size = bz
         steps_per_epoch = int(np.ceil(data_train.X.shape[0]/batch_size))
         gen = chunker(data_train,batch_size,0)
-        mdl_history = mdl.fit_generator(gen, steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=(data_val.X,data_val.y), shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
+        mdl_history = mdl.fit(gen,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=(data_val.X,data_val.y), shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
 
     # mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
     #                   callbacks=cbs, shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
