@@ -74,8 +74,8 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
     fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
 
-    mdl_select = 'CNN_2D'
-    mdlFolder = 'U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+    mdl_select = 'CNN_3D'
+    mdlFolder = 'U-0.00_T-120_C1-13-03-50_C2-26-02-10_C3-24-01-62_BN-1_MP-0_TR-01'
     saveToCSV = 1
     num_cores = 1
 
