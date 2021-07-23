@@ -13,8 +13,9 @@ def parser_pr_paramSearch():
 
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('path_mdl_drive',type=str)
-    parser.add_argument('model_dataset',type=str)
+    parser.add_argument('path_mdl',type=str)
+    parser.add_argument('trainingDataset',type=str)
+    parser.add_argument('testingDataset',type=str)
     parser.add_argument('path_excel',type=str)
     parser.add_argument('path_perFiles',type=str)
     parser.add_argument('--r_sigma',type=str2int,default=7.66)
@@ -24,6 +25,7 @@ def parser_pr_paramSearch():
     parser.add_argument('--r_h',type=str2int,default=3)
     parser.add_argument('--r_beta',type=str2int,default=25)
     parser.add_argument('--r_hillcoef',type=str2int,default=4)
+    parser.add_argument('--mdl_name',type=str)
 
     args = parser.parse_args()
     
@@ -31,11 +33,11 @@ def parser_pr_paramSearch():
 
 
 
-def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4):
+def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,mdl_name='CNN_2D'):
 
-    
+# %%    
     from model.RiekeModel import Model as rieke_model
-    from model.data_handler import load_h5Dataset, rolling_window, prepare_data_cnn2d
+    from model.data_handler import load_h5Dataset, rolling_window, prepare_data_cnn2d, prepare_data_cnn3d
     import numpy as np
     import os
     from collections import namedtuple 
@@ -45,6 +47,8 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     import time
     import gc
     import h5py
+    from model.performance import getModelParams
+    import utils_si
     
     import tensorflow as tf
     config = tf.compat.v1.ConfigProto(log_device_placement=True)
@@ -70,12 +74,11 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     lightLevel = 'scotopic'  # ['scotopic','photopic']
     pr_type = 'rods'   # ['rods','cones']
 
-    path_dataset = os.path.join(path_mdl_drive,'datasets')
-    fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
-    fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
+    # path_dataset = os.path.join(path_mdl_drive,'datasets')
+    # fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
+    fname_data_train_val_test = testingDataset#os.path.join(path_dataset,fname_dataset)
 
-    mdl_select = 'CNN_3D'
-    mdlFolder = 'U-0.00_T-120_C1-13-03-50_C2-26-02-10_C3-24-01-62_BN-1_MP-0_TR-01'
+    # mdlFolder = 'U-0.00_T-120_C1-13-03-50_C2-26-02-10_C3-24-01-62_BN-1_MP-0_TR-01'
     saveToCSV = 1
     num_cores = 1
 
@@ -251,11 +254,11 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     
     
     
-    path_dataset_save = os.path.join(path_dataset)#,'filterTest')
+    # path_dataset_save = os.path.join(path_dataset)#,'filterTest')
     # fname_dataset_save = expDate+'_dataset_train_val_test_'+lightLevel+'_'+str(meanIntensity)+'_preproc_'+pr_type+'_norm_'+str(NORM)+'.h5'
     dataset_name = lightLevel+'-'+str(meanIntensity)+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_preproc-'+pr_type
-    fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
-    fname_dataset_save = os.path.join(path_dataset_save,fname_dataset_save)
+    # fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
+    # fname_dataset_save = os.path.join(path_dataset_save,fname_dataset_save)
     
     data_train_orig,data_val_orig,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
     
@@ -311,18 +314,24 @@ def run_pr_paramSearch(path_mdl_drive,model_dataset,path_excel,path_perFiles,r_s
     
     
     # %% Load model
-    select_T = 120
     
+    f_full = utils_si.splitall(path_mdl)
+    f = f_full[-2]
+    rgb = getModelParams(f)
+    select_T = rgb['T']
     correctMedian = False
     samps_shift = 0+4
     
-    path_model = os.path.join(path_mdl_drive,model_dataset,mdl_select,mdlFolder)
-    mdl = load(os.path.join(path_model,mdlFolder))
+    # path_model = os.path.join(path_mdl)
+    mdl = load(os.path.join(path_mdl,f))
     
     # fname_data_train_val_test = os.path.join(path_dataset,('retina1_dataset_train_val_test_'+model_dataset+'.h5'))
     # _,data_val,_,_,dataset_rr,_,resp_orig = load_h5Dataset(fname_data_train_val_test)
     
-    data_val_prepared = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
+    if mdl_name=='CNN_2D':
+        data_val_prepared = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
+    else:
+        data_val_prepared = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
     
     filt_temporal_width = select_T
     obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
