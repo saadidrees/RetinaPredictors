@@ -48,7 +48,7 @@ def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_p
     import gc
     import h5py
     from model.performance import getModelParams
-    from model import utils_si
+    from model.utils_si import splitall
     
     import tensorflow as tf
     config = tf.compat.v1.ConfigProto(log_device_placement=True)
@@ -315,7 +315,7 @@ def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_p
     
     # %% Load model
     
-    f_full = utils_si.splitall(path_mdl)
+    f_full = splitall(path_mdl)
     f = f_full[-2]
     rgb = getModelParams(f)
     select_T = rgb['T']
