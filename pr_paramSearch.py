@@ -48,7 +48,7 @@ def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_p
     import gc
     import h5py
     from model.performance import getModelParams
-    import utils_si
+    from model import utils_si
     
     import tensorflow as tf
     config = tf.compat.v1.ConfigProto(log_device_placement=True)
