@@ -222,12 +222,14 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False
     idx_allTrials = np.arange(num_trials)
     
     t_start = 10
-    t_end = obs_rate_allStimTrials.shape[1]-t_start-10
+    # t_end = obs_rate_allStimTrials.shape[1]-t_start-10
     
     obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,filt_width:,:]
+    t_end = obs_rate_allStimTrials_corrected.shape[1]-t_start-10
     obs_rate_allStimTrials_corrected = obs_rate_allStimTrials_corrected[:,t_start:t_end-lag,:]
-    if RR_ONLY is False:
-        pred_rate_corrected = pred_rate[t_start+lag:t_end,:]
+    
+    # if RR_ONLY is False:
+    pred_rate_corrected = pred_rate[t_start+lag:t_end,:]
 # for predicting trial averaged responses
 
     idx_trials_r1 = np.array(random.sample(range(0,len(idx_allTrials)),int(np.ceil(len(idx_allTrials)/2))))
