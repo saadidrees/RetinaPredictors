@@ -47,6 +47,7 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
     if MaxPool is True:
         y = MaxPool2D(2,data_format='channels_first')(y)
     y = Activation('relu')(GaussianNoise(sigma)(y))
+    # y = Activation('tanh')(GaussianNoise(sigma)(y))
 
 
     # second layer
@@ -58,6 +59,7 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
             
         y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)                  
         y = Activation('relu')(GaussianNoise(sigma)(y))
+        # y = Activation('tanh')(GaussianNoise(sigma)(y))
 
     # Third layer
     if chan3_n>0:
@@ -68,6 +70,7 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
             
         y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)       
         y = Activation('relu')(GaussianNoise(sigma)(y))
+        # y = Activation('tanh')(GaussianNoise(sigma)(y))
         
     # # Fourth layer
     # if BatchNorm is True: 
