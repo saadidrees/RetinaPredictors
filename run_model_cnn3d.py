@@ -11,12 +11,12 @@ Created on Wed Apr 21 23:29:28 2021
 from model.parser import parser_run_model
 
 
-def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1,runOnCluster=0,
+def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000,BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=1,
+                            nb_epochs=100,bz_ms=10000,BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 
@@ -89,12 +89,13 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
     
     if runOnCluster==1:
         #Cluster
-        path_dataset = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate,'datasets')
+        # path_dataset = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate,'datasets')
+        # path_dataset = os.path.join(path_dataset_base,'datasets')
         path_save_performance = '/home/sidrees/scratch/RetinaPredictors/performance'
         # path_model_save_base = os.path.join('/home/sidrees/scratch/RetinaPredictors/data',expDate)
     else:
         # Local
-        path_dataset = os.path.join(path_dataset_base,'datasets')
+        # path_dataset = os.path.join(path_dataset_base,'datasets')
         path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
         # path_model_save_base = os.path.join('/home/saad/data/analyses/data_saad',expDate)
     
@@ -104,7 +105,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
     
     
 # load train val and test datasets from saved h5 file
-    fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
+    # fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
     data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test)
     
 # Arrange data according to needs
@@ -242,7 +243,7 @@ def run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,saveToCSV=1
         rrCorr_loop = np.zeros((num_iters,n_cells))
 
         for j in range(num_iters):
-            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=0)
+            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=4)
             
         fev = np.mean(fev_loop,axis=0)
         fracExVar = np.mean(fracExVar_loop,axis=0)

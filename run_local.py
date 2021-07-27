@@ -13,11 +13,11 @@ import os
 from run_model_cnn3d import run_model
 
 expDate = 'retina1'
-subFold = '1ms'
+subFold = 'test'
 mdl_name = 'CNN_2D'
-dataset = 'photopic-10000_preproc-cones_norm-1' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
-USE_CHUNKER=1
-temporal_width=600
+dataset = 'photopic-10000_preproc-cones_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
+USE_CHUNKER=0
+temporal_width=120
 thresh_rr=0
 chan1_n=13
 filt1_size=3
@@ -28,8 +28,8 @@ filt2_3rdDim=0
 chan3_n=24
 filt3_size=1
 filt3_3rdDim=0
-nb_epochs=300
-bz_ms=20000 #10000
+nb_epochs=250
+bz_ms=20000#20000 #10000
 BatchNorm=1
 MaxPool=0
 saveToCSV=1
@@ -43,6 +43,8 @@ BatchNorm_train = 0
 name_datasetFile = expDate+'_dataset_train_val_test_'+dataset+'.h5'
 path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold,dataset)
 path_dataset_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold)
+fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',name_datasetFile)
+
 
 
 for c_trial in range(1,num_trials+1):
