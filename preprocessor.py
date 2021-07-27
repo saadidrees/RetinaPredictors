@@ -60,18 +60,18 @@ def model_params():
     
     # rods - mice
     params_rods = {}
-    params_rods['sigma'] = 14 #16 #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
-    params_rods['phi'] =  15 #16 #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_rods['eta'] = 3 #2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_rods['sigma'] = 9 #16 #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
+    params_rods['phi'] =  10 #16 #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_rods['eta'] = 4 #2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
     params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
-    params_rods['k'] =  0.04 #0.01     # constant relating cGMP to current - default 0.02
-    params_rods['h'] =  4 #3       # cooperativity for cGMP->current - default 3
+    params_rods['k'] =  0.01 #0.01     # constant relating cGMP to current - default 0.02
+    params_rods['h'] =  3 #3       # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  15#25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['beta'] =  10#25	  # rate constant for calcium removal in 1/sec - default 9
     params_rods['betaSlow'] =  0	  
     params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] =  0.40		# affinity for Ca2+
-    params_rods['gamma'] =  8 #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['gamma'] =  800 #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
 
@@ -125,6 +125,7 @@ def run_model(stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=
         
         # 4
         rgb = stim_currents.T  
+        rgb[np.isnan(rgb)] = np.nanmedian(rgb)
         
         rollingFac = ROLLING_FAC
         a = np.empty((130,rollingFac))
@@ -187,21 +188,22 @@ def rwa_stim(X,y,temporal_window,idx_unit,t_start,t_end):
     return temporal_feature
 
 # %% Single pr type
-DEBUG_MODE = 0
+
+DEBUG_MODE = 1
 expDate = 'retina1'
 lightLevel = 'photopic'  # ['scotopic','photopic']
 pr_type = 'cones'   # ['rods','cones']
-folder = '1ms'
+folder = '8ms'
 NORM = 1
-DOWN_SAMP = 0
+DOWN_SAMP = 1
 ROLLING_FAC = 2
-upSampFac = 1#8 #17
+upSampFac = 8#1#8 #17
 downSampFac = upSampFac
 
 
 
 if lightLevel == 'scotopic':
-    meanIntensity = 100
+    meanIntensity = 1
 elif lightLevel == 'photopic':
     meanIntensity = 10000
 
@@ -274,7 +276,7 @@ for j in params.keys():
 parameters['nsamps_end'] = nsamps_end
 
 
-# plt.plot(stim_val[:,0,0])
+# plt.plot(stim_train[:,0,0])
 # plt.ylim(y_lim)
 
 # plt.plot(stim_train_norm[:,0,0])
@@ -315,31 +317,47 @@ if DEBUG_MODE==0:
 
 
 # %% Added pr signals
+DEBUG_MODE = 0
 
 expDate = 'retina1'
-lightLevels = ('photopic',)  # ['scotopic','photopic']
+folder = '8ms'
+lightLevels = ('scotopic',)  # ['scotopic','photopic']
 pr_type = ('rods','cones')   # ['rods','cones']
 
 meanIntensities = {
-    'scotopic': 50,
+    'scotopic': 1,
     'photopic': 10000
     }
 
 
-t_frame = 0.017
-upSampFac = 17
+# t_frame = 0.008
+# upSampFac = 17
 NORM = 1
 
-path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/temp')
+DOWN_SAMP = 1
+ROLLING_FAC = 2
+upSampFac = 8#1#8 #17
+downSampFac = upSampFac
+
+
+path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/'+folder)
 
 for l in lightLevels:
     fname_dataset = expDate+'_dataset_train_val_test_'+l+'.h5'
     fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
     
-    fname_dataset_save = expDate+'_dataset_train_val_test_'+l+'_'+str(meanIntensities[l])+'_preproc_added_norm_'+str(NORM)+'.h5'
+    fname_dataset_save = expDate+'_dataset_train_val_test_'+l+'_'+str(meanIntensities[l])+'_preproc_added_norm_'+str(NORM)+'_rfac-'+str(ROLLING_FAC)+'.h5'
     fname_dataset_save = os.path.join(path_dataset,fname_dataset_save)
 
-    data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
+    data_train_orig,data_val_orig,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
+    
+    if DEBUG_MODE==1:
+        nsamps_end = 6000  #10000
+    else:
+        nsamps_end = data_train_orig.X.shape[0]-1 
+
+    frames_X_orig = data_train_orig.X[:nsamps_end]
+
     
     params_cones,params_rods = model_params()
     thresh_lower_cones = -params_cones['darkCurrent'] - 10
@@ -347,8 +365,11 @@ for l in lightLevels:
     fac_med = 5
     
 # Training data
-    rods_stim_train,resp_train = run_model(data_train.X,data_train.y,params_rods,meanIntensities[l],upSampFac,n_discard=1000,NORM=0)
-    cones_stim_train,resp_train = run_model(data_train.X,data_train.y,params_cones,meanIntensities[l],upSampFac,n_discard=1000,NORM=0)
+    rods_stim_train,resp_train = run_model(data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params_rods,meanIntensities[l],upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC)
+    cones_stim_train,resp_train = run_model(data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params_cones,meanIntensities[l],upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC)
+
+    # rods_stim_train,resp_train = run_model(data_train.X,data_train.y,params_rods,meanIntensities[l],upSampFac,n_discard=1000,NORM=0)  
+    # cones_stim_train,resp_train = run_model(data_train.X,data_train.y,params_cones,meanIntensities[l],upSampFac,n_discard=1000,NORM=0)
     
     rods_stim_train[np.isnan(rods_stim_train)] = 0
     
@@ -424,13 +445,18 @@ for l in lightLevels:
         
   
     
-    plt.plot(stim_train_norm[:,0,0])
+    # plt.plot(stim_train_norm[:,0,0])
     
 # Validation data
-    n_discard_val = 20
-    rods_stim_val,resp_val = run_model(data_val.X,data_val.y,params_rods,meanIntensities[l],upSampFac,n_discard=n_discard_val,NORM=0)
-    cones_stim_val,_ = run_model(data_val.X,data_val.y,params_cones,meanIntensities[l],upSampFac,n_discard=n_discard_val,NORM=0)
+    n_discard_val = 50
+    # run_model(stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=0,NORM=1,DOWN_SAMP=1,ROLLING_FAC=30):
+    rods_stim_val,resp_val = run_model(data_val_orig.X,data_val_orig.y,params_rods,meanIntensities[l],upSampFac,downSampFac=downSampFac,n_discard=n_discard_val,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC)
+    cones_stim_val,_ = run_model(data_val_orig.X,data_val_orig.y,params_cones,meanIntensities[l],upSampFac,downSampFac=downSampFac,n_discard=n_discard_val,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC)
+
+    # rods_stim_val,resp_val = run_model(data_val.X,data_val.y,params_rods,meanIntensities[l],upSampFac,n_discard=n_discard_val,NORM=0)
+    # cones_stim_val,_ = run_model(data_val.X,data_val.y,params_cones,meanIntensities[l],upSampFac,n_discard=n_discard_val,NORM=0)
     
+    plt.plot(rods_stim_val[:,0,0])
     
     idx_discard_rods_1 = np.any(np.any(rods_stim_val>1,axis=1),axis=1)
     idx_discard_rods_2 = np.any(np.any(rods_stim_val<thresh_lower_rods,axis=1),axis=1)
@@ -456,6 +482,7 @@ for l in lightLevels:
     # cones_stim_val_toTake = cones_stim_val[idx_toTake_val]
     stim_val_added = rods_stim_val_toTake + cones_stim_val_toTake
     # stim_val_added = cones_stim_val   
+
 
     stim_val_norm = stim_val_added
     
@@ -506,16 +533,51 @@ for l in lightLevels:
     # parameters['meanIntensities'] = meanIntensities
     # parameters['pr_type'] = pr_type
     
+    # Save dataset
+    if DEBUG_MODE==0:
+        save_h5Dataset(fname_dataset_save,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
+   
+   
+    # RWA
+    if DOWN_SAMP==0:
+        frames_X = np.repeat(frames_X_orig,upSampFac,axis=0)
+        temporal_window = 60 * upSampFac
+        temporal_window = 1000
+    else:
+        frames_X = frames_X_orig
+        temporal_window = 60*2 # 60
     
-    save_h5Dataset(fname_dataset_save,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
+    n_discard = frames_X.shape[0]-stim_train_norm.shape[0]
+    frames_X = frames_X[n_discard:]
     
-plt.plot(rods_stim_val[:,0,0])
-plt.ylim((-120,2))
-plt.plot(cones_stim_val[:,0,0])
-plt.ylim((-120,2))
+    frames_X[frames_X>0] = 2*meanIntensities[l]
+    frames_X[frames_X<0] = (2*meanIntensities[l])/300
+    # frames_X = frames_X / params['timeStep']  
+    
+    idx_unit = 5
+    t_start = 0
+    t_end = stim_train_norm.shape[0]
+    
+    temporal_feature = rwa_stim(frames_X,stim_train_norm,temporal_window,idx_unit,t_start,t_end)
+    plt.plot(temporal_feature)
+    plt.title(dataset_name)
+    
+    rgb = np.where(temporal_feature==np.max(temporal_feature))
+    # print(temporal_window-rgb[0][0])
+    print(((temporal_window-rgb[0][0])*8)-22)
+    
+
+# plt.plot(stim_train_norm[:,0,0])
+# plt.ylim((-120,2))
+# plt.plot(stim_val_norm[:,0,0])
+# plt.plot(rods_stim_val[:,0,0])
 
 
-# %% Seperate channels signals
+# plt.ylim((-120,2))
+
+
+
+I# %% Seperate channels signals
 
 expDate = 'retina1'
 lightLevels = ('photopic',)  # ['scotopic','photopic']
