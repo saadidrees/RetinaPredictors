@@ -247,15 +247,16 @@ def cnn_3d_inception(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, c
     mdl_name = 'CNN_3D'
     return Model(inputs, outputs, name=mdl_name)
 
-def cnn_3d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True):
+def cnn_3d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
     sigma = 0.1
     filt_temporal_width=inputs.shape[-1]
 
     # first layer  
     n1 = int(inputs.shape[-2])
     n2 = int(inputs.shape[-3])
-    y = Reshape((inputs.shape[1],n2, n1,filt_temporal_width))(BatchNormalization(axis=-1)(Flatten()(inputs)))
-    y = Conv3D(chan1_n, (filt1_size,filt1_size,filt1_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    # y = Reshape((inputs.shape[1],n2, n1,filt_temporal_width))(BatchNormalization(axis=-1)(Flatten()(inputs)))
+    y = Conv3D(chan1_n, (filt1_size,filt1_size,filt1_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(inputs)
+    y = BatchNormalization()(y)
     y = Activation('relu')(GaussianNoise(sigma)(y))
 
 
@@ -263,9 +264,9 @@ def cnn_3d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_
     if chan2_n>0:
         n1 = int(y.shape[-2])
         n2 = int(y.shape[-3])
-        y = Reshape((y.shape[1],y.shape[2],y.shape[3],y.shape[4]))(BatchNormalization(axis=-1)(Flatten()(y)))
-            
+        # y = Reshape((y.shape[1],y.shape[2],y.shape[3],y.shape[4]))(BatchNormalization(axis=-1)(Flatten()(y)))
         y = Conv3D(chan2_n, (filt2_size,filt2_size,filt2_3rdDim), data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        y = BatchNormalization()(y)
         y = Activation('relu')(GaussianNoise(sigma)(y))
        
    
@@ -273,9 +274,10 @@ def cnn_3d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_
     y = Permute((4,1,2,3),input_shape=((y.shape[1],y.shape[2],y.shape[3],y.shape[4])))(y)
     a = y.shape
     y = Flatten()(y)
-    y = BatchNormalization(axis=-1)(y)
+    # y = BatchNormalization(axis=-1)(y)
     y = Reshape((a[1],a[2]*a[3]*a[4]))(y)
     y = LSTM(n_out,input_shape = y.shape,kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    y = BatchNormalization()(y)
     outputs = Activation('softplus')(y)
     
     mdl_name = 'CNN_3D_LSTM'

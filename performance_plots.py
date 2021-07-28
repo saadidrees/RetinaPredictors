@@ -37,8 +37,8 @@ import gc
 # expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
 expDates = ('retina1',)
 subFold = '8ms' # test_coneParams
-lightLevel_1 = 'photopic'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic_preproc','scotopic_preproc']
-models_all = ('convLSTM',)    # CNN_3D, CNN_2D  lightLevel_1 chansVary lightLevel_1
+lightLevel_1 = 'photopic-10000_preproc-added_norm-1_rfac-2'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic-10000_preproc-added_norm-1_rfac-2']
+models_all = ('CNN_3D_LSTM',)    # CNN_3D, CNN_2D  lightLevel_1 chansVary lightLevel_1 convLSTM
 
 writeToCSV = False
 
@@ -289,12 +289,12 @@ select_T = 120#120
 select_BN = 1
 select_MP = 0
 # select_TR = 1
-select_C1_n = 20 #13#13#9#18#20
+select_C1_n = 13 #13#13#9#18#20
 select_C1_s = 3
-select_C1_3d = 0#50#25
-select_C2_n = 0#26#26#24#25#24#24
-select_C2_s = 0#2#2
-select_C2_3d = 0#10#5
+select_C1_3d = 20#50#25
+select_C2_n = 24#26#26#24#25#24#24
+select_C2_s = 2#2#2
+select_C2_3d = 20#10#5
 select_C3_n = 0#24#24#15#18#22
 select_C3_s = 0#1#1
 select_C3_3d = 0#62#32
@@ -469,9 +469,10 @@ axs[0].tick_params(axis='both',labelsize=16)
 _ = gc.collect()
 
 # %% D2: Test model
-val_dataset_2 = 'scotopic' #'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
+val_dataset_2 = 'scotopic-1_preproc-added_norm-1_rfac-2' 
+#'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
 correctMedian = False
-samps_shift = 0-6
+samps_shift = 0+4
 
 # assert val_dataset_2 != val_dataset_1, 'same datasets selected'
 

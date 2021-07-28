@@ -14,10 +14,10 @@ from fix_savePerformance import run_fixPerformance
 from model.performance import getModelParams
 
 expDate = 'retina1'
-subFold = ''
-dataset = 'photopic_preproc_RodsCones_norm_0'
-mdl_name = 'CNN_2D'
-temporal_width=60
+subFold = '8ms'
+dataset = 'photopic'
+mdl_name = 'CNN_3D_LSTM'
+temporal_width=120
 thresh_rr=0
 chan1_n=18
 filt1_size=3
@@ -28,8 +28,8 @@ filt2_3rdDim=0
 chan3_n=25
 filt3_size=3
 filt3_3rdDim=0
-nb_epochs=400
-bz_ms=10000
+nb_epochs=20
+bz_ms=5000
 BatchNorm=0
 MaxPool=0
 saveToCSV=1
@@ -53,6 +53,7 @@ rangeToRun = np.arange(0,3)
 fname_performance_excel = os.path.join('/home/saad/postdoc_db/projects/RetinaPredictors/performance/','performance_'+expDate+'_'+dataset+'_'+str(rangeToRun[0])+'-'+str(rangeToRun[-1])+'.csv')
 
 i = 0
+temporal_width = params['T'][i]
 chan1_n=params['C1_n'][i]
 filt1_size=params['C1_s'][i]
 filt1_3rdDim=params['C1_3d'][i]
