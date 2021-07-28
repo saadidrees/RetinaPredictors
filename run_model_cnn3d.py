@@ -56,6 +56,18 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     print('nb_epochs: '+str(nb_epochs))
     print('bz_ms: '+str(bz_ms))   
     
+    if chan2_n == 0:
+        filt2_size = 0
+        filt2_3rdDim = 0
+        
+        chan3_n = 0
+        filt3_size = 0
+        filt3_3rdDim = 0 
+        
+    if chan3_n == 0:
+        filt3_size = 0
+        filt3_3rdDim = 0 
+        
 
     import numpy as np
     import os
@@ -72,10 +84,10 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
       
     from tensorflow.keras.layers import Input
     
-    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, check_trainVal_contamination
+    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination
     from model.performance import save_modelPerformance, model_evaluate,model_evaluate_new
     import model.metrics as metrics
-    from model.models import cnn_3d, cnn_2d, cnn_3d_inception
+    from model.models import cnn_3d, cnn_2d, cnn_3d_inception, convLSTM
     from model.train_model import train
     
     import gc
@@ -121,6 +133,11 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         data_test = prepare_data_cnn2d(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
         data_val = prepare_data_cnn2d(data_val,temporal_width,np.arange(len(idx_unitsToTake)))       
     
+    elif mdl_name == 'convLSTM':
+        data_train = prepare_data_convLSTM(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_convLSTM(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_convLSTM(data_val,temporal_width,np.arange(len(idx_unitsToTake)))   
+        
     t_frame = parameters['t_frame']
     
     
@@ -176,6 +193,14 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
                                                                                      chan2_n,filt2_size,filt2_3rdDim,
                                                                                      chan3_n,filt3_size,filt3_3rdDim,
                                                                                      bn_val,mp_val,c_trial)
+    elif mdl_name == 'convLSTM':       
+        mdl = convLSTM(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
+        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
+                                                                                     chan2_n,filt2_size,filt2_3rdDim,
+                                                                                     chan3_n,filt3_size,filt3_3rdDim,
+                                                                                     bn_val,mp_val,c_trial)
+        
+        
 
     else:
         raise ValueError('Wrong model name')

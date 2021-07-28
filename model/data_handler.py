@@ -853,6 +853,22 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
     return data
 
 
+def prepare_data_convLSTM(data,filt_temporal_width,idx_unitsToTake):
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    
+    X = rolling_window(data.X,filt_temporal_width,time_axis=0)
+    X = X[:,:,np.newaxis,:,:]
+    
+    y = data.y[:,idx_unitsToTake]
+    y = y[filt_temporal_width:]
+    
+    data = Exptdata(X,y)
+    del X, y
+    
+    return data
+
+    
+
 def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None):
     
     f = h5py.File(fname,'a')

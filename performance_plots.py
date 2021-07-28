@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import wilcoxon
 
 from model.load_savedModel import load
-from model.data_handler import load_data, load_h5Dataset, prepare_data_cnn2d, prepare_data_cnn3d
+from model.data_handler import load_data, load_h5Dataset, prepare_data_cnn2d, prepare_data_cnn3d, prepare_data_convLSTM
 from model.performance import getModelParams, model_evaluate,model_evaluate_new,paramsToName
 from model import metrics
 import tensorflow as tf
@@ -37,8 +37,8 @@ import gc
 # expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
 expDates = ('retina1',)
 subFold = '8ms' # test_coneParams
-lightLevel_1 = 'photopic-10000_preproc-cones_norm-1_rfac-2'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic_preproc','scotopic_preproc']
-models_all = ('CNN_2D',)    # CNN_3D, CNN_2D  lightLevel_1 chansVary lightLevel_1
+lightLevel_1 = 'photopic'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic_preproc','scotopic_preproc']
+models_all = ('convLSTM',)    # CNN_3D, CNN_2D  lightLevel_1 chansVary lightLevel_1
 
 writeToCSV = False
 
@@ -285,19 +285,19 @@ samps_shift = 0+4
 # [20,3,25,24,2,5,22,1,32]
 
 select_U = 0#0.15
-select_T = 120
+select_T = 120#120
 select_BN = 1
 select_MP = 0
 # select_TR = 1
-select_C1_n = 13#13#9#18#20
+select_C1_n = 20 #13#13#9#18#20
 select_C1_s = 3
-select_C1_3d = 25
-select_C2_n = 26#26#24#25#24#24
-select_C2_s = 2#2
-select_C2_3d = 5
-select_C3_n = 24#24#15#18#22
-select_C3_s = 1#1
-select_C3_3d = 32
+select_C1_3d = 0#50#25
+select_C2_n = 0#26#26#24#25#24#24
+select_C2_s = 0#2#2
+select_C2_3d = 0#10#5
+select_C3_n = 0#24#24#15#18#22
+select_C3_s = 0#1#1
+select_C3_3d = 0#62#32
 
 paramFileName = paramsToName(select_mdl,U=select_U,T=select_T,BN=select_BN,MP=select_MP,
                  C1_n=select_C1_n,C1_s=select_C1_s,C1_3d=select_C1_3d,
@@ -311,6 +311,7 @@ paramFileName = paramsToName(select_mdl,U=select_U,T=select_T,BN=select_BN,MP=se
 
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
 idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 
 select_TR = idx_bestTrial+1
 
@@ -336,9 +337,14 @@ resp_orig = resp_orig['train']
 if mdl_select[:6]=='CNN_2D':
     data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
     # data_test = prepare_data_cnn2d(data_test,select_T,np.arange(data_test.y.shape[1]))
-else:
+elif mdl_select[:6]=='CNN_3D':
     data_val = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
     # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
+    
+elif mdl_select[:6]=='convLS':
+    data_val = prepare_data_convLSTM(data_val,select_T,np.arange(data_val.y.shape[1]))
+    # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
+    
 
 filt_temporal_width = select_T
 obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
@@ -463,9 +469,9 @@ axs[0].tick_params(axis='both',labelsize=16)
 _ = gc.collect()
 
 # %% D2: Test model
-val_dataset_2 = 'scotopic-100_s-14_p-15_e-3_k-0.04_h-4_b-15_hc-4_preproc-rods_norm-1_rfac-2' #'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
+val_dataset_2 = 'scotopic' #'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
 correctMedian = False
-samps_shift = 0+4
+samps_shift = 0-6
 
 # assert val_dataset_2 != val_dataset_1, 'same datasets selected'
 
@@ -495,9 +501,11 @@ resp_orig = resp_orig['train']
 if mdl_select[:6]=='CNN_2D':
     data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
     # data_test = prepare_data_cnn2d(data_test,select_T,np.arange(data_test.y.shape[1]))
-else:
+elif mdl_select[:6] == 'CNN_3D':
     data_val = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
     # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
+elif mdl_select[:6] == 'convLS':
+    data_val = prepare_data_convLSTM(data_val,select_T,np.arange(data_val.y.shape[1]))
 
 obs_rate_allStimTrials_scotpic = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
 obs_rate = data_val.y
@@ -570,7 +578,7 @@ rrCorr_scot_ci = 1.96*(rrCorr_scot_stdUnits/len(idx_scotopic_valid)**.5)
 idx_units_sorted = np.argsort(fev_scot_allUnits[idx_scotopic_valid])
 idx_units_sorted = idx_scotopic_valid[idx_units_sorted]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1],idx_units_sorted[0]]
-# idx_unitsToPred = [6,3,16,14]
+idx_unitsToPred = [26,3,16,14]
 
 t_start = 10
 t_dur = obs_rate.shape[0]
@@ -1151,31 +1159,6 @@ plt.show()
     
 
 
-# %% bar plots - photopic
-fevs = [fev_medianUnits]
-cis = [fev_ci]
-figure,axs = plt.subplots(1,2,figsize=(10,10))
-col_scheme = ('darkgrey','r')
-# ax.yaxis.grid(True)
-axs[0].bar('CNN_2D',fevs[0],yerr=cis[0],align='center',capsize=6,alpha=.7,color=col_scheme[1])
-axs[0].set_ylabel('Fraction of explainable variance explained',fontsize=font_size_ticks)
-axs[0].set_title('',fontsize=font_size_ticks)
-axs[0].set_ylim((0,1.1))
-# axs[0].text(.75,.45,'N = %d RGCs' %fev_allUnits.shape[1],fontsize=font_size_ticks)
-axs[0].tick_params(axis='both',labelsize=font_size_ticks)
-
-
-fevs = [rrCorr_medianUnits,predCorr_medianUnits]
-cis = [rrCorr_ci,predCorr_ci]
-xlabel = ['Retinal reliability','CNN_2D']
-# ax.yaxis.grid(True)
-axs[1].bar(xlabel,fevs,yerr=cis,align='center',capsize=6,alpha=.7,color=col_scheme)
-axs[1].set_ylabel('Pearson correlation coefficient',fontsize=font_size_ticks)
-axs[1].set_title('',fontsize=font_size_ticks)
-axs[1].set_ylim((0,1.1))
-# axs[0].text(.75,.45,'N = %d RGCs' %fev_allUnits.shape[1],fontsize=font_size_ticks)
-axs[1].tick_params(axis='both',labelsize=font_size_ticks)
-
 # %%
 def cross_corr(y1, y2):
   """Calculates the cross correlation and lags without normalization.
@@ -1225,105 +1208,6 @@ print(lags)
 # lags = lags+2
 # lags[lags>7]=7
 # lags[lags<0]=7
-
-# %% D1: Plot example units - OLD
-# select_exp = expDates[0]
-# select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
-# params_mdl = params_allExps[select_exp][select_mdl]
-# samps_shift = +2
-
-# # [20,3,0,24,2,0,22,1,0]
-# # [20,3,25,24,2,5,22,1,32]
-
-# select_U = 0#0.15
-# select_T = 60
-# select_BN = 1
-# select_MP = 0
-# # select_TR = 1
-# select_C1_n = 18#20
-# select_C1_s = 3
-# select_C1_3d = 25
-# select_C2_n = 25#24#24
-# select_C2_s = 2#2
-# select_C2_3d = 5
-# select_C3_n = 18#22
-# select_C3_s = 1#1
-# select_C3_3d = 32
-
-# paramFileName = paramsToName(select_mdl,U=select_U,T=select_T,BN=select_BN,MP=select_MP,
-#                  C1_n=select_C1_n,C1_s=select_C1_s,C1_3d=select_C1_3d,
-#                  C2_n=select_C2_n,C2_s=select_C2_s,C2_3d=select_C2_3d,
-#                  C3_n=select_C3_n,C3_s=select_C3_s,C3_3d=select_C3_3d)
-
-# val_dataset_1 = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['val_dataset_name'][0]
-
-
-# fev_allUnits = np.mean(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_allUnits_bestEpoch_allTr'],axis=1)
-# idx_valid = np.logical_and(fev_allUnits>0,fev_allUnits<1)
-# fev_allUnits = fev_allUnits[idx_valid]
-# fev_medianUnits = np.mean(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])# take mean across trials
-# fev_stdUnits = np.std(fev_allUnits)
-# fev_ci = 1.96*(fev_stdUnits/len(fev_allUnits)**.5)
-
-# predCorr_allUnits = np.mean(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['predCorr_allUnits_bestEpoch_allTr'],axis=1)
-# # predCorr_allUnits = predCorr_allUnits[idx_valid]
-# predCorr_medianUnits = np.median(predCorr_allUnits) #perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['predCorr_medianUnits_bestEpoch_allTr']
-# predCorr_stdUnits = np.std(predCorr_allUnits)
-# predCorr_ci = 1.96*(predCorr_stdUnits/len(predCorr_allUnits)**.5)
-
-# rrCorr_allUnits = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['rrCorr_allUnits']
-# rrCorr_allUnits = rrCorr_allUnits[idx_valid]
-# rrCorr_medianUnits = np.median(rrCorr_allUnits)#perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['rrCorr_medianUnits']
-# rrCorr_stdUnits = np.std(rrCorr_allUnits)
-# rrCorr_ci = 1.96*(rrCorr_stdUnits/len(rrCorr_allUnits)**.5)
-
-
-
-# idx_units_sorted = np.argsort(fev_allUnits)
-# idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1],idx_units_sorted[0]]
-# # idx_unitsToPred = [0,1,2,3]
-# # idx_unitsToPred = [25,26,27,28]
-# # idx_unitsToPred = [13,21,11,41]
-# obs_rate_allUnits = perf_allExps[select_exp][select_mdl][paramFileName]['dataset_pred']['obs_rate']
-# pred_rate_allUnits = perf_allExps[select_exp][select_mdl][paramFileName]['dataset_pred']['pred_rate']
-  
-# col_mdl = ('r')
-# cols_lightLevels = {
-#     'photopic': 'r',
-#     'scotopic': 'b'
-    
-#     }
-
-# lineWidth_mdl = [2]
-# lim_y = (0,6)
-# fig,axs = plt.subplots(2,2,figsize=(25,10))
-# axs = np.ravel(axs)
-# fig.suptitle('Training: '+lightLevel_1+' | Prediction: '+ val_dataset_1,fontsize=16)
-
-# t_start = 10
-# t_dur = obs_rate_allUnits.shape[0]
-# t_end = t_start+t_dur-20
-# win_display = (t_start,t_start+t_dur)
-# font_size_ticks = 14
-
-# t_frame = 17
-# t_axis = np.arange(0,pred_rate_allUnits.shape[0]*t_frame,t_frame)
-
-# for i in range(len(idx_unitsToPred)):
-#     l_base, = axs[i].plot(t_axis[t_start+samps_shift:t_end],obs_rate_allUnits[t_start:t_end-samps_shift,idx_unitsToPred[i]],linewidth=4,color='darkgrey')
-#     l_base.set_label('Actual')
-#     l, = axs[i].plot(t_axis[t_start+samps_shift:t_end],pred_rate_allUnits[t_start+samps_shift:t_end,idx_unitsToPred[i]],cols_lightLevels[val_dataset_1],linewidth=lineWidth_mdl[0])
-#     l.set_label('Predicted: FEV = %.02f, Corr = %0.2f' %(fev_allUnits[idx_unitsToPred[i]],predCorr_allUnits[idx_unitsToPred[i]]))
-    
-#     # axs[i].set_ylim(lim_y)
-#     # axs[i].set_xticks('',fontsize=20)
-#     axs[i].set_xlabel('Time (ms)',fontsize=font_size_ticks)
-#     axs[i].set_ylabel('Normalized spike rate (spikes/second)',fontsize=font_size_ticks)
-#     axs[i].set_title('unit_id: %d' %idx_unitsToPred[i])
-#     axs[i].legend()
-#     plt.setp(axs[i].get_xticklabels(), fontsize=font_size_ticks)
-
-# # plt.setp(axs,xlim=win_display)
 
 # %%3D plot
 # fev_surfacePlot = np.zeros((len(eval('select_'+select_param_x)),len(eval('select_'+select_param_y)),len(eval('select_'+select_param_z))))

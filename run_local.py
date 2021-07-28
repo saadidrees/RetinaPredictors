@@ -13,23 +13,23 @@ import os
 from run_model_cnn3d import run_model
 
 expDate = 'retina1'
-subFold = 'test'
-mdl_name = 'CNN_2D'
-dataset = 'photopic-10000_preproc-cones_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
-USE_CHUNKER=0
+subFold = '8ms'
+mdl_name = 'convLSTM'#'CNN_2D'
+dataset = 'photopic' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
+USE_CHUNKER=1
 temporal_width=120
 thresh_rr=0
-chan1_n=13
+chan1_n=20
 filt1_size=3
 filt1_3rdDim=0
-chan2_n=26
+chan2_n=0
 filt2_size=2
 filt2_3rdDim=0
-chan3_n=24
+chan3_n=0
 filt3_size=1
 filt3_3rdDim=0
-nb_epochs=250
-bz_ms=20000#20000 #10000
+nb_epochs=100
+bz_ms=5000#20000 #10000
 BatchNorm=1
 MaxPool=0
 saveToCSV=1
@@ -45,10 +45,10 @@ path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten/',ex
 path_dataset_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold)
 fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',name_datasetFile)
 
-
+c_trial = 1
 
 for c_trial in range(1,num_trials+1):
-    model_performance = run_model(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
+    model_performance = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
                         temporal_width=temporal_width, thresh_rr=thresh_rr,
                         chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                         chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,

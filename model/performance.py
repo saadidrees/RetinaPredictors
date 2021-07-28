@@ -159,7 +159,7 @@ def paramsToName(mdl_name,U=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C
                                                                                                      C2_n,C2_s,
                                                                                                      C3_n,C3_s,
                                                                                                      BN,MP)
-    elif mdl_name=='CNN_3D':
+    else:
         paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,C1_3d,
                                                                                                              C2_n,C2_s,C2_3d,
                                                                                                              C3_n,C3_s,C3_3d,
