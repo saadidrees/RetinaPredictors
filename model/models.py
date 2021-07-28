@@ -284,70 +284,109 @@ def cnn_3d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_
     return Model(inputs, outputs, name=mdl_name)
 
 
+# def lstm_cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
+#     sigma = 0.1
+    
+    
+#     a = inputs.shape
+#     y = Flatten()(inputs)
+#     # y = BatchNormalization(axis=-1)(y)
+#     y = Reshape((a[1],a[2]*a[3]))(y)
+ 
+#     y = LSTM(chan1_n,input_shape = y.shape,kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+#     y = BatchNormalization()(y)
+#     y = Activation('relu')(GaussianNoise(sigma)(y))
 
-def LSTM_layer(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=24, filt2_size=13, lstm_timeStep = 1, BatchNorm=True):
+
+
+def cnn_2d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
     sigma = 0.1
     
-    filt_temporal_width=inputs.shape[2]
-    model = Sequential()
+    filt_temporal_width=inputs.shape[1]
+    # model = Sequential()
 
 # first layuer
     n1 = int(inputs.shape[-1])
     n2 = int(inputs.shape[-2])   
-    model.add(Flatten())
-    model.add(BatchNormalization(axis=-1))
-    model.add(Reshape((lstm_timeStep,filt_temporal_width, n2, n1)))
     
+    y = Reshape((inputs.shape[1],1,inputs.shape[2],inputs.shape[3]))(inputs)
+    y = TimeDistributed(Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),input_shape = y.shape))(y)
+    y = BatchNormalization()(y)
+    y = Activation('relu')(GaussianNoise(sigma)(y))
     
-    model.add(TimeDistributed(Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),input_shape = inputs.shape)))  
-    model.add(TimeDistributed(GaussianNoise(sigma)))
-    model.add(TimeDistributed(Activation('relu')))
-    
-# Second layer
-    n1 = n1-filt1_size+1
-    n2 = n2-filt1_size+1    
-    model.add(Flatten())
-    model.add(BatchNormalization(axis=-1))
-    model.add(Reshape((lstm_timeStep,chan1_n, n2, n1)))
+# second layer
+    if chan2_n>0:
+        y = TimeDistributed(Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3),input_shape = y.shape))(y)
+        y = BatchNormalization()(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+        
+# third layer
+    if chan3_n>0:
+        y = TimeDistributed(Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3),input_shape = y.shape))(y)
+        y = BatchNormalization()(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+        
+# LSTM layer as dense   
+    a = y.shape
+    y = Flatten()(y)
+    # y = BatchNormalization(axis=-1)(y)
+    y = Reshape((a[1],a[2]*a[3]*a[4]))(y)
+ 
+    y = LSTM(n_out,input_shape = y.shape,kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    y = BatchNormalization()(y)
+    outputs = Activation('softplus')(y)
 
-    model.add(TimeDistributed(Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))))  
-    model.add(TimeDistributed(GaussianNoise(sigma)))
-    model.add(TimeDistributed(Activation('relu')))
-    
-# LSTM layer
-    n1 = n1-filt2_size+1
-    n2 = n2-filt2_size+1
-    model.add(Flatten())
-    model.add(BatchNormalization(axis=-1))
-    model.add(Reshape((lstm_timeStep,chan2_n, n2, n1)))
-    
-    model.add(TimeDistributed(Flatten()))
-    model.add(LSTM(n_out,input_shape = inputs.shape))
-    model.add(Activation('softplus'))
-    
-# Dense Layer
-    model.add(Flatten())
-    model.add(Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3)))
-    model.add(Activation('softplus'))
-    
-    mdl_name = 'LSTM_layer'
+    mdl_name = 'CNN_2D_LSTM'
     
     return model
 
+# def convLSTM(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
+#     sigma = 0.1
+#     y = ConvLSTM2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=False,input_shape = inputs.shape)(inputs)
+#     y = BatchNormalization(axis=1)(y)
+#     y = Activation('relu')(GaussianNoise(sigma)(y))
+#     # y = MaxPool3D(pool_size=(1, 2, 2), padding='same', data_format='channels_first')(y)
+
+#     if chan2_n>0:
+#         y = ConvLSTM2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=True)(y)
+#         y = BatchNormalization()(y)       
+#         y = Activation('relu')(GaussianNoise(sigma)(y))
+
+#     if chan3_n>0:
+#         y = ConvLSTM2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=True)(y)
+#         y = BatchNormalization()(y)       
+#         y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+#     y = Flatten()(y)
+#     y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+#     y = BatchNormalization()(y) 
+#     outputs = Activation('softplus')(y)
+#     mdl_name = 'convLSTM'
+    
+#     return Model(inputs, outputs, name=mdl_name)
+
 def convLSTM(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
     sigma = 0.1
-    y = ConvLSTM2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=False,input_shape = inputs.shape)(inputs)
-    y = BatchNormalization(axis=1)(y)
+    
+    if chan2_n==0:  # return sequences or not
+        y = ConvLSTM2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=False,input_shape = inputs.shape)(inputs)
+    else:
+        y = ConvLSTM2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=True,input_shape = inputs.shape)(inputs)
+    y = BatchNormalization()(y)
     y = Activation('relu')(GaussianNoise(sigma)(y))
     # y = MaxPool3D(pool_size=(1, 2, 2), padding='same', data_format='channels_first')(y)
 
     if chan2_n>0:
-        y = ConvLSTM2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=True)(y)
+        if chan3_n==0:
+           y = ConvLSTM2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=False,input_shape = y.shape)(y)
+        else:
+           y = ConvLSTM2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=True,input_shape = y.shape)(y)
         y = BatchNormalization()(y)       
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
     if chan3_n>0:
-        y = ConvLSTM2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=True)(y)
+        y = ConvLSTM2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=False,input_shape = y.shape)(y)
         y = BatchNormalization()(y)       
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
@@ -356,7 +395,7 @@ def convLSTM(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=2
     y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
     y = BatchNormalization()(y) 
     outputs = Activation('softplus')(y)
-    mdl_name = 'convLSTM'
+    mdl_name = 'convLSTM_mulLayers'
     
     return Model(inputs, outputs, name=mdl_name)
 
