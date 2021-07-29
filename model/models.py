@@ -28,7 +28,7 @@ import numpy as np
 
 
 
-# Model definitions - Keras Models
+# %% Model definitions - Keras Models
 
 def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     sigma = 0.1
@@ -284,18 +284,40 @@ def cnn_3d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_
     return Model(inputs, outputs, name=mdl_name)
 
 
-# def lstm_cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
-#     sigma = 0.1
+def lstm_cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
+    sigma = 0.1
     
+    a = inputs.shape
+# First layer - LSTM
+    y = ConvLSTM2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),return_sequences=False,input_shape = inputs.shape)(inputs)
+    y = BatchNormalization()(y)
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+
+# Second layer - CNN2D
+    if chan2_n>0:            
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)           
+        if BatchNorm is True: 
+            y = BatchNormalization()(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+        # y = Activation('tanh')(GaussianNoise(sigma)(y))
+
+# Third layer - CNN2D
+    if chan3_n>0:            
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)           
+        if BatchNorm is True: 
+            y = BatchNormalization()(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+# Dense Layer
+    y = Flatten()(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    if BatchNorm is True: 
+        y = BatchNormalization()(y)   
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'LSTM_CNN_2D'
+    return Model(inputs, outputs, name=mdl_name)
     
-#     a = inputs.shape
-#     y = Flatten()(inputs)
-#     # y = BatchNormalization(axis=-1)(y)
-#     y = Reshape((a[1],a[2]*a[3]))(y)
- 
-#     y = LSTM(chan1_n,input_shape = y.shape,kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
-#     y = BatchNormalization()(y)
-#     y = Activation('relu')(GaussianNoise(sigma)(y))
 
 
 
