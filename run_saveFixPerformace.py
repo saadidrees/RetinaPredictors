@@ -16,7 +16,7 @@ from model.performance import getModelParams
 expDate = 'retina1'
 subFold = '8ms'
 dataset = 'photopic'
-mdl_name = 'CNN_3D_LSTM'
+mdl_name = 'LSTM_CNN_2D'
 temporal_width=120
 thresh_rr=0
 chan1_n=18
@@ -28,7 +28,7 @@ filt2_3rdDim=0
 chan3_n=25
 filt3_size=3
 filt3_3rdDim=0
-nb_epochs=20
+# nb_epochs=20
 bz_ms=5000
 BatchNorm=0
 MaxPool=0
@@ -49,7 +49,7 @@ for f in paramFileNames:
     for i in param_list_keys:
         params[i].append(rgb[i])
 
-rangeToRun = np.arange(0,3)
+rangeToRun = np.arange(0,1)
 fname_performance_excel = os.path.join('/home/saad/postdoc_db/projects/RetinaPredictors/performance/','performance_'+expDate+'_'+dataset+'_'+str(rangeToRun[0])+'-'+str(rangeToRun[-1])+'.csv')
 
 i = 0
@@ -63,7 +63,7 @@ filt2_3rdDim=params['C2_3d'][i]
 chan3_n=params['C3_n'][i]
 filt3_size=params['C3_s'][i]
 filt3_3rdDim=params['C3_3d'][i]
-nb_epochs=nb_epochs
+# nb_epochs=nb_epochs
 bz_ms=bz_ms
 BatchNorm=params['BN'][i]
 MaxPool=MaxPool
@@ -78,7 +78,7 @@ for i in rangeToRun:
                         chan1_n=params['C1_n'][i], filt1_size=params['C1_s'][i], filt1_3rdDim=params['C1_3d'][i],
                         chan2_n=params['C2_n'][i], filt2_size=params['C2_s'][i], filt2_3rdDim=params['C2_3d'][i],
                         chan3_n=params['C3_n'][i], filt3_size=params['C3_s'][i], filt3_3rdDim=params['C3_3d'][i],
-                        nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=params['BN'][i],MaxPool=MaxPool,c_trial=params['TR'][i])
+                        bz_ms=bz_ms,BatchNorm=params['BN'][i],MaxPool=MaxPool,c_trial=params['TR'][i])
 
 
 #%%
