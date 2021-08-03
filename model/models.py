@@ -348,19 +348,22 @@ def cnn_2d_lstm(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_
         y = BatchNormalization()(y)
         y = Activation('relu')(GaussianNoise(sigma)(y))
         
-# LSTM layer as dense   
+# LSTM layer  
     a = y.shape
     y = Flatten()(y)
     # y = BatchNormalization(axis=-1)(y)
     y = Reshape((a[1],a[2]*a[3]*a[4]))(y)
- 
     y = LSTM(n_out,input_shape = y.shape,kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
-    y = BatchNormalization()(y)
+    
+# Dense Layer
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    y = BatchNormalization()(y)   
+
     outputs = Activation('softplus')(y)
 
     mdl_name = 'CNN_2D_LSTM'
     
-    return model
+    return Model(inputs, outputs, name=mdl_name)
 
 # def convLSTM(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
 #     sigma = 0.1
