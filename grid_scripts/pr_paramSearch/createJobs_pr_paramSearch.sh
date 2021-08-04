@@ -22,17 +22,19 @@ fi
 path_mdl_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f1) )
 trainingDataset_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f2) )
 testingDataset_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f3) )
-mdl_name_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f4) )
-path_excel_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f5) )
-path_perFiles_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f6) )
-r_sigma_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f7) )
-r_phi_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f8) )
-r_eta_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f9) )
-r_k_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f10) )
-r_h_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f11) )
-r_beta_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f12) )
-r_hillcoef_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f13) )
-r_gamma_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f14) )
+expDate_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f4) )
+mdl_name_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f5) )
+path_excel_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f6) )
+path_perFiles_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f7) )
+r_sigma_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f8) )
+r_phi_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f9) )
+r_eta_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f10) )
+r_k_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f11) )
+r_h_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f12) )
+r_beta_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f13) )
+r_hillcoef_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f14) )
+r_gamma_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f15) )
+
 
 numParams=${#r_sigma_all[@]}
 echo "Number of parameter combinations: $numParams"
@@ -45,6 +47,7 @@ do
  trainingDataset=${trainingDataset_all[i]}
  testingDataset=${testingDataset_all[i]}
  mdl_name=${mdl_name_all[i]}
+ expDate=${expDate_all[i]}
  path_excel=${path_excel_all[i]}
  path_perFiles=${path_perFiles_all[i]}
  
@@ -63,6 +66,7 @@ do
  echo "path_mdl: $path_mdl"
  echo "trainingDataset: $trainingDataset"
  echo "testingDataset: $trainingDataset"
+ echo "expDate: $expDate"
  echo "mdl_name: $mdl_name"
  echo "path_excel: $path_excel"
  echo "path_perFiles: $path_perFiles"
@@ -76,7 +80,7 @@ do
  echo "r_gamma: $r_gamma"
 
 
- JOB_ID=$(sbatch --export=LOG_DIR=$LOG_DIR,path_mdl=$path_mdl,trainingDataset=$trainingDataset,testingDataset=$testingDataset,mdl_name=$mdl_name,path_excel=$path_excel,path_perFiles=$path_perFiles,r_sigma=$r_sigma,r_phi=$r_phi,r_eta=$r_eta,r_k=$r_k,r_h=$r_h,r_beta=$r_beta,r_hillcoef=$r_hillcoef,r_gamma=$r_gamma pr_paramSearch_launcher.sh)
+ JOB_ID=$(sbatch --export=LOG_DIR=$LOG_DIR,path_mdl=$path_mdl,trainingDataset=$trainingDataset,testingDataset=$testingDataset,expDate=$expDate,mdl_name=$mdl_name,path_excel=$path_excel,path_perFiles=$path_perFiles,r_sigma=$r_sigma,r_phi=$r_phi,r_eta=$r_eta,r_k=$r_k,r_h=$r_h,r_beta=$r_beta,r_hillcoef=$r_hillcoef,r_gamma=$r_gamma pr_paramSearch_launcher.sh)
 
 echo $JOB_ID
 JOB_ID=$(echo "$JOB_ID" | grep -Eo '[0-9]{1,8}')

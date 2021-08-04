@@ -13,6 +13,7 @@ def parser_pr_paramSearch():
 
     parser = argparse.ArgumentParser()
     
+    parser.add_argument('expDate',type=str)   
     parser.add_argument('path_mdl',type=str)
     parser.add_argument('trainingDataset',type=str)
     parser.add_argument('testingDataset',type=str)
@@ -34,7 +35,7 @@ def parser_pr_paramSearch():
 
 
 
-def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D'):
+def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D'):
 
 # %%    
     from model.RiekeModel import Model as rieke_model
@@ -71,7 +72,7 @@ def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_p
     import gc
     
     DEBUG_MODE = 1
-    expDate = 'retina1'
+    # expDate = 'retina1'
     lightLevel = 'scotopic'  # ['scotopic','photopic']
     pr_type = 'rods'   # ['rods','cones']
 
