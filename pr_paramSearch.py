@@ -238,7 +238,7 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     
     if lightLevel == 'scotopic':
-        meanIntensity = 100
+        meanIntensity = 1
     elif lightLevel == 'photopic':
         meanIntensity = 10000
     
@@ -369,8 +369,8 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     print('-----WRITING TO CSV FILE-----')
     if saveToCSV==1:
-        csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','FEV_median','predCorr_median']
-        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],fev_d1_medianUnits,predCorr_d1_medianUnits]
+        csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','gamma','FEV_median','predCorr_median']
+        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],params['gamma'],fev_d1_medianUnits,predCorr_d1_medianUnits]
         
         fname_csv_file = 'pr_paramSearch'+'.csv'
         fname_csv_file = os.path.join(path_excel,fname_csv_file)
