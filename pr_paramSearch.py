@@ -25,6 +25,7 @@ def parser_pr_paramSearch():
     parser.add_argument('--r_h',type=str2int,default=3)
     parser.add_argument('--r_beta',type=str2int,default=25)
     parser.add_argument('--r_hillcoef',type=str2int,default=4)
+    parser.add_argument('--r_gamma',type=str2int,default=800)
     parser.add_argument('--mdl_name',type=str)
 
     args = parser.parse_args()
@@ -33,7 +34,7 @@ def parser_pr_paramSearch():
 
 
 
-def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,mdl_name='CNN_2D'):
+def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D'):
 
 # %%    
     from model.RiekeModel import Model as rieke_model
@@ -222,7 +223,7 @@ def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_p
     params_rods['betaSlow'] =  0	  
     params_rods['hillcoef'] =  r_hillcoef  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] =  0.40		# affinity for Ca2+
-    params_rods['gamma'] =  8 #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['gamma'] =  r_gamma #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
     
@@ -363,6 +364,25 @@ def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_p
     
     print(fev_d1_medianUnits)
     
+    # %% Write performance to csv file
+    
+    print('-----WRITING TO CSV FILE-----')
+    if saveToCSV==1:
+        csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','FEV_median','predCorr_median']
+        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],fev_d1_medianUnits,predCorr_d1_medianUnits]
+        
+        fname_csv_file = 'pr_paramSearch'+'.csv'
+        fname_csv_file = os.path.join(path_excel,fname_csv_file)
+        if not os.path.exists(fname_csv_file):
+            with open(fname_csv_file,'w',encoding='utf-8') as csvfile:
+                csvwriter = csv.writer(csvfile) 
+                csvwriter.writerow(csv_header) 
+                
+        with open(fname_csv_file,'a',encoding='utf-8') as csvfile:
+            csvwriter = csv.writer(csvfile) 
+            csvwriter.writerow(csv_data) 
+    
+    
     # %% writing to h5
     print('-----WRITING TO H5 FILE-----')
     performance = {
@@ -390,23 +410,6 @@ def run_pr_paramSearch(path_mdl,trainingDataset,testingDataset,path_excel,path_p
     
     print('-----DONE-----')
     
-    # %% Write performance to csv file
-    
-    print('-----WRITING TO CSV FILE-----')
-    if saveToCSV==1:
-        csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','FEV_median','predCorr_median']
-        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],fev_d1_medianUnits,predCorr_d1_medianUnits]
-        
-        fname_csv_file = 'pr_paramSearch'+'.csv'
-        fname_csv_file = os.path.join(path_excel,fname_csv_file)
-        if not os.path.exists(fname_csv_file):
-            with open(fname_csv_file,'w',encoding='utf-8') as csvfile:
-                csvwriter = csv.writer(csvfile) 
-                csvwriter.writerow(csv_header) 
-                
-        with open(fname_csv_file,'a',encoding='utf-8') as csvfile:
-            csvwriter = csv.writer(csvfile) 
-            csvwriter.writerow(csv_data) 
     
         
     print('-----JOB FINISHED-----')

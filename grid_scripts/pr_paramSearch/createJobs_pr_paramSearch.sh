@@ -32,7 +32,7 @@ r_k_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f10) )
 r_h_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f11) )
 r_beta_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f12) )
 r_hillcoef_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f13) )
-
+r_gamma_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f14) )
 
 numParams=${#r_sigma_all[@]}
 echo "Number of parameter combinations: $numParams"
@@ -55,6 +55,7 @@ do
  r_h=${r_h_all[i]}
  r_beta=${r_beta_all[i]}
  r_hillcoef=${r_hillcoef_all[i]}
+ r_gamma=${r_gamma_all[i]}
  
  
  
@@ -72,14 +73,15 @@ do
  echo "r_h: $r_h"
  echo "r_beta: $r_beta"
  echo "r_hillcoef: $r_hillcoef"
+ echo "r_gamma: $r_gamma"
 
 
- JOB_ID=$(sbatch --export=LOG_DIR=$LOG_DIR,path_mdl=$path_mdl,trainingDataset=$trainingDataset,testingDataset=$testingDataset,mdl_name=$mdl_name,path_excel=$path_excel,path_perFiles=$path_perFiles,r_sigma=$r_sigma,r_phi=$r_phi,r_eta=$r_eta,r_k=$r_k,r_h=$r_h,r_beta=$r_beta,r_hillcoef=$r_hillcoef pr_paramSearch_launcher.sh)
+ JOB_ID=$(sbatch --export=LOG_DIR=$LOG_DIR,path_mdl=$path_mdl,trainingDataset=$trainingDataset,testingDataset=$testingDataset,mdl_name=$mdl_name,path_excel=$path_excel,path_perFiles=$path_perFiles,r_sigma=$r_sigma,r_phi=$r_phi,r_eta=$r_eta,r_k=$r_k,r_h=$r_h,r_beta=$r_beta,r_hillcoef=$r_hillcoef,r_gamma=$r_gamma pr_paramSearch_launcher.sh)
 
 echo $JOB_ID
 JOB_ID=$(echo "$JOB_ID" | grep -Eo '[0-9]{1,8}')
  
-printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t' $JOB_ID $expDate $path_mdl $trainingDataset $testingDataset $mdl_name $path_excel $path_perFiles $r_sigma $r_phi $r_eta $r_k $r_h $r_beta $r_hillcoef | paste -sd '\t' >> job_list.csv
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t' $JOB_ID $expDate $path_mdl $trainingDataset $testingDataset $mdl_name $path_excel $path_perFiles $r_sigma $r_phi $r_eta $r_k $r_h $r_beta $r_hillcoef $r_gamma | paste -sd '\t' >> job_list.csv
  
  
 done
