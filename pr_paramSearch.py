@@ -323,7 +323,7 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     rgb = getModelParams(f)
     select_T = rgb['T']
     correctMedian = False
-    # samps_shift = 0+4
+    samps_shift = int(samps_shift)#0+4
     
     # path_model = os.path.join(path_mdl)
     mdl = load(os.path.join(path_mdl,f))
