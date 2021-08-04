@@ -32,4 +32,4 @@ pip install --no-index scipy matplotlib tensorflow_gpu joblib
 
 
 
-python pr_paramSearch.py $expDate $path_mdl $trainingDataset $testingDataset $path_excel $path_perFiles --mdl_name=$mdl_name --r_sigma=$r_sigma --r_phi=$r_phi --r_eta=$r_eta --r_k=$r_k --r_h=$r_h --r_beta=$r_beta --r_hillcoef=$r_hillcoef --r_gamma=$r_gamma
+python pr_paramSearch.py $expDate $path_mdl $trainingDataset $testingDataset $path_excel $path_perFiles --samps_shift=$samps_shift --mdl_name=$mdl_name --r_sigma=$r_sigma --r_phi=$r_phi --r_eta=$r_eta --r_k=$r_k --r_h=$r_h --r_beta=$r_beta --r_hillcoef=$r_hillcoef --r_gamma=$r_gamma

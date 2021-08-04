@@ -28,6 +28,7 @@ def parser_pr_paramSearch():
     parser.add_argument('--r_hillcoef',type=str2int,default=4)
     parser.add_argument('--r_gamma',type=str2int,default=800)
     parser.add_argument('--mdl_name',type=str)
+    parser.add_argument('--samps_shift',type=str2int,default=4)
 
     args = parser.parse_args()
     
@@ -35,7 +36,7 @@ def parser_pr_paramSearch():
 
 
 
-def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D'):
+def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D',samps_shift=4):
 
 # %%    
     from model.RiekeModel import Model as rieke_model

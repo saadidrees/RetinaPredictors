@@ -11,6 +11,7 @@ import os
 
 APPEND_TO_EXISTING = 0
 expDate = 'retina2'
+samps_shift = 5
 path_mdl = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/photopic-10000_preproc-added_norm-1_rfac-2/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01/'
 trainingDataset = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/datasets/'+expDate+'_dataset_train_val_test_photopic-10000_preproc-added_norm-1_rfac-2.h5'
 testingDataset = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/datasets/retina2_dataset_train_val_test_scotopic.h5'
@@ -20,9 +21,9 @@ path_excel = '/home/sidrees/scratch/RetinaPredictors/performance/'+expDate+'/'
 path_perFiles = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/pr_paramSearch'
 
 
-r_sigma = np.arange(8,11,1)
-r_phi = np.arange(9,12,1)
-r_eta = np.arange(4,5,1)
+r_sigma = np.arange(7,12,1)
+r_phi = np.arange(7,12,1)
+r_eta = np.arange(3,5,1)
 r_k = np.arange(0.01,0.02,0.01)
 r_h = np.arange(3,4,1)
 r_beta = np.arange(5,35,5)
@@ -30,7 +31,7 @@ r_hillcoef = np.arange(4,5,1)
 r_gamma = np.arange(100,2000,50)
 
 
-csv_header = ['expDate','path_mdl','trainingDataset','testingDataset','mdl_name','path_excel','path_perFiles','r_sigma','r_phi','r_eta','r_k','r_h','r_beta','r_hillcoef','r_gamma']
+csv_header = ['expDate','path_mdl','trainingDataset','testingDataset','mdl_name','path_excel','path_perFiles','samps_shift','r_sigma','r_phi','r_eta','r_k','r_h','r_beta','r_hillcoef','r_gamma']
 params_array = np.zeros((1000000,8))
 counter = -1
 for cc1 in r_sigma:
@@ -65,7 +66,7 @@ for i in range(params_array.shape[0]):
                         
     # rgb = params_array[i,:].astype('int').tolist()
     rgb = params_array[i,:].tolist()
-    csv_data = [expDate,path_mdl,trainingDataset,testingDataset,mdl_name,path_excel,path_perFiles]
+    csv_data = [expDate,path_mdl,trainingDataset,testingDataset,mdl_name,path_excel,path_perFiles,samps_shift]
     csv_data.extend(rgb)
                
     # fname_model.append('U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(csv_data[3],csv_data[4],csv_data[7],csv_data[8],

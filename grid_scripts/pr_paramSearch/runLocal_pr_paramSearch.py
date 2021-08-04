@@ -16,13 +16,13 @@ path_perFiles = '/home/saad/data/analyses/data_kiersten/retina2/8ms/pr_paramSear
 mdl_name='CNN_2D'
 
 
-r_sigma = 20
-r_phi = 10
-r_eta = 2
+r_sigma = 8
+r_phi = 9
+r_eta = 4
 r_k=0.01
 r_h=3
-r_beta=25
+r_beta=5
 r_hillcoef=4
-r_gamma=800
+r_gamma=100
 
-run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=r_sigma,r_phi=r_phi,r_eta=r_eta,r_k=r_k,r_h=r_h,r_beta=r_beta,r_hillcoef=r_hillcoef,mdl_name=mdl_name)
+run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=r_sigma,r_phi=r_phi,r_eta=r_eta,r_k=r_k,r_h=r_h,r_beta=r_beta,r_hillcoef=r_hillcoef,r_gamma=r_gamma,mdl_name=mdl_name)
