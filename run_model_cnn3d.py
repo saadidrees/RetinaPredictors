@@ -16,7 +16,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000,BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=0,
+                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,
+                            BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 
@@ -94,6 +95,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     import datetime
     
     from collections import namedtuple
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+
 
     
     
@@ -119,6 +122,12 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
 # load train val and test datasets from saved h5 file
     # fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
     data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test)
+    t_frame = parameters['t_frame']
+    
+    if trainingSamps_dur>0:  # if not take all
+        trainingSamps = int((trainingSamps_dur*60*1000)/t_frame)
+        data_train = Exptdata(data_train.X[:trainingSamps],data_train.y[:trainingSamps])
+
     
 # Arrange data according to needs
     idx_unitsToTake = data_quality['idx_unitsToTake']
@@ -138,7 +147,6 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         data_test = prepare_data_convLSTM(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
         data_val = prepare_data_convLSTM(data_val,temporal_width,np.arange(len(idx_unitsToTake)))   
         
-    t_frame = parameters['t_frame']
     
     
     if BatchNorm:
@@ -163,7 +171,6 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     
     # # TEMPORARY!!! DELETE THIS
     # #/*
-    # Exptdata = namedtuple('Exptdata', ['X', 'y'])
     # num_train_samples = 20000
     # data_train = Exptdata(data_train.X[:num_train_samples,:,:,:],data_train.y[:num_train_samples])
     # #*/
@@ -174,16 +181,16 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
 # %%
     if mdl_name == 'CNN_3D':       
         mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
+        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d_TRSAMPS-%d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
                                                                                      chan2_n,filt2_size,filt2_3rdDim,
                                                                                      chan3_n,filt3_size,filt3_3rdDim,
-                                                                                     bn_val,mp_val,c_trial)
+                                                                                     bn_val,mp_val,c_trial,trainingSamps_dur)
     elif mdl_name=='CNN_2D':
         mdl = cnn_2d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,
+        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d_TRSAMPS-%d' %(thresh_rr,temporal_width,chan1_n,filt1_size,
                                                                                      chan2_n,filt2_size,
                                                                                      chan3_n,filt3_size,
-                                                                                     bn_val,mp_val,c_trial)
+                                                                                     bn_val,mp_val,c_trial,trainingSamps_dur)
         filt1_3rdDim=0
         filt2_3rdDim=0
         filt3_3rdDim=0
@@ -292,7 +299,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         rrCorr_loop = np.zeros((num_iters,n_cells))
 
         for j in range(num_iters):
-            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=4)
+            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=samps_shift)
             
         fev = np.mean(fev_loop,axis=0)
         fracExVar = np.mean(fracExVar_loop,axis=0)

@@ -13,22 +13,23 @@ import os
 from run_model_cnn3d import run_model
 
 expDate = 'retina1'
-subFold = '8ms'
-mdl_name = 'CNN_2D_LSTM' #'LSTM_CNN_2D'#'CNN_2D'
-dataset = 'photopic-10000_preproc-added_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
-USE_CHUNKER=1
+subFold = '8ms_TRSAMPS'
+mdl_name = 'CNN_2D' #'LSTM_CNN_2D'#'CNN_2D'
+dataset = 'photopic-10000_preproc-added_norm-1_rfac-2' #'photopic-10000_preproc-added_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
+USE_CHUNKER=0
 temporal_width=120
 thresh_rr=0
 chan1_n=13
 filt1_size=3
 filt1_3rdDim=0
-chan2_n=30
-filt2_size=3
+chan2_n=26
+filt2_size=2
 filt2_3rdDim=0
-chan3_n=0
-filt3_size=0
+chan3_n=24
+filt3_size=1
 filt3_3rdDim=0
-nb_epochs=10
+trainingSamps_dur = 10 # minutes
+nb_epochs=150
 bz_ms=10000#20000 #10000
 BatchNorm=1
 MaxPool=0
@@ -53,7 +54,8 @@ for c_trial in range(1,num_trials+1):
                         chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                         chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                         chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
-                        nb_epochs=nb_epochs,bz_ms=bz_ms,BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER)
+                        nb_epochs=nb_epochs,bz_ms=bz_ms,trainingSamps_dur=trainingSamps_dur,
+                        BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER)
     
 
 # %% for reading from params array
