@@ -15,6 +15,7 @@ from matplotlib import pyplot as plt
 import multiprocessing as mp
 from functools import partial
 
+# %%
 def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred):
 
     f = h5py.File(fname_save_performance,'w')

@@ -19,6 +19,8 @@ def parser_pr_paramSearch():
     parser.add_argument('testingDataset',type=str)
     parser.add_argument('path_excel',type=str)
     parser.add_argument('path_perFiles',type=str)
+    parser.add_argument('lightLevel',type=str)
+    parser.add_argument('pr_type',type=str)
     parser.add_argument('--r_sigma',type=str2int,default=7.66)
     parser.add_argument('--r_phi',type=str2int,default=7.66)
     parser.add_argument('--r_eta',type=str2int,default=1.62)
@@ -36,7 +38,7 @@ def parser_pr_paramSearch():
 
 
 
-def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D',samps_shift=4):
+def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,lightLevel,pr_type,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D',samps_shift=4):
 
 # %%    
     from model.RiekeModel import Model as rieke_model
@@ -74,8 +76,8 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     DEBUG_MODE = 1
     # expDate = 'retina1'
-    lightLevel = 'scotopic'  # ['scotopic','photopic']
-    pr_type = 'rods'   # ['rods','cones']
+    # lightLevel = 'scotopic'  # ['scotopic','photopic']
+    # pr_type = 'rods'   # ['rods','cones']
 
     # path_dataset = os.path.join(path_mdl_drive,'datasets')
     # fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
@@ -197,18 +199,18 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     # %% pr parameters
     params_cones = {}
-    params_cones['sigma'] =  22 #22  # rhodopsin activity decay rate (1/sec) - default 22
-    params_cones['phi'] =  22     # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_cones['eta'] =  2000  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_cones['sigma'] =  r_sigma #22  # rhodopsin activity decay rate (1/sec) - default 22
+    params_cones['phi'] =  r_phi #22     # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_cones['eta'] =  r_eta #2000  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
     params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
-    params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
-    params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
+    params_cones['k'] =  r_k #0.01     # constant relating cGMP to current - default 0.02
+    params_cones['h'] = r_h #3       # cooperativity for cGMP->current - default 3
     params_cones['cdark'] =  1  # dark calcium concentration - default 1
-    params_cones['beta'] = 9 #16 # 9	  # rate constant for calcium removal in 1/sec - default 9
+    params_cones['beta'] = r_beta #16 # 9	  # rate constant for calcium removal in 1/sec - default 9
     params_cones['betaSlow'] =  0	  
-    params_cones['hillcoef'] =  4 #4  	  # cooperativity for cyclase, hill coef - default 4
+    params_cones['hillcoef'] =  r_hillcoef #4  	  # cooperativity for cyclase, hill coef - default 4
     params_cones['hillaffinity'] =  0.5   # hill affinity for cyclase - default 0.5
-    params_cones['gamma'] =  10 #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_cones['gamma'] =  r_gamma #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_cones['timeStep'] =  1e-3  # freds default is 1e-4
     params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
     
@@ -373,7 +375,7 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
         csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','gamma','FEV_median','predCorr_median']
         csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],params['gamma'],fev_d1_medianUnits,predCorr_d1_medianUnits]
         
-        fname_csv_file = 'pr_paramSearch'+'.csv'
+        fname_csv_file = 'pr_paramSearch_'+lightLevel+'_'+pr_type+'.csv'
         fname_csv_file = os.path.join(path_excel,fname_csv_file)
         if not os.path.exists(fname_csv_file):
             with open(fname_csv_file,'w',encoding='utf-8') as csvfile:
@@ -386,31 +388,31 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     
     # %% writing to h5
-    print('-----WRITING TO H5 FILE-----')
-    performance = {
-        'fev_d1_allUnits': fev_d1_allUnits,
-        'predCorr_d1_allUnits': predCorr_d1_allUnits,
-        'fev_d1_medianUnits': fev_d1_medianUnits,
-        'predCorr_d1_medianUnits': predCorr_d1_medianUnits
-        }
+    # print('-----WRITING TO H5 FILE-----')
+    # performance = {
+    #     'fev_d1_allUnits': fev_d1_allUnits,
+    #     'predCorr_d1_allUnits': predCorr_d1_allUnits,
+    #     'fev_d1_medianUnits': fev_d1_medianUnits,
+    #     'predCorr_d1_medianUnits': predCorr_d1_medianUnits
+    #     }
     
-    fname_h5 = dataset_name+'_evaluation.h5'
-    file_h5 = os.path.join(path_perFiles,fname_h5)
-    f = h5py.File(file_h5,'w')
+    # fname_h5 = dataset_name+'_evaluation.h5'
+    # file_h5 = os.path.join(path_perFiles,fname_h5)
+    # f = h5py.File(file_h5,'w')
     
-    grp = f.create_group('/performance')
-    keys = list(performance.keys())
-    for i in range(len(performance)):
-        grp.create_dataset(keys[i], data=performance[keys[i]])
+    # grp = f.create_group('/performance')
+    # keys = list(performance.keys())
+    # for i in range(len(performance)):
+    #     grp.create_dataset(keys[i], data=performance[keys[i]])
     
-    grp = f.create_group('/params')
-    keys = list(params.keys())
-    for i in range(len(params)):
-        grp.create_dataset(keys[i], data=params[keys[i]])
+    # grp = f.create_group('/params')
+    # keys = list(params.keys())
+    # for i in range(len(params)):
+    #     grp.create_dataset(keys[i], data=params[keys[i]])
     
-    f.close()
+    # f.close()
     
-    print('-----DONE-----')
+    # print('-----DONE-----')
     
     
         
