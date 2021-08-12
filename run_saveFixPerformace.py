@@ -13,23 +13,24 @@ import os
 from fix_savePerformance import run_fixPerformance
 from model.performance import getModelParams
 
-expDate = 'retina1'
+expDate = 'retina2'
+samps_shift = 0
 subFold = '8ms'
-dataset = 'photopic'
-mdl_name = 'LSTM_CNN_2D'
+dataset = 'photopic' #'photopic-10000_preproc-added_norm-1_rfac-2'
+mdl_name = 'CNN_3D'
 temporal_width=120
 thresh_rr=0
-chan1_n=18
+chan1_n=13
 filt1_size=3
 filt1_3rdDim=0
-chan2_n=13
-filt2_size=4
+chan2_n=26
+filt2_size=2
 filt2_3rdDim=0
-chan3_n=25
-filt3_size=3
+chan3_n=24
+filt3_size=1
 filt3_3rdDim=0
 # nb_epochs=20
-bz_ms=5000
+bz_ms=20000
 BatchNorm=0
 MaxPool=0
 saveToCSV=1
@@ -49,7 +50,7 @@ for f in paramFileNames:
     for i in param_list_keys:
         params[i].append(rgb[i])
 
-rangeToRun = np.arange(0,1)
+rangeToRun = np.arange(0,len(paramFileNames))
 fname_performance_excel = os.path.join('/home/saad/postdoc_db/projects/RetinaPredictors/performance/','performance_'+expDate+'_'+dataset+'_'+str(rangeToRun[0])+'-'+str(rangeToRun[-1])+'.csv')
 
 i = 0
@@ -70,15 +71,16 @@ MaxPool=MaxPool
 c_trial=params['TR'][i]
 
 #%%
-for i in rangeToRun:
+for i in rangeToRun[0:]:
     prog = '%d of %d' %(i,rangeToRun[-1])
     print(prog)
-    model_performance = run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,fname_performance_excel=fname_performance_excel,saveToCSV=saveToCSV,runOnCluster=0,
-                        temporal_width=temporal_width, thresh_rr=thresh_rr,
-                        chan1_n=params['C1_n'][i], filt1_size=params['C1_s'][i], filt1_3rdDim=params['C1_3d'][i],
-                        chan2_n=params['C2_n'][i], filt2_size=params['C2_s'][i], filt2_3rdDim=params['C2_3d'][i],
-                        chan3_n=params['C3_n'][i], filt3_size=params['C3_s'][i], filt3_3rdDim=params['C3_3d'][i],
-                        bz_ms=bz_ms,BatchNorm=params['BN'][i],MaxPool=MaxPool,c_trial=params['TR'][i])
+    if os.path.exists(os.path.join(path_model_save_base,mdl_name,paramFileNames[i],paramFileNames[i])):
+        model_performance = run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,fname_performance_excel=fname_performance_excel,saveToCSV=saveToCSV,runOnCluster=0,
+                            temporal_width=temporal_width, thresh_rr=thresh_rr,samps_shift=samps_shift,
+                            chan1_n=params['C1_n'][i], filt1_size=params['C1_s'][i], filt1_3rdDim=params['C1_3d'][i],
+                            chan2_n=params['C2_n'][i], filt2_size=params['C2_s'][i], filt2_3rdDim=params['C2_3d'][i],
+                            chan3_n=params['C3_n'][i], filt3_size=params['C3_s'][i], filt3_3rdDim=params['C3_3d'][i],
+                            bz_ms=bz_ms,BatchNorm=params['BN'][i],MaxPool=MaxPool,c_trial=params['TR'][i])
 
 
 #%%

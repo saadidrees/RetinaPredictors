@@ -41,8 +41,8 @@ for device in gpu_devices:
 # expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
 expDates = ('retina1',)
 subFold = '8ms' # test_coneParams
-lightLevel_1 = 'photopic' #'photopic-10000_preproc-added_norm-1_rfac-2'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic-10000_preproc-added_norm-1_rfac-2']
-models_all = ('CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
+lightLevel_1 = 'photopic-10000_preproc-added_norm-1_rfac-2' #'photopic-10000_s-22_p-22_e-1600_k-0.01_h-3_b-10_hc-4_preproc-added_norm-1_rfac-2' #'photopic-10000_preproc-added_norm-1_rfac-2'  # ['scotopic','photopic','scotopic_photopic','photopic_shiftedphotopic','photopic-10000_preproc-added_norm-1_rfac-2']
+models_all = ('CNN_3D',) # ('CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
 
 writeToCSV = False
 
@@ -69,6 +69,7 @@ paramNames_allExps = {}
 for idx_exp in range(len(expDates)):
     
     path_mdl_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDates[idx_exp],subFold)
+    # path_mdl_base = os.path.join('/mnt/cedar/scratch/RetinaPredictors/data/',expDates[idx_exp],subFold)
     path_dataset_base = path_mdl_base #os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/')
 
     perf_allModels = {}
@@ -104,9 +105,20 @@ for idx_exp in range(len(expDates)):
                 rgb = os.listdir(os.path.join(path_mdl_drive,mdl_select,p,'performance'))
                 if len(rgb)!=0:
                     paramNames.append(p)
+        
+        paramNames_cut = []
+        for i in range(0,len(paramNames)):
+            rgb = getModelParams(paramNames[i])
+            if 'TRSAMPS' in rgb.keys():
+                temp1 = 7 + len(str((rgb['TRSAMPS']))) + 1 + 1
+                temp2 = temp1 + 6
+                paramNames_cut_temp = paramNames[i][:-temp2]+paramNames[i][len(paramNames[i])-temp1:]
+                paramNames_cut.append(paramNames_cut_temp)
+                paramNames_unique = list(set(paramNames_cut))
                 
-        paramNames_cut = [i[:-6] for i in paramNames]
-        paramNames_unique = list(set(paramNames_cut))
+            else:
+                paramNames_cut = [i[:-6] for i in paramNames]
+                paramNames_unique = list(set(paramNames_cut))
         
         idx_paramName = ([])
         for i in range(len(paramNames_unique)):
@@ -232,7 +244,7 @@ for idx_exp in range(len(expDates)):
             
             
             rgb = getModelParams(paramFileName)
-            for i in param_list_keys:
+            for i in list(rgb.keys()):
                 param_list[i].append(rgb[i])
             
             
@@ -268,19 +280,18 @@ for idx_exp in range(len(expDates)):
     paramNames_allExps[exp_select] = paramNames_allModels
 
     
-del perf_allModels, perf_paramNames, performance, perf_group, param_list, params_allModels, paramNames_allModels, paramNames
-
+# del perf_allModels, perf_paramNames, performance, perf_group, param_list, params_allModels, paramNames_allModels, paramNames
 
 
 
 # %% D1: Test model
 select_exp = expDates[0]
-select_mdl = 'convLSTM' # models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
+select_mdl = 'CNN_2D' # models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 # params_mdl = params_allExps[select_exp][select_mdl]
 
 val_dataset_1 = lightLevel_1      # ['scotopic','photopic']
 correctMedian = False
-samps_shift = 0+4
+samps_shift = 0
 
 # [20,3,0,24,2,0,22,1,0]
 # [20,3,25,24,2,5,22,1,32]
@@ -290,14 +301,14 @@ select_T = 120#120
 select_BN = 1
 select_MP = 0
 # select_TR = 1
-select_C1_n = 20 #13#13#9#18#20
+select_C1_n = 13#13 #13#13#9#18#20
 select_C1_s = 3
-select_C1_3d = 120#50#25
-select_C2_n = 0#26#26#24#25#24#24
-select_C2_s = 0#2#2
+select_C1_3d = 0#50#25
+select_C2_n = 26#26#26#26#24#25#24#24
+select_C2_s = 2#2#2
 select_C2_3d = 0#10#5
-select_C3_n = 0#24#24#15#18#22
-select_C3_s = 0#1#1
+select_C3_n = 24#24#24#24#15#18#22
+select_C3_s = 1#1#1
 select_C3_3d = 0#62#32
 
 paramFileName = paramsToName(select_mdl,U=select_U,T=select_T,BN=select_BN,MP=select_MP,
@@ -312,7 +323,7 @@ paramFileName = paramsToName(select_mdl,U=select_U,T=select_T,BN=select_BN,MP=se
 
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
 idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
-plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+# plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 
 select_TR = idx_bestTrial+1
 
@@ -456,6 +467,7 @@ axs[0].bar(xlabel,fevs,yerr=cis,align='center',capsize=6,alpha=.7,color=[col_sch
 axs[0].set_ylabel('Fraction of explainable variance explained',fontsize=font_size_ticks)
 axs[0].set_title('',fontsize=font_size_ticks)
 axs[0].set_ylim((0,1.1))
+axs[0].set_yticks(np.arange(0,1.1,.1))
 # axs[0].text(.75,.45,'N = %d RGCs' %fev_allUnits.shape[1],fontsize=font_size_ticks)
 axs[0].tick_params(axis='both',labelsize=16)
 
@@ -470,10 +482,10 @@ axs[0].tick_params(axis='both',labelsize=16)
 _ = gc.collect()
 
 # %% D2: Test model
-val_dataset_2 = 'scotopic-1_preproc-added_norm-1_rfac-2' 
+val_dataset_2 = 'scotopic-1_s-10_p-11_e-3_k-0.01_h-3_b-10_hc-4_preproc-added_norm-1_rfac-2' #'scotopic-1_preproc-added_norm-1_rfac-2' #
 #'scotopic-100_s-22_p-10_preproc-rods_norm-1_rfac-2' #'photopic-10000_preproc-cones_norm-1_rfac-2' #'photopic_10000_g_8_d_28_b_30_e_3000_s_22_p_100_h_10_preproc_cones_norm_1'   #photopic_10000_preproc_added_norm_1'      # ['scotopic','photopic','photopic_preproc','scotopic_preproc'] photopic_preproc_RodsCones scotopic_preproc_RodsCones
 correctMedian = False
-samps_shift = 0+4
+samps_shift = 0
 
 # assert val_dataset_2 != val_dataset_1, 'same datasets selected'
 
@@ -580,7 +592,7 @@ rrCorr_scot_ci = 1.96*(rrCorr_scot_stdUnits/len(idx_scotopic_valid)**.5)
 idx_units_sorted = np.argsort(fev_scot_allUnits[idx_scotopic_valid])
 idx_units_sorted = idx_scotopic_valid[idx_units_sorted]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1],idx_units_sorted[0]]
-idx_unitsToPred = [26,3,16,14]
+# idx_unitsToPred = [37,47,57,23]
 
 t_start = 10
 t_dur = obs_rate.shape[0]
@@ -658,15 +670,15 @@ plt.plot(t_axis[t_start+samps_shift:t_end],pred_rate[t_start+samps_shift:t_end,u
 # %% D1: Heat maps
 select_exp = 'retina1'
 select_mdl = models_all[0]
-select_param_x = 'C1_n'
-select_param_y = 'C2_n'
-select_param_z = 'C3_n'
+select_param_x = 'C1_3d'
+select_param_y = 'C2_3d'
+select_param_z = 'C3_3d'
 thresh_fev = 0
 
 params_mdl = params_allExps[select_exp][select_mdl]
 
 select_U = 0
-select_T = 60
+select_T = 120
 select_BN = 1
 select_MP = 0
 # select_TR = 1
@@ -1250,6 +1262,7 @@ print(lags)
 
 # %% Bar graph all models
 
+
 def perf_bar(select_exp,select_mdl,mdl,val_dataset,select_T):
     fname_data_train_val_test = os.path.join(path_dataset,(select_exp+'_dataset_train_val_test_'+val_dataset+'.h5'))
     _,data_val,_,_,dataset_rr,_,resp_orig = load_h5Dataset(fname_data_train_val_test)
@@ -1324,16 +1337,26 @@ def perf_bar(select_exp,select_mdl,mdl,val_dataset,select_T):
     
     
     
-    return fev_d1_medianUnits, fev_d1_ci, predCorr_d1_medianUnits, predCorr_d1_ci, rrCorr_d1_medianUnits, rrCorr_d1_ci, idx_d1_valid 
+    return fev_d1_allUnits,fev_d1_medianUnits, fev_d1_ci, predCorr_d1_allUnits, predCorr_d1_medianUnits, predCorr_d1_ci, rrCorr_d1_medianUnits, rrCorr_d1_ci, idx_d1_valid 
 
 select_exp = expDates[0]
 select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 
 val_dataset_train= lightLevel_1      # ['scotopic','photopic']
 val_dataset_test = lightLevel_1#'scotopic-1_preproc-added_norm-1_rfac-2' #'scotopic-1_preproc-added_norm-1_rfac-2'
-val_dataset_test_2 = 'scotopic-1_preproc-added_norm-1_rfac-2'
+val_dataset_test_2 = 'scotopic-1_preproc-added_norm-1_rfac-2' #'scotopic-1_preproc-added_norm-1_rfac-2'#'scotopic'# 'scotopic-1_s-10_p-11_e-3_k-0.01_h-3_b-10_hc-4_preproc-added_norm-1_rfac-2'
+
+if len(val_dataset_train) == 8 and len(val_dataset_test_2)!=8:
+    raise ValueError('wrong datasets')
+
+if len(val_dataset_train) > 8 and len(val_dataset_test_2)==8:
+    raise ValueError('wrong datasets')    
+    
 correctMedian = False
-samps_shift = 0+4
+
+fname_data_train_val_test = os.path.join(path_dataset,(select_exp+'_dataset_train_val_test_'+val_dataset_test+'.h5'))
+_,_,_,_,_,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
+samps_shift = int(np.array(parameters['samps_shift']))
 
 fev_d1_medianUnits_allMdls = np.atleast_1d([])
 fev_d1_ci_allMdls = np.atleast_1d([])
@@ -1345,6 +1368,8 @@ fev_d2_ci_allMdls = np.atleast_1d([])
 predCorr_d2_medianUnits_allMdls = np.atleast_1d([])
 predCorr_d2_ci_allMdls = np.atleast_1d([])
 
+trainingSamps_allMdls = np.atleast_1d([])
+
 mdl_name_params = []
 
 
@@ -1353,6 +1378,8 @@ for select_mdl in models_all:
     paramFileName = list(perf_allExps[select_exp][select_mdl].keys())   
     
     for p in range(0,len(paramFileName)):
+        
+        print('Evaluating %d of %d' %(p+1,len(paramFileName)))
     
         idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName[p]]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
         idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName[p]]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
@@ -1362,12 +1389,13 @@ for select_mdl in models_all:
         
         # resp_median_photopic = perf_allExps[select_exp][select_mdl][paramFileName]['dataset_pred']['resp_median_allUnits']
         mdlFolder = paramFileName[p]+'_TR-%02d' % select_TR
+        
         path_model = os.path.join(path_mdl_drive,select_mdl,mdlFolder)
         mdl = load(os.path.join(path_model,mdlFolder))
     
         select_T = perf_allExps[select_exp][select_mdl][paramFileName[p]]['model_params']['temporal_width']
         
-        fev_d1_medianUnits, fev_d1_ci, predCorr_d1_medianUnits, predCorr_d1_ci, rrCorr_d1_medianUnits, rrCorr_d1_ci, idx_d1_valid = perf_bar(select_exp,select_mdl,mdl,val_dataset_test,select_T)
+        fev_d1_allUnits,fev_d1_medianUnits, fev_d1_ci, predCorr_d1_allUnits, predCorr_d1_medianUnits, predCorr_d1_ci, rrCorr_d1_medianUnits, rrCorr_d1_ci, idx_d1_valid = perf_bar(select_exp,select_mdl,mdl,val_dataset_test,select_T)
 
         fev_d1_medianUnits_allMdls = np.append(fev_d1_medianUnits_allMdls,fev_d1_medianUnits)
         fev_d1_ci_allMdls = np.append(fev_d1_ci_allMdls,fev_d1_ci)
@@ -1375,7 +1403,7 @@ for select_mdl in models_all:
         predCorr_d1_ci_allMdls = np.append(predCorr_d1_ci_allMdls,predCorr_d1_ci)
         
         if val_dataset_test_2 != 0:
-            fev_d2_medianUnits, fev_d2_ci, predCorr_d2_medianUnits, predCorr_d2_ci, rrCorr_d2_medianUnits, rrCorr_d2_ci, idx_d2_valid = perf_bar(select_exp,select_mdl,mdl,val_dataset_test_2,select_T)
+            fev_d2_allUnits,fev_d2_medianUnits, fev_d2_ci, predCorr_d2_allUnits, predCorr_d2_medianUnits, predCorr_d2_ci, rrCorr_d2_medianUnits, rrCorr_d2_ci, idx_d2_valid = perf_bar(select_exp,select_mdl,mdl,val_dataset_test_2,select_T)
 
             fev_d2_medianUnits_allMdls = np.append(fev_d2_medianUnits_allMdls,fev_d2_medianUnits)
             fev_d2_ci_allMdls = np.append(fev_d2_ci_allMdls,fev_d2_ci)
@@ -1383,12 +1411,14 @@ for select_mdl in models_all:
             predCorr_d2_ci_allMdls = np.append(predCorr_d2_ci_allMdls,predCorr_d2_ci)
 
 
+        trainingSamps_allMdls = np.append(trainingSamps_allMdls,int(paramFileName[p][-2:]))
+
         rgb = select_mdl#+'_'+paramFileName[p][13:-10]
         mdl_name_params.append(rgb)
         
 # %%        
-fig,axs = plt.subplots(2,1,figsize=(10,10))
-fig.suptitle('Training: '+val_dataset_train,fontsize=16)
+fig,axs = plt.subplots(2,1,figsize=(5,10))
+fig.suptitle(select_exp+'\nTraining: '+val_dataset_train,fontsize=16)
 font_size_ticks = 16
 
 col_scheme = ('darkgrey',cols_lightLevels[val_dataset_test[:8]])
@@ -1402,12 +1432,12 @@ axs[0].bar(len(xpoints)+.2,0,yerr=0,align='center',capsize=6,alpha=.7,color=cols
 
 axs[0].set_xticks(xpoints)#(2*np.arange(0,fev_d1_medianUnits_allMdls.shape[0]))
 axs[0].set_xticklabels(xlabel_fev)
-axs[0].set_yticks(np.arange(0,1.1,.1))
-axs[0].set_ylabel('Fraction of explainable variance explained',fontsize=font_size_ticks)
+axs[0].set_yticks(np.arange(-1,1.1,.1))
+axs[0].set_ylabel('FEV',fontsize=font_size_ticks)
 axs[0].set_title('',fontsize=font_size_ticks)
 axs[0].set_ylim((0,1.1))
 axs[0].tick_params(axis='both',labelsize=16)
-axs[0].plot((-0.5,len(mdl_name_params)-0.5),(fev_d1_medianUnits_allMdls.max(),fev_d1_medianUnits_allMdls.max()),color='green')
+axs[0].plot((-0.5,len(mdl_name_params)-0.5),(np.nanmax(fev_d1_medianUnits_allMdls),np.nanmax(fev_d1_medianUnits_allMdls)),color='green')
 
 
 axs[1].bar(xpoints-.2,predCorr_d1_medianUnits_allMdls,yerr=predCorr_d1_ci_allMdls,align='center',capsize=6,alpha=.7,color=cols_lightLevels[val_dataset_test[:8]],width=0.4)
@@ -1419,9 +1449,13 @@ xlabel_corr = list(mdl_name_params)
 xlabel_corr.append('RetinaReliab')
 axs[1].set_xticks(xpoints)#(2*np.arange(0,fev_d1_medianUnits_allMdls.shape[0]))
 axs[1].set_xticklabels(xlabel_corr)
-axs[1].set_yticks(np.arange(0,1.1,.1))
+axs[1].set_yticks(np.arange(-0.6,1.1,.2))
 axs[1].set_ylabel('Correlation Coefficient',fontsize=font_size_ticks)
 axs[1].set_title('',fontsize=font_size_ticks)
-axs[1].set_ylim((0,1.1))
+axs[1].set_ylim((-0.5,1.1))
 axs[1].tick_params(axis='both',labelsize=16)
-axs[1].plot((-0.5,len(mdl_name_params)),(predCorr_d1_medianUnits_allMdls.max(),predCorr_d1_medianUnits_allMdls.max()),color='green')
+axs[1].plot((-0.5,len(mdl_name_params)),(np.nanmax(predCorr_d1_medianUnits_allMdls),np.nanmax(predCorr_d1_medianUnits_allMdls)),color='green')
+
+
+
+

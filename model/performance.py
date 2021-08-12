@@ -135,6 +135,7 @@ def getModelParams(fname_modelFolder):
     else:
         p_TR = 1
         
+    
     params = {
         'U': p_U,
         'T': p_T,
@@ -151,6 +152,11 @@ def getModelParams(fname_modelFolder):
         'MP': p_MP,
         'TR': p_TR
         }
+    
+    if len(rgb)>8:
+        p_TR = int(re.findall("TRSAMPS-(\d+)",rgb[8])[0])
+        params['TRSAMPS'] = p_TR
+
     
     return params
 

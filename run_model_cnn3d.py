@@ -181,16 +181,16 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
 # %%
     if mdl_name == 'CNN_3D':       
         mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d_TRSAMPS-%d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
+        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TRSAMPS-%02d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
                                                                                      chan2_n,filt2_size,filt2_3rdDim,
                                                                                      chan3_n,filt3_size,filt3_3rdDim,
-                                                                                     bn_val,mp_val,c_trial,trainingSamps_dur)
+                                                                                     bn_val,mp_val,trainingSamps_dur,c_trial)
     elif mdl_name=='CNN_2D':
         mdl = cnn_2d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d_TRSAMPS-%d' %(thresh_rr,temporal_width,chan1_n,filt1_size,
+        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%02d_TRSAMPS-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,
                                                                                      chan2_n,filt2_size,
                                                                                      chan3_n,filt3_size,
-                                                                                     bn_val,mp_val,c_trial,trainingSamps_dur)
+                                                                                     bn_val,mp_val,trainingSamps_dur,c_trial)
         filt1_3rdDim=0
         filt2_3rdDim=0
         filt3_3rdDim=0

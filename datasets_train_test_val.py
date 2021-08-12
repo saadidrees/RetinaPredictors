@@ -17,22 +17,22 @@ Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
 whos_data = 'kiersten'
 lightLevel = 'allLightLevels'     # ['scotopic', 'photopic','scotopic_photopic']
-datasetsToLoad = ['photopic']#['scotopic','photopic','scotopic_photopic']
+datasetsToLoad = ['photopic','scotopic']#['scotopic','photopic','scotopic_photopic']
 
 
 if whos_data == 'saad':
     expDate = '20180502_s3'     # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3')
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad/',expDate,'datasets')
 elif whos_data == 'kiersten':
-    expDate = 'retina1'     # ('retina1', 'retina2','retina3')
-    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/1ms')
+    expDate = 'retina3'     # ('retina1', 'retina2','retina3')
+    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/8ms')
 
 
 fname_dataFile = os.path.join(path_dataset,(expDate+'_dataset_CB_'+lightLevel+'.h5'))
 
     
 
-t_frame = 1
+t_frame = 8
 filt_temporal_width = 0
 idx_cells = None
 thresh_rr = 0
@@ -95,7 +95,7 @@ for d in datasetsToLoad:
 rgb_X = data_train.X
 rgb_y = data_train.y
 
-samps_shift = -5    # delay the responses by 5 frames
+samps_shift = -9    # delay the responses by 5 frames
 
 if samps_shift>0:
     rgb_X_shifted = rgb_X[:-samps_shift]

@@ -12,10 +12,10 @@ import os
 
 from run_model_cnn3d import run_model
 
-expDate = 'retina1'
-subFold = '8ms_TRSAMPS'
+expDate = 'retina3'
+subFold = '8ms'
 mdl_name = 'CNN_2D' #'LSTM_CNN_2D'#'CNN_2D'
-dataset = 'photopic-10000_preproc-added_norm-1_rfac-2' #'photopic-10000_preproc-added_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
+dataset = 'photopic-10000_s-22_p-22_e-1600_k-0.01_h-3_b-10_hc-4_preproc-added_norm-1_rfac-2' #'photopic-10000_preproc-added_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
 USE_CHUNKER=0
 temporal_width=120
 thresh_rr=0
@@ -28,8 +28,8 @@ filt2_3rdDim=0
 chan3_n=24
 filt3_size=1
 filt3_3rdDim=0
-trainingSamps_dur = 10 # minutes
-nb_epochs=150
+trainingSamps_dur = 0 # minutes
+nb_epochs=300
 bz_ms=10000#20000 #10000
 BatchNorm=1
 MaxPool=0
