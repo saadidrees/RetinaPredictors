@@ -5,6 +5,41 @@ Created on Thu Jul 15 16:33:36 2021
 
 @author: saad
 """
+
+from model.RiekeModel import Model as rieke_model
+from model.data_handler import load_h5Dataset, rolling_window, prepare_data_cnn2d, prepare_data_cnn3d
+import numpy as np
+import os
+from collections import namedtuple 
+Exptdata = namedtuple('Exptdata', ['X', 'y'])
+import multiprocessing as mp
+from joblib import Parallel, delayed
+import time
+import gc
+import h5py
+from model.performance import getModelParams
+from model.utils_si import splitall
+
+import tensorflow as tf
+config = tf.compat.v1.ConfigProto(log_device_placement=True)
+config.gpu_options.allow_growth = True
+config.gpu_options.per_process_gpu_memory_fraction = .9
+tf.compat.v1.Session(config=config)
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
+
+from model.load_savedModel import load
+from model.performance import model_evaluate_new
+import csv
+from collections import namedtuple
+Exptdata = namedtuple('Exptdata', ['X', 'y'])
+
+
+from tensorflow.keras.models import Model
+import gc
+
+
 def parser_pr_paramSearch():
     
     import argparse
@@ -36,43 +71,117 @@ def parser_pr_paramSearch():
     
     return args
 
+def parallel_runRiekeModel(params,stim_frames_photons,idx_pixelToTake):
+    params['stm'] = stim_frames_photons[:,idx_pixelToTake]
+    _,stim_currents = rieke_model(params)
+        
+    return stim_currents
 
+def run_model(stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=0,NORM=1,DOWN_SAMP=1,ROLLING_FAC=30,num_cores=1):
+    stim_spatialDims = stim.shape[1:]
+    stim = stim.reshape(stim.shape[0],stim.shape[1]*stim.shape[2])
+    
+    stim = np.repeat(stim,upSampFac,axis=0)
+    
+    stim[stim>0] = 2*meanIntensity
+    stim[stim<0] = (2*meanIntensity)/300
+    
+    
+    stim_photons = stim * params['timeStep']        # so now in photons per time bin
+    params['tme'] = np.arange(0,stim_photons.shape[0])*params['timeStep']
+    params['biophysFlag'] = 1
+        
+    idx_allPixels = np.arange(0,stim_photons.shape[1])
+    t = time.time()
+    result = Parallel(n_jobs=num_cores, verbose=50)(delayed(parallel_runRiekeModel)(params,stim_photons,i)for i in idx_allPixels)
+    _ = gc.collect()    
+    t_elasped_parallel = time.time()-t
+    print('time elasped: '+str(round(t_elasped_parallel))+' seconds')
+    
+    rgb = np.array([item for item in result])
+    stim_currents = rgb.T
+
+    # reshape back to spatial pixels and downsample
+
+    if DOWN_SAMP == 1:
+        # 1
+        # idx_downsamples = np.arange(0,stim_currents.shape[0],downSampFac)
+        # stim_currents_downsampled = stim_currents[idx_downsamples]
+        
+        # 2
+        # steps_downsamp = downSampFac
+        # stim_currents_downsampled = stim_currents[steps_downsamp-1::steps_downsamp]
+        
+        # 3
+        # stim_currents_downsampled = signal.resample(stim_currents,int(stim_currents.shape[0]/downSampFac))
+        
+        # 4
+        rgb = stim_currents.T  
+        
+        rollingFac = ROLLING_FAC
+        a = np.empty((130,rollingFac))
+        a[:] = np.nan
+        a = np.concatenate((a,rgb),axis=1)
+        rgb8 = np.nanmean(rolling_window(a,rollingFac,time_axis = -1),axis=-1)
+        rgb8 = rgb8.reshape(rgb8.shape[0],-1, downSampFac)    
+        rgb8 = rgb8[:,:,0]
+        
+        rgb = rgb.reshape(rgb.shape[0],-1, downSampFac)      
+        
+        rgb1 = np.nanmedian(rgb,axis=-1)
+        rgb2 = np.nanmean(rgb,axis=-1)
+        rgb3 = np.nanmin(rgb,axis=-1)
+        rgb4 = np.nanmax(rgb,axis=-1)
+        # rgb5 = rgb[:,:,0]
+        # rgb6 = rgb[:,:,10]
+        # rgb7 = rgb[:,:,15]
+        # rgb9 = np.mean(rgb[:,:,:3],axis=-1)
+        
+        stim_currents_downsampled = rgb8
+        stim_currents_downsampled = stim_currents_downsampled.T
+        
+
+
+        
+    else:
+        stim_currents_downsampled = stim_currents
+    
+    stim_currents_reshaped = stim_currents_downsampled.reshape(stim_currents_downsampled.shape[0],stim_spatialDims[0],stim_spatialDims[1])
+    stim_currents_reshaped = stim_currents_reshaped[n_discard:]
+    
+    if NORM==1:
+        stim_currents_norm = (stim_currents_reshaped - np.min(stim_currents_reshaped)) / (np.max(stim_currents_reshaped)-np.min(stim_currents_reshaped))
+        stim_currents_norm = stim_currents_norm - np.mean(stim_currents_norm)
+    else:
+        stim_currents_norm = stim_currents_reshaped
+    
+    # discard response if n_discard > 0
+    if n_discard > 0:
+        resp = resp[n_discard:]
+        
+    return stim_currents_norm,resp
+
+def rwa_stim(X,y,temporal_window,idx_unit,t_start,t_end):
+    
+    stim = X[t_start:t_end,idx_unit,idx_unit]
+    
+    spikeRate =y[t_start:t_end,idx_unit,idx_unit]
+    
+    stim = rolling_window(stim,temporal_window)
+    spikeRate = spikeRate[temporal_window:]
+    rwa = np.nanmean(stim*spikeRate[:,None],axis=0)
+    
+    
+    temporal_feature = rwa
+    # plt.imshow(spatial_feature,cmap='winter')
+    # plt.plot(temporal_feature)
+    
+    return temporal_feature
+    
 
 def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,lightLevel,pr_type,r_sigma=7.66,r_phi=7.66,r_eta=1.62,r_k=0.01,r_h=3,r_beta=25,r_hillcoef=4,r_gamma=800,mdl_name='CNN_2D',samps_shift=4):
 
 # %%    
-    from model.RiekeModel import Model as rieke_model
-    from model.data_handler import load_h5Dataset, rolling_window, prepare_data_cnn2d, prepare_data_cnn3d
-    import numpy as np
-    import os
-    from collections import namedtuple 
-    Exptdata = namedtuple('Exptdata', ['X', 'y'])
-    import multiprocessing as mp
-    from joblib import Parallel, delayed
-    import time
-    import gc
-    import h5py
-    from model.performance import getModelParams
-    from model.utils_si import splitall
-    
-    import tensorflow as tf
-    config = tf.compat.v1.ConfigProto(log_device_placement=True)
-    config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = .9
-    tf.compat.v1.Session(config=config)
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
-    
-    from model.load_savedModel import load
-    from model.performance import model_evaluate_new
-    import csv
-    from collections import namedtuple
-    Exptdata = namedtuple('Exptdata', ['X', 'y'])
-    
-    
-    from tensorflow.keras.models import Model
-    import gc
     
     DEBUG_MODE = 1
     # expDate = 'retina1'
@@ -85,116 +194,9 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
 
     # mdlFolder = 'U-0.00_T-120_C1-13-03-50_C2-26-02-10_C3-24-01-62_BN-1_MP-0_TR-01'
     saveToCSV = 1
-    num_cores = 1
+    num_cores = 28
 
     
-    
-    def parallel_runRiekeModel(params,stim_frames_photons,idx_pixelToTake):
-        params['stm'] = stim_frames_photons[:,idx_pixelToTake]
-        _,stim_currents = rieke_model(params)
-            
-        return stim_currents
-    
-    def run_model(stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=0,NORM=1,DOWN_SAMP=1,ROLLING_FAC=30):
-        stim_spatialDims = stim.shape[1:]
-        stim = stim.reshape(stim.shape[0],stim.shape[1]*stim.shape[2])
-        
-        stim = np.repeat(stim,upSampFac,axis=0)
-        
-        stim[stim>0] = 2*meanIntensity
-        stim[stim<0] = (2*meanIntensity)/300
-        
-        
-        stim_photons = stim * params['timeStep']        # so now in photons per time bin
-        params['tme'] = np.arange(0,stim_photons.shape[0])*params['timeStep']
-        params['biophysFlag'] = 1
-            
-        idx_allPixels = np.arange(0,stim_photons.shape[1])
-        t = time.time()
-        result = Parallel(n_jobs=num_cores, verbose=50)(delayed(parallel_runRiekeModel)(params,stim_photons,i)for i in idx_allPixels)
-        _ = gc.collect()    
-        t_elasped_parallel = time.time()-t
-        print('time elasped: '+str(round(t_elasped_parallel))+' seconds')
-        
-        rgb = np.array([item for item in result])
-        stim_currents = rgb.T
-    
-        # reshape back to spatial pixels and downsample
-    
-        if DOWN_SAMP == 1:
-            # 1
-            # idx_downsamples = np.arange(0,stim_currents.shape[0],downSampFac)
-            # stim_currents_downsampled = stim_currents[idx_downsamples]
-            
-            # 2
-            # steps_downsamp = downSampFac
-            # stim_currents_downsampled = stim_currents[steps_downsamp-1::steps_downsamp]
-            
-            # 3
-            # stim_currents_downsampled = signal.resample(stim_currents,int(stim_currents.shape[0]/downSampFac))
-            
-            # 4
-            rgb = stim_currents.T  
-            
-            rollingFac = ROLLING_FAC
-            a = np.empty((130,rollingFac))
-            a[:] = np.nan
-            a = np.concatenate((a,rgb),axis=1)
-            rgb8 = np.nanmean(rolling_window(a,rollingFac,time_axis = -1),axis=-1)
-            rgb8 = rgb8.reshape(rgb8.shape[0],-1, downSampFac)    
-            rgb8 = rgb8[:,:,0]
-            
-            rgb = rgb.reshape(rgb.shape[0],-1, downSampFac)      
-            
-            rgb1 = np.nanmedian(rgb,axis=-1)
-            rgb2 = np.nanmean(rgb,axis=-1)
-            rgb3 = np.nanmin(rgb,axis=-1)
-            rgb4 = np.nanmax(rgb,axis=-1)
-            # rgb5 = rgb[:,:,0]
-            # rgb6 = rgb[:,:,10]
-            # rgb7 = rgb[:,:,15]
-            # rgb9 = np.mean(rgb[:,:,:3],axis=-1)
-            
-            stim_currents_downsampled = rgb8
-            stim_currents_downsampled = stim_currents_downsampled.T
-            
-    
-    
-            
-        else:
-            stim_currents_downsampled = stim_currents
-        
-        stim_currents_reshaped = stim_currents_downsampled.reshape(stim_currents_downsampled.shape[0],stim_spatialDims[0],stim_spatialDims[1])
-        stim_currents_reshaped = stim_currents_reshaped[n_discard:]
-        
-        if NORM==1:
-            stim_currents_norm = (stim_currents_reshaped - np.min(stim_currents_reshaped)) / (np.max(stim_currents_reshaped)-np.min(stim_currents_reshaped))
-            stim_currents_norm = stim_currents_norm - np.mean(stim_currents_norm)
-        else:
-            stim_currents_norm = stim_currents_reshaped
-        
-        # discard response if n_discard > 0
-        if n_discard > 0:
-            resp = resp[n_discard:]
-            
-        return stim_currents_norm,resp
-    
-    def rwa_stim(X,y,temporal_window,idx_unit,t_start,t_end):
-        
-        stim = X[t_start:t_end,idx_unit,idx_unit]
-        
-        spikeRate =y[t_start:t_end,idx_unit,idx_unit]
-        
-        stim = rolling_window(stim,temporal_window)
-        spikeRate = spikeRate[temporal_window:]
-        rwa = np.nanmean(stim*spikeRate[:,None],axis=0)
-        
-        
-        temporal_feature = rwa
-        # plt.imshow(spatial_feature,cmap='winter')
-        # plt.plot(temporal_feature)
-        
-        return temporal_feature
     
     
     # %% pr parameters
@@ -278,7 +280,7 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     # Training data
     
-    stim_train,resp_train = run_model(data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC)
+    stim_train,resp_train = run_model(data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC,num_cores=num_cores)
     
     if NORM==1:
         value_min = np.min(stim_train)
@@ -339,41 +341,63 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
         data_val_prepared = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
     
     filt_temporal_width = select_T
-    obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
+    obs_rate_allStimTrials_d2 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
     obs_rate = data_val_prepared.y
     
     pred_rate = mdl.predict(data_val_prepared.X)
     
     
     num_iters = 50
-    fev_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
+    fev_d2_allUnits = np.empty((pred_rate.shape[1],num_iters))
     fracExplainableVar = np.empty((pred_rate.shape[1],num_iters))
-    predCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
-    rrCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
+    predCorr_d2_allUnits = np.empty((pred_rate.shape[1],num_iters))
+    rrCorr_d2_allUnits = np.empty((pred_rate.shape[1],num_iters))
     
     for i in range(num_iters):
-        fev_d1_allUnits[:,i], fracExplainableVar[:,i], predCorr_d1_allUnits[:,i], rrCorr_d1_allUnits[:,i] = model_evaluate_new(obs_rate_allStimTrials_d1,pred_rate,0,RR_ONLY=False,lag = samps_shift)
+        fev_d2_allUnits[:,i], fracExplainableVar[:,i], predCorr_d2_allUnits[:,i], rrCorr_d2_allUnits[:,i] = model_evaluate_new(obs_rate_allStimTrials_d2,pred_rate,0,RR_ONLY=False,lag = samps_shift)
     
     
-    fev_d1_allUnits = np.mean(fev_d1_allUnits,axis=1)
+    fev_d2_allUnits = np.mean(fev_d2_allUnits,axis=1)
     fracExplainableVar = np.mean(fracExplainableVar,axis=1)
-    predCorr_d1_allUnits = np.mean(predCorr_d1_allUnits,axis=1)
-    rrCorr_d1_allUnits = np.mean(rrCorr_d1_allUnits,axis=1)
+    predCorr_d2_allUnits = np.mean(predCorr_d2_allUnits,axis=1)
+    rrCorr_d2_allUnits = np.mean(rrCorr_d2_allUnits,axis=1)
     
-    idx_allUnits = np.arange(fev_d1_allUnits.shape[0])
-    idx_d1_valid = idx_allUnits
+    # idx_allUnits = np.arange(fev_d2_allUnits.shape[0])
+    # idx_d2_valid = idx_allUnits
     
-    fev_d1_medianUnits = np.median(fev_d1_allUnits[idx_d1_valid])
-    predCorr_d1_medianUnits = np.median(predCorr_d1_allUnits[idx_d1_valid])
+    # fev_d2_medianUnits = np.median(fev_d2_allUnits[idx_d2_valid])
+    # predCorr_d2_medianUnits = np.median(predCorr_d2_allUnits[idx_d2_valid])
     
-    print(fev_d1_medianUnits)
+    fev_d2_medianUnits = np.median(fev_d2_allUnits)
+    predCorr_d2_medianUnits = np.median(predCorr_d2_allUnits)
+    
+    
+    print(fev_d2_medianUnits)
+    
+    # %% seperate out performance for transient and sustained cells
+    uname_selectedUnits = data_quality['uname_selectedUnits']
+    idx_sust = [i for i,v in enumerate(uname_selectedUnits) if '_bs_' in v]
+    idx_trans = [i for i,v in enumerate(uname_selectedUnits) if '_bt_' in v]
+
+    fev_d2_sustUnits = fev_d2_allUnits[idx_sust]
+    fev_d2_transUnits = fev_d2_allUnits[idx_trans]
+    fev_d2_median_sustUnits = np.nanmedian(fev_d2_sustUnits)
+    fev_d2_median_transUnits = np.nanmedian(fev_d2_transUnits)
+    
+    
+    predCorr_d2_sustUnits = predCorr_d2_allUnits[idx_sust]
+    predCorr_d2_transUnits = predCorr_d2_allUnits[idx_trans]
+    predCorr_d2_median_sustUnits = np.nanmedian(predCorr_d2_sustUnits)
+    predCorr_d2_median_transUnits = np.nanmedian(predCorr_d2_transUnits)
+
+    
     
     # %% Write performance to csv file
     
     print('-----WRITING TO CSV FILE-----')
     if saveToCSV==1:
-        csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','gamma','FEV_median','predCorr_median']
-        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],params['gamma'],fev_d1_medianUnits,predCorr_d1_medianUnits]
+        csv_header = ['params','sigma','phi','eta','k','h','beta','hillcoef','gamma','FEV_median','predCorr_median','FEV_sust','FEV_trans','predCorr_sust','predCorr_trans']
+        csv_data = [dataset_name,params['sigma'],params['phi'],params['eta'],params['k'],params['h'],params['beta'],params['hillcoef'],params['gamma'],fev_d2_medianUnits,predCorr_d2_medianUnits,fev_d2_median_sustUnits,fev_d2_median_transUnits,predCorr_d2_median_sustUnits,predCorr_d2_median_transUnits]
         
         fname_csv_file = 'pr_paramSearch_'+lightLevel+'_'+pr_type+'.csv'
         fname_csv_file = os.path.join(path_excel,fname_csv_file)
@@ -388,37 +412,55 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     
     # %% writing to h5
-    # print('-----WRITING TO H5 FILE-----')
-    # performance = {
-    #     'fev_d1_allUnits': fev_d1_allUnits,
-    #     'predCorr_d1_allUnits': predCorr_d1_allUnits,
-    #     'fev_d1_medianUnits': fev_d1_medianUnits,
-    #     'predCorr_d1_medianUnits': predCorr_d1_medianUnits
-    #     }
+    print('-----WRITING TO H5 FILE-----')
+    performance = {
+        'fev_d2_allUnits': fev_d2_allUnits,
+        'predCorr_d2_allUnits': predCorr_d2_allUnits,
+        'fev_d2_medianUnits': fev_d2_medianUnits,
+        'predCorr_d2_medianUnits': predCorr_d2_medianUnits,
+        
+        'fev_d2_sustUnits': fev_d2_sustUnits,
+        'fev_d2_transUnits': fev_d2_transUnits,
+        'fev_d2_median_sustUnits': fev_d2_median_sustUnits,
+        'fev_d2_median_transUnits': fev_d2_median_transUnits,
+        
+        'predCorr_d2_sustUnits': predCorr_d2_sustUnits,
+        'predCorr_d2_transUnits': predCorr_d2_transUnits,
+        'predCorr_d2_median_sustUnits': predCorr_d2_median_sustUnits,
+        'predCorr_d2_median_transUnits': predCorr_d2_median_transUnits,
+        
+        'idx_sust': np.array(idx_sust),
+        'idx_trans': np.array(idx_trans),
+        'uname_selectedUnits': np.array(uname_selectedUnits,dtype='bytes')
+        }
     
-    # fname_h5 = dataset_name+'_evaluation.h5'
-    # file_h5 = os.path.join(path_perFiles,fname_h5)
-    # f = h5py.File(file_h5,'w')
+    del params['tme']
     
-    # grp = f.create_group('/performance')
-    # keys = list(performance.keys())
-    # for i in range(len(performance)):
-    #     grp.create_dataset(keys[i], data=performance[keys[i]])
+    fname_h5 = dataset_name+'_evaluation.h5'
+    file_h5 = os.path.join(path_perFiles,fname_h5)
+    f = h5py.File(file_h5,'w')
     
-    # grp = f.create_group('/params')
-    # keys = list(params.keys())
-    # for i in range(len(params)):
-    #     grp.create_dataset(keys[i], data=params[keys[i]])
+    grp = f.create_group('/performance')
+    keys = list(performance.keys())
+    for i in range(len(performance)):
+        if performance[keys[i]].dtype == 'O':
+            grp.create_dataset(keys[i], data=performance[keys[i]],dtype='bytes')
+        else:
+            grp.create_dataset(keys[i], data=performance[keys[i]])
     
-    # f.close()
+    grp = f.create_group('/params')
+    keys = list(params.keys())
+    for i in range(len(params)):
+        grp.create_dataset(keys[i], data=params[keys[i]])
     
-    # print('-----DONE-----')
+    f.close()
     
-    
+    print('-----DONE-----')
+
         
     print('-----JOB FINISHED-----')
     
-    
+# %%    
 if __name__ == "__main__":
     args = parser_pr_paramSearch()
     # Raw print arguments

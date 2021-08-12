@@ -10,10 +10,10 @@ import csv
 import os
 
 APPEND_TO_EXISTING = 0
-expDate = 'retina3'
-samps_shift = 0
-lightLevel = 'photopic'
-pr_type = 'cones'
+expDate = 'retina1'
+samps_shift = 4
+lightLevel = 'scotopic'
+pr_type = 'rods'
 path_mdl = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/photopic-10000_preproc-added_norm-1_rfac-2/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01/'
 trainingDataset = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/datasets/'+expDate+'_dataset_train_val_test_photopic-10000_preproc-added_norm-1_rfac-2.h5'
 testingDataset = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/datasets/'+expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
@@ -22,31 +22,30 @@ mdl_name = 'CNN_2D'
 path_excel = '/home/sidrees/scratch/RetinaPredictors/performance/'+expDate+'/'
 path_perFiles = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/pr_paramSearch'
 
-    # params_cones = {}
-    # params_cones['sigma'] =  22 #22  # rhodopsin activity decay rate (1/sec) - default 22
-    # params_cones['phi'] =  22     # phosphodiesterase activity decay rate (1/sec) - default 22
-    # params_cones['eta'] =  2000  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
-    # params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
-    # params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
-    # params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
-    # params_cones['cdark'] =  1  # dark calcium concentration - default 1
-    # params_cones['beta'] = 9 #16 # 9	  # rate constant for calcium removal in 1/sec - default 9
-    # params_cones['betaSlow'] =  0	  
-    # params_cones['hillcoef'] =  4 #4  	  # cooperativity for cyclase, hill coef - default 4
-    # params_cones['hillaffinity'] =  0.5   # hill affinity for cyclase - default 0.5
-    # params_cones['gamma'] =  10 #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    # params_cones['timeStep'] =  1e-3  # freds default is 1e-4
-    # params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
+    # params_rods = {}
+    # params_rods['sigma'] = 9 #16 #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
+    # params_rods['phi'] =  10 #16 #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
+    # params_rods['eta'] = 4 #2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    # params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
+    # params_rods['k'] =  0.01 #0.01     # constant relating cGMP to current - default 0.02
+    # params_rods['h'] =  3 #3       # cooperativity for cGMP->current - default 3
+    # params_rods['cdark'] =  1  # dark calcium concentration - default 1
+    # params_rods['beta'] =  10#25	  # rate constant for calcium removal in 1/sec - default 9
+    # params_rods['betaSlow'] =  0	  
+    # params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
+    # params_rods['hillaffinity'] =  0.40		# affinity for Ca2+
+    # params_rods['gamma'] =  800 #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    # params_rods['timeStep'] =  1e-3 # freds default is 1e-3
+    # params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
 
-
-r_sigma = np.arange(20,24,1)
-r_phi = np.arange(20,24,1)
-r_eta = np.arange(1500,2500,100)
-r_k = np.arange(0.01,0.03,0.01)
-r_h = np.arange(3,5,1)
-r_beta = np.arange(5,25,5)
+r_sigma = np.arange(7,12,0.5)
+r_phi = np.arange(8,13,0.5)
+r_eta = np.arange(3,5,0.5)
+r_k = np.arange(0.01,0.02,0.01)
+r_h = np.arange(3,4,1)
+r_beta = np.arange(5,15,1)
 r_hillcoef = np.arange(4,5,1)
-r_gamma = np.arange(5,30,5)
+r_gamma = np.arange(775,825,25)
 
 
 csv_header = ['expDate','path_mdl','trainingDataset','testingDataset','mdl_name','path_excel','path_perFiles','lightLevel','pr_type','samps_shift','r_sigma','r_phi','r_eta','r_k','r_h','r_beta','r_hillcoef','r_gamma']

@@ -16,7 +16,7 @@ from pr_paramSearch import run_pr_paramSearch
 # path_perFiles = '/home/saad/data/analyses/data_kiersten/retina2/8ms/pr_paramSearch'
 # mdl_name='CNN_2D'
 
-expDate = 'retina3'
+expDate = 'retina1'
 samps_shift = 0
 lightLevel = 'photopic'
 pr_type = 'cones'
@@ -25,17 +25,17 @@ trainingDataset = '/home/saad/data/analyses/data_kiersten/'+expDate+'/8ms/datase
 testingDataset = '/home/saad/data/analyses/data_kiersten/'+expDate+'/8ms/datasets/'+expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
 mdl_name = 'CNN_2D'
 
-path_excel = '/home/saad/data/analyses/data_kiersten/'+expDate+'/8ms/pr_paramSearch'
-path_perFiles = '/home/saad/data/analyses/data_kiersten/'+expDate+'/8ms/pr_paramSearch'
+path_excel = '/home/saad/data/analyses/data_kiersten/'+expDate+'/8ms/pr_diff'
+path_perFiles = '/home/saad/data/analyses/data_kiersten/'+expDate+'/8ms/pr_diff'
 
 
-r_sigma = 8
-r_phi = 9
-r_eta = 4
+r_sigma = 22
+r_phi = 22
+r_eta = 1800
 r_k=0.01
 r_h=3
-r_beta=5
+r_beta=9
 r_hillcoef=4
-r_gamma=100
+r_gamma=5
 
 run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_excel,path_perFiles,lightLevel,pr_type,samps_shift=samps_shift,r_sigma=r_sigma,r_phi=r_phi,r_eta=r_eta,r_k=r_k,r_h=r_h,r_beta=r_beta,r_hillcoef=r_hillcoef,r_gamma=r_gamma,mdl_name=mdl_name)
