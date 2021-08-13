@@ -263,7 +263,7 @@ def run_pr_paramSearch(expDate,path_mdl,trainingDataset,testingDataset,path_exce
     
     # path_dataset_save = os.path.join(path_dataset)#,'filterTest')
     # fname_dataset_save = expDate+'_dataset_train_val_test_'+lightLevel+'_'+str(meanIntensity)+'_preproc_'+pr_type+'_norm_'+str(NORM)+'.h5'
-    dataset_name = lightLevel+'-'+str(meanIntensity)+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_preproc-'+pr_type
+    dataset_name = lightLevel+'-'+str(meanIntensity)+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_g-'+str(params['gamma'])+'_preproc-'+pr_type
     # fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
     # fname_dataset_save = os.path.join(path_dataset_save,fname_dataset_save)
     
