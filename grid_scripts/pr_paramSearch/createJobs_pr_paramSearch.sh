@@ -43,8 +43,8 @@ echo "Number of parameter combinations: $numParams"
 
 
 
-#for ((i=0; i<$numParams; i++));
-for ((i=0; i<1; i++));
+for ((i=0; i<$numParams; i++));
+#for ((i=0; i<1; i++));
 do
  path_mdl=${path_mdl_all[i]}
  trainingDataset=${trainingDataset_all[i]}
