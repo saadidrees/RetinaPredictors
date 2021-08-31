@@ -12,10 +12,10 @@ import os
 
 from run_model_cnn3d import run_model
 
-expDate = 'retina3'
-subFold = '8ms'
+expDate = 'retina2'
+subFold = '8ms_clark'
 mdl_name = 'CNN_2D' #'LSTM_CNN_2D'#'CNN_2D'
-dataset = 'photopic-10000_s-22_p-22_e-1600_k-0.01_h-3_b-10_hc-4_preproc-added_norm-1_rfac-2' #'photopic-10000_preproc-added_norm-1_rfac-2' #'scotopic-100_s-13_p-5.1_preproc-rods_norm-1_rfac-2'
+dataset = 'photopic-10000_mdl-clark_b-0.36_g-0.448_y-4.48_z-166_r-0_preproc-cones_norm-1_rfac-2'
 USE_CHUNKER=0
 temporal_width=120
 thresh_rr=0
