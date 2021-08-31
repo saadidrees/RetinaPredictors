@@ -139,7 +139,7 @@ def DA_model(params):
         params_ode = {}
         params_ode['alpha'] = alpha
         params_ode['beta'] = beta
-        params_ode['y'] = z
+        params_ode['y'] = y
         params_ode['z'] = z
         params_ode['tau_r'] = tau_r
         
