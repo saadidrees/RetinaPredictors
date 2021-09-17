@@ -95,8 +95,79 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
      
     f.close()
 
-
 def getModelParams(fname_modelFolder):
+    params = {}
+    
+    p_regex = re.compile(r'U-(\d+\.\d+)')
+    rgb = p_regex.search(fname_modelFolder)
+    params['U'] = float(rgb.group(1))
+    
+    try:
+        rgb = re.compile(r'P-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['P'] = int(rgb.group(1))
+    except:
+        pass
+    
+    rgb = re.compile(r'T-(\d+)')
+    rgb = rgb.search(fname_modelFolder)
+    params['T'] = int(rgb.group(1))
+
+    try:
+        rgb = re.compile(r'C1-(\d+)-(\d+)-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['C1_3d'] = int(rgb.group(2))
+    except:
+        rgb = re.compile(r'C1-(\d+)-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['C1_3d'] = int(0)
+    params['C1_n'] = int(rgb.group(1))
+    params['C1_s'] = int(rgb.group(2))
+    
+    try:
+        rgb = re.compile(r'C2-(\d+)-(\d+)-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['C2_3d'] = int(rgb.group(2))
+    except:
+        rgb = re.compile(r'C2-(\d+)-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['C2_3d'] = int(0)
+    params['C2_n'] = int(rgb.group(1))
+    params['C2_s'] = int(rgb.group(2))
+    
+    try:
+        rgb = re.compile(r'C3-(\d+)-(\d+)-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['C3_3d'] = int(rgb.group(2))
+    except:
+        rgb = re.compile(r'C3-(\d+)-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['C3_3d'] = int(0)
+    params['C3_n'] = int(rgb.group(1))
+    params['C3_s'] = int(rgb.group(2))
+
+    rgb = re.compile(r'BN-(\d+)')
+    rgb = rgb.search(fname_modelFolder)
+    params['BN'] = int(rgb.group(1))
+
+    rgb = re.compile(r'MP-(\d+)')
+    rgb = rgb.search(fname_modelFolder)
+    params['MP'] = int(rgb.group(1))
+
+    rgb = re.compile(r'TR-(\d+)')
+    rgb = rgb.search(fname_modelFolder)
+    params['TR'] = int(rgb.group(1))
+
+    try:
+        rgb = re.compile(r'TRSAMPS-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['TRSAMPS'] = int(rgb.group(1))
+    except:
+        pass
+
+    return params
+
+def getModelParams_old(fname_modelFolder):
     
     rgb = re.split('_',fname_modelFolder)
     
@@ -160,18 +231,23 @@ def getModelParams(fname_modelFolder):
     
     return params
 
-def paramsToName(mdl_name,U=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=1,MP=0,TR=0):
+def paramsToName(mdl_name,U=0,P=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=1,MP=0,TR=0):
     if mdl_name=='CNN_2D':
         paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,
                                                                                                      C2_n,C2_s,
                                                                                                      C3_n,C3_s,
                                                                                                      BN,MP)
+    elif mdl_name[:8]=='PR_CNN2D':
+        paramFileName = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,P,T,C1_n,C1_s,
+                                                                                                         C2_n,C2_s,
+                                                                                                         C3_n,C3_s,
+                                                                                                         BN,MP)
+    
     else:
         paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,C1_3d,
                                                                                                              C2_n,C2_s,C2_3d,
                                                                                                              C3_n,C3_s,C3_3d,
                                                                                                              BN,MP)
-
     
     return paramFileName
     
@@ -228,11 +304,11 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False
     num_trials = obs_rate_allStimTrials.shape[0]
     idx_allTrials = np.arange(num_trials)
     
-    t_start = 10
+    t_start = 20
     # t_end = obs_rate_allStimTrials.shape[1]-t_start-10
     
     obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,filt_width:,:]
-    t_end = obs_rate_allStimTrials_corrected.shape[1]-t_start-10
+    t_end = obs_rate_allStimTrials_corrected.shape[1]-t_start-20
     obs_rate_allStimTrials_corrected = obs_rate_allStimTrials_corrected[:,t_start:t_end-lag,:]
     
     # if RR_ONLY is False:

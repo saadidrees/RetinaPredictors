@@ -852,6 +852,18 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
     
     return data
 
+def prepare_data_pr_cnn2d(data,pr_temporal_width,idx_unitsToTake):
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    
+    X = rolling_window(data.X,pr_temporal_width,time_axis=0)
+    y = data.y[:,idx_unitsToTake]
+    y = y[pr_temporal_width:]
+        
+    data = Exptdata(X,y)
+    del X, y
+    
+    return data
+
 
 def prepare_data_convLSTM(data,filt_temporal_width,idx_unitsToTake):
     Exptdata = namedtuple('Exptdata', ['X', 'y'])

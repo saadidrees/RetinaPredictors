@@ -8,29 +8,32 @@ Created on Mon Apr 26 17:42:54 2021
 
 
 import numpy as np
+import matplotlib.pyplot as plt
 import os
 
 from run_model_cnn3d import run_model
 
-expDate = 'retina2'
-subFold = '8ms_clark'
-mdl_name = 'CNN_2D' #'LSTM_CNN_2D'#'CNN_2D'
-dataset = 'photopic-10000_mdl-clark_b-0.36_g-0.448_y-4.48_z-166_r-0_preproc-cones_norm-1_rfac-2'
-USE_CHUNKER=0
+expDate = 'retina1'
+subFold = '8ms_trainablePR' #'8ms_clark'
+mdl_name = 'PR_CNN3D' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D'
+dataset = 'photopic-10000'
+path_existing_mdl = '' #'/home/saad/data/analyses/data_kiersten/retina1/8ms_trainablePR/photopic-10000/PR_CNN2D/U-0.00_P-180_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+USE_CHUNKER=1
+pr_temporal_width = 180
 temporal_width=120
 thresh_rr=0
 chan1_n=13
 filt1_size=3
-filt1_3rdDim=0
+filt1_3rdDim=20
 chan2_n=26
 filt2_size=2
-filt2_3rdDim=0
+filt2_3rdDim=55
 chan3_n=24
 filt3_size=1
-filt3_3rdDim=0
+filt3_3rdDim=47
 trainingSamps_dur = 0 # minutes
-nb_epochs=300
-bz_ms=10000#20000 #10000
+nb_epochs=100
+bz_ms=5000#20000 #10000
 BatchNorm=1
 MaxPool=0
 saveToCSV=1
@@ -40,7 +43,6 @@ num_trials=1
 BatchNorm_train = 0
 
 
-# %%
 name_datasetFile = expDate+'_dataset_train_val_test_'+dataset+'.h5'
 path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold,dataset)
 path_dataset_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold)
@@ -48,15 +50,17 @@ fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',name_datas
 
 c_trial = 1
 
+# %%
 for c_trial in range(1,num_trials+1):
-    model_performance = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
-                        temporal_width=temporal_width, thresh_rr=thresh_rr,
-                        chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
-                        chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
-                        chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
-                        nb_epochs=nb_epochs,bz_ms=bz_ms,trainingSamps_dur=trainingSamps_dur,
-                        BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER)
+    model_performance,mdl = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_existing_mdl = path_existing_mdl,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
+                            temporal_width=temporal_width, pr_temporal_width=pr_temporal_width, thresh_rr=thresh_rr,
+                            chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
+                            chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
+                            chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
+                            nb_epochs=nb_epochs,bz_ms=bz_ms,trainingSamps_dur=trainingSamps_dur,
+                            BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER)
     
+plt.plot(model_performance['fev_medianUnits_allEpochs'])
 
 # %% for reading from params array
 path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate)

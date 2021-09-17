@@ -13,11 +13,11 @@ import os
 from fix_savePerformance import run_fixPerformance
 from model.performance import getModelParams
 
-expDate = 'retina2'
+expDate = 'retina1'
 samps_shift = 0
-subFold = '8ms'
-dataset = 'photopic' #'photopic-10000_preproc-added_norm-1_rfac-2'
-mdl_name = 'CNN_3D'
+subFold = '8ms_trainablePR'
+dataset = 'photopic-10000' #'photopic-10000_preproc-added_norm-1_rfac-2'
+mdl_name = 'PR_CNN2D'
 temporal_width=120
 thresh_rr=0
 chan1_n=13
@@ -42,12 +42,12 @@ name_datasetFile = expDate+'_dataset_train_val_test_'+dataset+'.h5'
 path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate,subFold,dataset)
 path_dataset_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold)
 
-param_list_keys = ['U', 'T','C1_n','C1_s','C1_3d','C2_n','C2_s','C2_3d','C3_n','C3_s','C3_3d','BN','MP','TR']
+param_list_keys = ['U','P', 'T','C1_n','C1_s','C1_3d','C2_n','C2_s','C2_3d','C3_n','C3_s','C3_3d','BN','MP','TR']
 params = dict([(key, []) for key in param_list_keys])
 paramFileNames = os.listdir(os.path.join(path_model_save_base,mdl_name))
 for f in paramFileNames:
     rgb = getModelParams(f)
-    for i in param_list_keys:
+    for i in rgb.keys():
         params[i].append(rgb[i])
 
 rangeToRun = np.arange(0,len(paramFileNames))
@@ -55,6 +55,7 @@ fname_performance_excel = os.path.join('/home/saad/postdoc_db/projects/RetinaPre
 
 i = 0
 temporal_width = params['T'][i]
+pr_temporal_width = params['P'][i]
 chan1_n=params['C1_n'][i]
 filt1_size=params['C1_s'][i]
 filt1_3rdDim=params['C1_3d'][i]
@@ -76,7 +77,7 @@ for i in rangeToRun[0:]:
     print(prog)
     if os.path.exists(os.path.join(path_model_save_base,mdl_name,paramFileNames[i],paramFileNames[i])):
         model_performance = run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,fname_performance_excel=fname_performance_excel,saveToCSV=saveToCSV,runOnCluster=0,
-                            temporal_width=temporal_width, thresh_rr=thresh_rr,samps_shift=samps_shift,
+                            temporal_width=temporal_width, pr_temporal_width = pr_temporal_width, thresh_rr=thresh_rr,samps_shift=samps_shift,
                             chan1_n=params['C1_n'][i], filt1_size=params['C1_s'][i], filt1_3rdDim=params['C1_3d'][i],
                             chan2_n=params['C2_n'][i], filt2_size=params['C2_s'][i], filt2_3rdDim=params['C2_3d'][i],
                             chan3_n=params['C3_n'][i], filt3_size=params['C3_s'][i], filt3_3rdDim=params['C3_3d'][i],

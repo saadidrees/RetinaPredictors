@@ -25,7 +25,7 @@ from scipy.signal import lfilter
 from scipy import integrate
 
 
-
+ 
 def model_params():
     ##  cones - monkey
     params_cones = {}
@@ -180,15 +180,17 @@ def run_model(pr_mdl_name,stim,resp,params,meanIntensity,upSampFac,downSampFac=1
     num_cores = mp.cpu_count()
     t = time.time()
 
-    stim_photons = stim * params['timeStep']        # so now in photons per time bin
+    
 
     if pr_mdl_name == 'rieke':
+        stim_photons = stim * params['timeStep']        # so now in photons per time bin
         params['tme'] = np.arange(0,stim_photons.shape[0])*params['timeStep']
         params['biophysFlag'] = 1
         
         result = Parallel(n_jobs=num_cores, verbose=50)(delayed(parallel_runRiekeModel)(params,stim_photons,i)for i in idx_allPixels)
         
     elif pr_mdl_name == 'clark':
+        stim_photons = stim * 1e-3 * params['timeStep']
         result = Parallel(n_jobs=num_cores, verbose=50)(delayed(parallel_runClarkModel)(params,stim_photons,i)for i in idx_allPixels)
         
     _ = gc.collect()    
@@ -360,18 +362,20 @@ def DA_model_iter(params):
        f = (f/tau**(n+1))/scipy_gamma(n+1) # normalize appropriately
        return f
 
-    alpha = params['alpha']
-    beta = params['beta']
+    timeStep = params['timeStep']
+    alpha = params['alpha']/timeStep
+    beta = params['beta']/timeStep
     gamma = params['gamma']
-    tau_y = params['tau_y']
+    tau_y = params['tau_y']/timeStep
     n_y = params['n_y']   
-    tau_z = params['tau_z']
+    tau_z = params['tau_z']/timeStep
     n_z = params['n_z']
-    tau_r = params['tau_r']
+    tau_r = params['tau_r']/timeStep
+    
     
     stim = params['stm']
     
-    t = np.arange(0,1000)
+    t = np.ceil(np.arange(0,1000/timeStep))
 
     Ky = generate_simple_filter(tau_y,n_y,t)
     Kz = (gamma*Ky) + ((1-gamma) * generate_simple_filter(tau_z,n_z,t))
@@ -412,61 +416,80 @@ def DA_model_iter(params):
     return params,params['response']
 
 
-# %%
+# %% 
+
 def model_params_clark():
     params_cones = {}
-    params_cones['alpha'] =  1 
-    params_cones['beta'] = 0.36
-    params_cones['gamma'] =  0.448
-    params_cones['tau_y'] =  4.48
-    params_cones['n_y'] =  4.33
-    params_cones['tau_z'] =  166
-    params_cones['n_z'] =  1
+    params_cones['alpha'] =  0.99
+    params_cones['beta'] = -0.02 
+    params_cones['gamma'] =  0.44 
+    params_cones['tau_y'] =  3.66 
+    params_cones['tau_z'] =  18.78 
+    params_cones['n_y'] =  11.84   
+    params_cones['n_z'] =  9.23 
     params_cones['timeStep'] = 1e-3
-    params_cones['tau_r'] = 0#100 #4.78
+    params_cones['tau_r'] = 0
 
-    
-    # params_cones = {}
-    # params_cones['alpha'] =  3.34e-5 
-    # params_cones['beta'] = 1.27e-5
-    # params_cones['gamma'] =  0.8
-    # params_cones['tau_y'] =  49
-    # params_cones['n_y'] =  1
-    # params_cones['tau_z'] =  200
-    # params_cones['n_z'] =  1
-    # params_cones['timeStep'] = 1e-3
-    # params_cones['tau_r'] = 4.78
-    
-    
+    # retina 1
     params_rods = {}
-    params_rods['alpha'] =  1  
-    params_rods['beta'] =  0.36 
-    params_rods['gamma'] =  0.448
-    params_rods['tau_y'] =  22
-    params_rods['n_y'] =  4.33
-    params_rods['tau_z'] =  1000
-    params_rods['n_z'] =  1
+    params_rods['alpha'] =  1 
+    params_rods['beta'] =  0.9976
+    params_rods['gamma'] =  1.001
+    params_rods['tau_y'] =  14.98 
+    params_rods['tau_z'] = 10 
+    params_rods['n_y'] =  8.4554
+    params_rods['n_z'] =  10
     params_rods['timeStep'] = 1e-3
-    params_rods['tau_r'] = 0 #4.78
+    params_rods['tau_r'] = 0 
+    
+    # retina 2
+    # params_rods = {}
+    # params_rods['alpha'] =  1  
+    # params_rods['beta'] =  0.36 
+    # params_rods['gamma'] =  0.448
+    # params_rods['tau_y'] =  17
+    # params_rods['n_y'] =  6.4
+    # params_rods['tau_z'] =  1000
+    # params_rods['n_z'] =  1
+    # params_rods['timeStep'] = 1e-3
+    # params_rods['tau_r'] = 0 #4.78
+
+    # retina 3
+    # params_rods = {}
+    # params_rods['alpha'] =  1  
+    # params_rods['beta'] =  0.36 
+    # params_rods['gamma'] =  0.448
+    # params_rods['tau_y'] =  13
+    # params_rods['n_y'] =  7.4
+    # params_rods['tau_z'] =  166
+    # params_rods['n_z'] =  1
+    # params_rods['timeStep'] = 1e-3
+    # params_rods['tau_r'] = 0 #4.78
+
 
     return params_cones,params_rods
     
         
 # % Single pr type
 
-DEBUG_MODE = 1
-WRITE_TO_H5 = 0
+DEBUG_MODE = 0
+WRITE_TO_H5 = 1
 pr_mdl_name = 'clark'  # 'rieke' 'clark'
-expDate = 'retina2'
+expDate = 'retina1'
 lightLevel = 'scotopic'  # ['photopic','scotopic']
-pr_type = 'cones'   # ['rods','cones']
-folder = '8ms'
-NORM = 1
-DOWN_SAMP = 1
+pr_type = 'rods'   # ['rods','cones']
+folder = '8ms_sampShifted'
+frameTime = 8
+NORM = 0
+DOWN_SAMP = 0
 ROLLING_FAC = 2
-upSampFac = 8#1#8 #17
+upSampFac = 1#1#8 #17
 downSampFac = upSampFac
 
+if DOWN_SAMP==0:
+    ROLLING_FAC = 0
+else:
+    ROLLING_FAC = 2
 
 
 if lightLevel == 'scotopic':
@@ -481,6 +504,10 @@ if pr_mdl_name == 'rieke':
     params_cones,params_rods = model_params()
 elif pr_mdl_name == 'clark':
     params_cones,params_rods = model_params_clark()
+    params_cones['timeStep'] = frameTime/upSampFac
+    params_rods['timeStep'] = frameTime/upSampFac
+
+
 
 if pr_type == 'cones':
     params = params_cones
@@ -499,7 +526,7 @@ path_dataset_save = os.path.join(path_dataset)#,'filterTest')
 if pr_mdl_name == 'rieke':
     dataset_name = lightLevel+'-'+str(meanIntensity)+'_mdl-'+pr_mdl_name+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)
 elif pr_mdl_name == 'clark':
-    dataset_name = lightLevel+'-'+str(meanIntensity)+'_mdl-'+pr_mdl_name+'_b-'+str(params['beta'])+'_g-'+str(params['gamma'])+'_y-'+str(params['tau_y'])+'_z-'+str(params['tau_z'])+'_r-'+str(params['tau_r'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)
+    dataset_name = lightLevel+'-'+str(meanIntensity)+'_mdl-'+pr_mdl_name+'_a-'+str(params['alpha'])+pr_mdl_name+'_b-'+str(params['beta'])+'_g-'+str(params['gamma'])+'_y-'+str(params['tau_y'])+'_z-'+str(params['tau_z'])+'_r-'+str(params['tau_r'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)
 
 
 fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
@@ -532,10 +559,14 @@ else:
 
 
 # Validation data
-n_discard_val = 50
+n_discard_val = 0
 stim_val,resp_val = run_model(pr_mdl_name,data_val_orig.X,data_val_orig.y,params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=n_discard_val,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC)
 if NORM==1:
+    # value_min = np.min(stim_val)
+    # value_max = np.max(stim_val)
+
     stim_val_norm = (stim_val - value_min)/(value_max-value_min)
+    # stim_val_med = np.nanmean(stim_val_norm)
     stim_val_norm = stim_val_norm - stim_train_med
     
 else:
@@ -556,8 +587,9 @@ parameters['nsamps_end'] = nsamps_end
 # plt.ylim(y_lim)
 
 # plt.plot(stim_train_norm[:,0,0])
-plt.plot(stim_val[:,0,0])
-
+# plt.plot(data_val_orig.X[n_discard_val:,0,0])
+plt.plot(stim_val_norm[:,0,0])
+plt.show()
 
 # RWA
 if DOWN_SAMP==0:
@@ -595,6 +627,11 @@ print(((temporal_window-rgb[0][0])*8)-22)
 if WRITE_TO_H5==1:
     save_h5Dataset(fname_dataset_save,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
 
+
+
+# plt.plot(b)
+# plt.plot(a)
+# plt.show()
 # %%
 temp_cones = temp_feat_cone/temp_feat_cone.max()
 temp_rods = temp_feat_scot/temp_feat_scot.max()

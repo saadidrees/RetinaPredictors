@@ -11,11 +11,13 @@ Created on Wed Apr 21 23:29:28 2021
 from model.parser import parser_run_model
 
 
-def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,saveToCSV=1,runOnCluster=0,
+def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_existing_mdl='',
+                            saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
+                            pr_temporal_width = 180,
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
@@ -39,7 +41,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     # bz_ms=10000
     # BatchNorm=1
     # MaxPool=0
-    
+     
 # %% prepare data
     print('expDate: '+expDate)
     print('runOnCluster: '+str(runOnCluster))
@@ -85,11 +87,12 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
       
     from tensorflow.keras.layers import Input
     
-    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination
+    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
     from model.performance import save_modelPerformance, model_evaluate,model_evaluate_new
     import model.metrics as metrics
-    from model.models import cnn_3d, cnn_2d, cnn_3d_inception, convLSTM, cnn_3d_lstm, cnn_2d_lstm, lstm_cnn_2d
+    from model.models import cnn_3d, cnn_2d, cnn_3d_inception, convLSTM, cnn_3d_lstm, cnn_2d_lstm, lstm_cnn_2d, pr_cnn2d, pr_cnn2d_fixed, pr_cnn3d
     from model.train_model import train
+    from model.load_savedModel import load
     
     import gc
     import datetime
@@ -129,9 +132,11 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         data_train = Exptdata(data_train.X[:trainingSamps],data_train.y[:trainingSamps])
 
     
+    
 # Arrange data according to needs
     idx_unitsToTake = data_quality['idx_unitsToTake']
     idx_unitsToTake
+    temporal_width_eval = temporal_width
     
     if mdl_name == 'CNN_3D' or mdl_name == 'CNN_3D_INCEP' or mdl_name == 'CNN_3D_LSTM':
         data_train = prepare_data_cnn3d(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
@@ -147,7 +152,21 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         data_test = prepare_data_convLSTM(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
         data_val = prepare_data_convLSTM(data_val,temporal_width,np.arange(len(idx_unitsToTake)))   
         
-    
+    elif mdl_name[:8] == 'PR_CNN2D':
+        data_train = prepare_data_pr_cnn2d(data_train,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_pr_cnn2d(data_test,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        temporal_width_eval = pr_temporal_width
+        
+    elif mdl_name[:8] == 'PR_CNN3D':
+        data_train = prepare_data_cnn3d(data_train,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_cnn3d(data_test,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        temporal_width_eval = pr_temporal_width
+        
+        
+        
+
     
     if BatchNorm:
         bn_val=1
@@ -178,7 +197,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     x = Input(shape=data_train.X.shape[1:])
     n_cells = data_train.y.shape[1]
 
-# %%
+# %% Select model
     if mdl_name == 'CNN_3D':       
         mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
         fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
@@ -195,6 +214,42 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         filt2_3rdDim=0
         filt3_3rdDim=0
         
+    elif mdl_name=='PR_CNN2D':
+        mdl = pr_cnn2d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
+                                                                                     chan2_n,filt2_size,
+                                                                                     chan3_n,filt3_size,
+                                                                                     bn_val,mp_val,c_trial)
+        filt1_3rdDim=0
+        filt2_3rdDim=0
+        filt3_3rdDim=0
+        
+    elif mdl_name=='PR_CNN3D':
+        mdl = pr_cnn3d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
+                                                                                     chan2_n,filt2_size,
+                                                                                     chan3_n,filt3_size,
+                                                                                     bn_val,mp_val,c_trial)
+        
+    elif mdl_name=='PR_CNN2D_fixed':
+        rgb = os.path.split(path_existing_mdl)[-1]
+        mdl_existing = load(os.path.join(path_existing_mdl,rgb))
+        idx_CNN_start = 5
+        
+
+        mdl = pr_cnn2d_fixed(mdl_existing,idx_CNN_start,x, n_cells, filt_temporal_width=temporal_width,
+                             chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size,
+                             BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        
+        fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
+                                                                                     chan2_n,filt2_size,
+                                                                                     chan3_n,filt3_size,
+                                                                                     bn_val,mp_val,c_trial)
+        filt1_3rdDim=0
+        filt2_3rdDim=0
+        filt3_3rdDim=0
+       
+
     elif mdl_name == 'CNN_3D_INCEP':       
         mdl = cnn_3d_inception(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
         fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
@@ -277,6 +332,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     
 
     obs_rate_allStimTrials = dataset_rr['stim_0']['val']
+    # obs_rate_allStimTrials = 
     num_iters = 10
     samps_shift = parameters['samps_shift']
 
@@ -285,7 +341,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     
     print('-----EVALUATING PERFORMANCE-----')
     for i in range(nb_epochs-1):
-        weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
+        # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
+        weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
         pred_rate = mdl.predict(data_val.X)
         _ = gc.collect()
@@ -299,7 +356,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         rrCorr_loop = np.zeros((num_iters,n_cells))
 
         for j in range(num_iters):
-            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=samps_shift)
+            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift))
             
         fev = np.mean(fev_loop,axis=0)
         fracExVar = np.mean(fracExVar_loop,axis=0)
@@ -339,7 +396,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
     rrCorr_allUnits = rrCorr_allUnits_allEpochs[(idx_bestEpoch),:]
 
     
-    fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
+    # fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
+    fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d' % (idx_bestEpoch+1)
     mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
     pred_rate = mdl.predict(data_val.X)
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
@@ -389,6 +447,20 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
         }
     
+    if mdl_name[:2] == 'PR':
+        weights = mdl.get_weights()
+        model_performance['pr_alpha'] = weights[0]
+        model_performance['pr_beta'] = weights[1]
+        model_performance['pr_gamma'] = weights[2]
+        model_performance['pr_tauY'] = weights[3]
+        model_performance['pr_tauZ'] = weights[4]
+        model_performance['pr_nY'] = weights[5]
+        model_performance['pr_nZ'] = weights[6]
+        model_performance['pr_tauY_mulFac'] = weights[7]
+        model_performance['pr_tauZ_mulFac'] = weights[8]
+        model_performance['pr_nY_mulFac'] = weights[9]
+        model_performance['pr_nZ_mulFac'] = weights[10]
+    
 
     metaInfo = {
        ' mdl_name': mdl.name,
@@ -414,6 +486,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
                 'nb_epochs' : nb_epochs,
                 'BatchNorm': BatchNorm,
                 'MaxPool': MaxPool,
+                'pr_temporal_width': pr_temporal_width
                 }
     
     stim_info = {
@@ -422,6 +495,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
          'n_valSamps': data_val.X.shape[0],
          'n_testSamps': data_test.X.shape[0],
          'temporal_width':temporal_width,
+         'pr_temporal_width': pr_temporal_width
          }
     
     datasets_val = {
@@ -471,7 +545,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,sa
         
         
     print('-----FINISHED-----')
-    return model_performance 
+    return model_performance, mdl
 
         
 if __name__ == "__main__":
