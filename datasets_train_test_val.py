@@ -17,15 +17,22 @@ Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
 whos_data = 'kiersten'
 lightLevel = 'allLightLevels'     # ['scotopic', 'photopic','scotopic_photopic']
-datasetsToLoad = ['photopic','scotopic']#['scotopic','photopic','scotopic_photopic']
+datasetsToLoad = ['scotopic','photopic']#['scotopic','photopic','scotopic_photopic']
+changeIntensities = False
 
 
 if whos_data == 'saad':
     expDate = '20180502_s3'     # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3')
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad/',expDate,'datasets')
 elif whos_data == 'kiersten':
-    expDate = 'retina3'     # ('retina1', 'retina2','retina3')
-    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/8ms')
+    expDate = 'retina1'     # ('retina1', 'retina2','retina3')
+    path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/8ms_sampShifted')
+    
+    meanIntensities = {
+    'scotopic': 1,
+    'photopic': 10000
+    }
+
 
 
 fname_dataFile = os.path.join(path_dataset,(expDate+'_dataset_CB_'+lightLevel+'.h5'))
@@ -45,10 +52,24 @@ elif whos_data == 'kiersten':
     frac_val = 0
     frac_test = 0.05  
 
+def applyLightIntensities(meanIntensity,data):
+
+    X = data.X
+    rgb = X[0]
+    rgb = np.unique(rgb)
+    if np.any(rgb<0):
+        X[X>0] = 2*meanIntensity
+        X[X<0] = (2*meanIntensity)/300
+        
+        X = X * 1e-3 * t_frame  # photons per time bin 
+
+        
+    data = Exptdata(X,data.y)
+    return data
+
 
 
 for d in datasetsToLoad:
-    fname_data_train_val_test = os.path.join(path_dataset,(expDate+'_dataset_train_val_test_'+d+'.h5'))
 
     if whos_data == 'saad':
         data_train,data_val,data_test,data_quality,dataset_rr = load_data(fname_dataFile,frac_val=frac_val,frac_test=frac_test,filt_temporal_width=filt_temporal_width,idx_cells=idx_cells,thresh_rr=thresh_rr)
@@ -65,7 +86,16 @@ for d in datasetsToLoad:
                 idx_cells = np.array(f['data_quality']['idx_unitsToTake'])
     
             data_train,data_val,data_test,data_quality,dataset_rr = load_data_kr(fname_dataFile,frac_val=frac_val,frac_test=frac_test,filt_temporal_width=filt_temporal_width,idx_cells_orig=idx_cells,thresh_rr=thresh_rr)
-            
+    
+    if changeIntensities == False:
+        fname_data_train_val_test = os.path.join(path_dataset,(expDate+'_dataset_train_val_test_'+d+'.h5'))
+    else:
+        meanIntensity = meanIntensities[d]
+        fname_data_train_val_test = os.path.join(path_dataset,(expDate+'_dataset_train_val_test_'+d+'-'+str(meanIntensity)+'.h5'))
+        data_train = applyLightIntensities(meanIntensity,data_train)
+        data_val = applyLightIntensities(meanIntensity,data_val)
+        data_test = applyLightIntensities(meanIntensity,data_test)
+
     
     # idx_discard = check_trainVal_contamination(data_train.X,data_val.X,0)
     # if idx_discard.size!=0:
