@@ -22,10 +22,10 @@ tf.config.experimental.set_memory_growth(physical_devices[0], True)
   
 from tensorflow.keras.layers import Input
 
-from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM
+from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, prepare_data_pr_cnn2d
 from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
 import model.metrics as metrics
-from model.models import cnn_3d, cnn_2d, cnn_3d_lstm, lstm_cnn_2d
+from model.models import cnn_3d, cnn_2d, cnn_3d_lstm, lstm_cnn_2d, pr_cnn2d
 from model.train_model import train
 from model.load_savedModel import load
 from tensorflow.keras.optimizers import Adam
@@ -37,12 +37,12 @@ import gc
 import datetime
 
 # %%
-def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fname_performance_excel,saveToCSV=1,runOnCluster=0,
-                            temporal_width=40, thresh_rr=0,
+def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fname_performance_excel,samps_shift=4,saveToCSV=1,runOnCluster=0,
+                            temporal_width=40, pr_temporal_width = 180, thresh_rr=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1,
+                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1,BatchNorm_train=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
     
@@ -86,6 +86,7 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
     # Arrange data according to needs
     idx_unitsToTake = data_quality['idx_unitsToTake']
     idx_unitsToTake
+    temporal_width_eval = temporal_width
     
     if mdl_name == 'CNN_3D' or mdl_name == 'CNN_3D_INCEP' or mdl_name == 'CNN_3D_LSTM':
         data_train = prepare_data_cnn3d(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
@@ -100,6 +101,13 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
         data_train = prepare_data_convLSTM(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
         data_test = prepare_data_convLSTM(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
         data_val = prepare_data_convLSTM(data_val,temporal_width,np.arange(len(idx_unitsToTake)))   
+    
+    elif mdl_name == 'PR_CNN2D':
+        data_train = prepare_data_pr_cnn2d(data_train,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_pr_cnn2d(data_test,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        temporal_width_eval = pr_temporal_width
+
     
     t_frame = parameters['t_frame']
     
@@ -139,6 +147,17 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
         filt1_3rdDim=0
         filt2_3rdDim=0
         filt3_3rdDim=0
+        
+    elif mdl_name=='PR_CNN2D':
+        mdl = pr_cnn2d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
+                                                                                     chan2_n,filt2_size,
+                                                                                     chan3_n,filt3_size,
+                                                                                     bn_val,mp_val,c_trial)
+        filt1_3rdDim=0
+        filt2_3rdDim=0
+        filt3_3rdDim=0
+
         
     elif mdl_name == 'CNN_3D_INCEP':       
         mdl = cnn_3d_inception(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
@@ -190,8 +209,9 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
     
     
     #%% Evaluate performance of the model
-    
-    nb_epochs = len([f for f in os.listdir(path_model_save) if f.startswith('weights')])
+    nb_epochs = len([f for f in os.listdir(path_model_save) if f.endswith('index')])
+    if nb_epochs == 0:
+        nb_epochs = len([f for f in os.listdir(path_model_save) if f.startswith('weights')])
     
     x = Input(shape=data_train.X.shape[1:])
     n_cells = data_train.y.shape[1]
@@ -231,8 +251,12 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
     
     print('-----EVALUATING PERFORMANCE-----')
     for i in range(nb_epochs-1):
-        weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
-        mdl.load_weights(os.path.join(path_model_save,weight_file))
+        try:
+            weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
+            mdl.load_weights(os.path.join(path_model_save,weight_file))
+        except:
+            weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)
+            mdl.load_weights(os.path.join(path_model_save,weight_file))
         pred_rate = mdl.predict(data_val.X)
         _ = gc.collect()
         # val_loss,_,_,_ = mdl.evaluate(data_val.X,data_val.y,batch_size=data_val.X.shape[0])
@@ -245,7 +269,7 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
         rrCorr_loop = np.zeros((num_iters,n_cells))
 
         for j in range(num_iters):
-            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width,lag=4)
+            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=samps_shift)
             
         fev = np.mean(fev_loop,axis=0)
         fracExVar = np.mean(fracExVar_loop,axis=0)
@@ -284,9 +308,13 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
     rrCorr_medianUnits = np.round(rrCorr_medianUnits_allEpochs[idx_bestEpoch],2)
     rrCorr_allUnits = rrCorr_allUnits_allEpochs[(idx_bestEpoch),:]
 
-    
-    fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
-    mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
+    try:
+        fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
+        mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
+    except:
+        fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d' % (idx_bestEpoch+1)
+        mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
+  
     pred_rate = mdl.predict(data_val.X)
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
     
@@ -320,6 +348,16 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
         'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
         }
     
+    if mdl_name[:2] == 'PR':
+        weights = mdl.get_weights()
+        model_performance['pr_alpha'] = weights[0]
+        model_performance['pr_beta'] = weights[1]
+        model_performance['pr_gamma'] = weights[2]
+        model_performance['pr_tauY'] = weights[3]
+        model_performance['pr_tauZ'] = weights[4]
+        model_performance['pr_nY'] = weights[5]
+        model_performance['pr_nZ'] = weights[6]
+
 
     metaInfo = {
        ' mdl_name': mdl.name,
@@ -345,6 +383,7 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
                 'nb_epochs' : nb_epochs,
                 'BatchNorm': BatchNorm,
                 'MaxPool': MaxPool,
+                'pr_temporal_width': pr_temporal_width
                 }
     
     stim_info = {
@@ -353,6 +392,7 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
          'n_valSamps': data_val.X.shape[0],
          'n_testSamps': data_test.X.shape[0],
          'temporal_width':temporal_width,
+         'pr_temporal_width': pr_temporal_width
          }
     
     datasets_val = {
