@@ -130,7 +130,147 @@ class photoreceptor_DA(tf.keras.layers.Layer):
         
         return outputs
 
+@tf.function(autograph=True,experimental_relax_shapes=True)
+def riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlow,hillcoef,hillaffinity,gamma,gdark):
+    darkCurrent = gdark**cgmphill * cgmp2cur/2
+    gdark = (2 * darkCurrent / cgmp2cur) **(1/cgmphill)
+    
+    cur2ca = beta * cdark / darkCurrent                # get q using steady state
+    smax = eta/phi * gdark * (1 + (cdark / hillaffinity) **hillcoef)		# get smax using steady state
+    
+    n_spatialDims = X_fun.shape[-1]
+    tme = tf.range(0,X_fun.shape[1],dtype='float32')*TimeStep
+    NumPts = tme.shape[0]
+    
+# initial conditions   
+    g_prev = gdark+(X_fun[:,0,:]*0)
+    s_prev = (gdark * eta/phi)+(X_fun[:,0,:]*0)
+    c_prev = cdark+(X_fun[:,0,:]*0)
+    cslow_prev = cdark+(X_fun[:,0,:]*0)
+    r_prev = X_fun[:,0,:] * gamma / sigma
+    p_prev = (eta + r_prev)/phi
 
+    g = tf.TensorArray(tf.float32,size=NumPts)
+    g.write(0,X_fun[:,0,:]*0)
+    
+    # solve difference equations
+    for pnt in tf.range(1,NumPts):
+        r_curr = r_prev + TimeStep * (-1 * sigma * r_prev)
+        r_curr = r_curr + gamma * X_fun[:,pnt-1,:]
+        p_curr = p_prev + TimeStep * (r_prev + eta - phi * p_prev)
+        c_curr = c_prev + TimeStep * (cur2ca * (cgmp2cur * g_prev **cgmphill)/2 - beta * c_prev)
+        cslow_curr = cslow_prev - TimeStep * (betaSlow * (cslow_prev-c_prev))
+        s_curr = smax / (1 + (c_curr / hillaffinity) **hillcoef)
+        g_curr = g_prev + TimeStep * (s_prev - p_prev * g_prev)
+
+        g = g.write(pnt,g_curr)
+        
+        
+        # update prev values to current
+        g_prev = g_curr#[0,:]
+        s_prev = s_curr#[0,:]
+        c_prev = c_curr#[0,:]
+        p_prev = p_curr
+        r_prev = r_curr
+        cslow_prev = cslow_curr#[0,:]
+    
+    g = g.stack()
+    g = tf.transpose(g,(1,0,2))
+    outputs = -(cgmp2cur * g **cgmphill)/2
+    
+    return outputs
+
+class photoreceptor_REIKE(tf.keras.layers.Layer):
+    def __init__(self,units=1):
+        super(photoreceptor_REIKE,self).__init__()
+        self.units = units
+        
+    def build(self,input_shape):
+        sigma_init = tf.keras.initializers.Constant(1.) # 22
+        self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        phi_init = tf.keras.initializers.Constant(1.) #22
+        self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        eta_init = tf.keras.initializers.Constant(1.) #2000
+        self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        beta_init = tf.keras.initializers.Constant(1.) #9
+        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+
+        cgmp2cur_init = tf.keras.initializers.Constant(0.01)  # 0.01
+        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        cgmphill_init = tf.keras.initializers.Constant(3.)  # 3
+        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        cdark_init = tf.keras.initializers.Constant(1.)
+        self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        betaSlow_init = tf.keras.initializers.Constant(1.) # 0
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        hillcoef_init = tf.keras.initializers.Constant(1.) # 4
+        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        hillaffinity_init = tf.keras.initializers.Constant(1.0) # 0.5
+        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        gamma_init = tf.keras.initializers.Constant(10.)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
+                
+        gdark_init = tf.keras.initializers.Constant(28.)
+        self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
+
+        sigma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        phi_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        eta_scaleFac = tf.keras.initializers.Constant(100.) 
+        self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        beta_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        hillcoef_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+
+
+    def call(self,inputs):
+        X_fun = inputs
+        
+        timeBin = 8 # ms
+        frameTime = 8 # ms
+        upSamp_fac = int(frameTime/timeBin)
+        TimeStep = 1e-3*timeBin
+        
+        if upSamp_fac>1:
+            X_fun = tf.keras.backend.repeat_elements(X_fun,upSamp_fac,axis=1) 
+            X_fun = X_fun/upSamp_fac     # appropriate scaling for photons/ms
+
+        sigma = self.sigma * self.sigma_scaleFac
+        phi = self.phi * self.phi_scaleFac
+        eta = self.eta * self.eta_scaleFac
+        cgmp2cur = self.cgmp2cur
+        cgmphill = self.cgmphill
+        cdark = self.cdark
+        beta = self.beta * self.beta_scaleFac
+        betaSlow = self.betaSlow * self.betaSlow_scaleFac
+        hillcoef = self.hillcoef * self.hillcoef_scaleFac
+        hillaffinity = self.hillaffinity * self.hillaffinity_scaleFac
+        gamma = self.gamma/timeBin
+        gdark = self.gdark
+        
+        
+        outputs = riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlow,hillcoef,hillaffinity,gamma,gdark)
+        
+        if upSamp_fac>1:
+            outputs = outputs[:,upSamp_fac-1::upSamp_fac]
+            
+        return outputs
+        
 def pr_cnn2d_fixed(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
     
@@ -207,10 +347,61 @@ def pr_cnn2d(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, cha
     mdl_name = 'PR_CNN2D'
     return Model(inputs, outputs, name=mdl_name)
 
+def prfr_cnn2d(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+
+    sigma = 0.1
+    
+    # keras_prLayer = photoreceptor_REIKE(units=1)
+    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    y = photoreceptor_REIKE(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    
+    y = Normalize(units=1)(y)
+    
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        # y = BatchNormalization(axis=1)(y)   
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+            # y = BatchNormalization(axis=1)(y)   
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+            # y = BatchNormalization(axis=1)(y)   
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'PRFR_CNN2D'
+    return Model(inputs, outputs, name=mdl_name)
+
 
 def pr_cnn3d(inputs, n_out, filt_temporal_width=120, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,BatchNorm_train=False,MaxPool=True):
         
-    
     sigma = 0.1
     
     y = Permute((4,2,3,1))(inputs)
