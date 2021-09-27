@@ -16,7 +16,7 @@ import gc
 
 from model.load_savedModel import load
 from model.data_handler import load_data, load_h5Dataset, prepare_data_cnn2d, prepare_data_cnn3d, prepare_data_convLSTM, prepare_data_pr_cnn2d
-from model.performance import getModelParams, model_evaluate,model_evaluate_new,paramsToName
+from model.performance import getModelParams, model_evaluate,model_evaluate_new,paramsToName, get_weightsDict
 from model import metrics
 import tensorflow as tf
 import re
@@ -30,7 +30,7 @@ Exptdata = namedtuple('Exptdata', ['X', 'y'])
 from model import featureMaps
 from pyret.filtertools import sta, decompose
 
-from tensorflow.keras.models import Model
+# from tensorflow.keras.models import Model
 gpu_devices = tf.config.experimental.list_physical_devices("GPU")
 for device in gpu_devices:
     tf.config.experimental.set_memory_growth(device, True)
@@ -43,7 +43,7 @@ from tensorflow.keras.layers import BatchNormalization, Input
 expDates = ('retina1',)
 subFold = '8ms_trainablePR' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
 lightLevel_1 = 'photopic-10000' #'photopic-10000_mdl-clark_a-1.66clark_b--0.01_g-0.99_y-4.58_z-2.52_r-0_preproc-cones_norm-1_rfac-2' #
-models_all = ('PR_CNN2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
+models_all = ('PRFR_CNN2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
 
 writeToCSV = False
 
@@ -144,6 +144,8 @@ for idx_exp in range(len(expDates)):
             predCorr_medianUnits_allEpochs_allTr = np.zeros((1000,len(idx_paramName[param_unique_idx])))
             predCorr_medianUnits_bestEpoch_allTr = np.zeros((len(idx_paramName[param_unique_idx])))
             
+            trial_id = np.zeros((len(idx_paramName[param_unique_idx])))
+            
             num_trials = len(idx_paramName[param_unique_idx])
             
             for c_tr in range(num_trials):
@@ -178,6 +180,9 @@ for idx_exp in range(len(expDates)):
                 predCorr_medianUnits_allEpochs_allTr[:rgb.shape[0],c_tr] = rgb
                 rgb = np.atleast_1d(f['model_performance']['predCorr_medianUnits_bestEpoch'])
                 predCorr_medianUnits_bestEpoch_allTr[c_tr] = rgb
+                
+                rgb = getModelParams(os.path.split(fname_performanceFile)[-1])
+                trial_id[c_tr] = np.atleast_1d(rgb['TR'])
                 
             
             
@@ -215,6 +220,7 @@ for idx_exp in range(len(expDates)):
                 'rrCorr_medianUnits':  rrCorr_medianUnits,                
                 'num_trials': num_trials,
                 'val_dataset_name': utils_si.h5_tostring(np.array(f['model_performance']['val_dataset_name'])),
+                'trial_id': trial_id,
                 }
             
             performance = {}
@@ -328,6 +334,7 @@ paramFileName = paramsToName(select_mdl,U=select_U,P=select_P,T=select_T,BN=sele
 
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
 idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+# perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
 # plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 
 select_TR = idx_bestTrial+1
@@ -337,6 +344,8 @@ path_model = os.path.join(path_mdl_drive,select_mdl,mdlFolder)
 mdl = load(os.path.join(path_model,mdlFolder))
 fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
 mdl.load_weights(os.path.join(path_model,fname_bestWeight))
+weights_dict = get_weightsDict(mdl)
+
 
 fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
 _,data_val,_,_,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
@@ -360,22 +369,28 @@ elif select_mdl[:6]=='CNN_3D':
 elif select_mdl[:6]=='convLS' or select_mdl == 'LSTM_CNN_2D':
     data_val = prepare_data_convLSTM(data_val,select_T,np.arange(data_val.y.shape[1]))
     # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
-elif select_mdl[:2]=='PR':
+elif select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D':
     pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
     data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
+    obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
+
+elif select_mdl[:8]=='PR_CNN3D':
+    pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
+    data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
     obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
 
 obs_rate = data_val.y
 
 # mdl_new = mdl
 # idx_CNN_start = 5
-# x = data_val.X[:,60:,:,:]
+# x = data_val.X[:,:,:,:]
 # inputs = Input(shape=x.shape[1:])
 # n_cells = data_val.y.shape[1]
 # y = inputs#[:,x.shape[1]-filt_temporal_width:,:,:]
-# for layer in mdl.layers[5:6]:
+# for layer in mdl.layers[1:4]:
 #     layer.trainable = False
 #     y = layer(y)
+# y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
 # mdl_new = Model(inputs,y)
 # x_pred = mdl_new.predict(x)
 
@@ -506,12 +521,12 @@ _ = gc.collect()
 transferModel = True
 if transferModel == True:
     mdl_select_d2 = 'CNN_2D'
-    subFold_d2 = '8ms_clark'
+    subFold_d2 = '8ms_trainablePR'
 else:
     mdl_select_d2 = mdl_select
     subFold_d2 = subFold
 
-val_dataset_2 = 'scotopic-1_mdl-clark_a-1clark_b-0.9976_g-1.001_y-14.98_z-10_r-0_preproc-rods_norm-0_rfac-0' 
+val_dataset_2 = 'photopic-10000_mdl-rieke_s-250_p-51.8_e-883_k-0.01_h-3_b-99_hc-1.55_preproc-cones_norm-0_rfac-0' 
 correctMedian = False
 samps_shift_2 = samps_shift
 
@@ -536,10 +551,17 @@ elif mdl_select_d2[:2]=='PR':
     data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
     obs_rate_allStimTrials_d2 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
     filt_width = pr_temporal_width
+elif select_mdl[:8]=='PR_CNN3D':
+    pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
+    data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
+    obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
 
 
 if transferModel == True:
-    idx_CNN_start = 5
+    if select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D':
+        idx_CNN_start = 5
+    elif select_mdl[:8]=='PR_CNN3D':
+        idx_CNN_start = 8
     x = Input(shape=data_val.X.shape[1:])
     n_cells = data_val.y.shape[1]
     y = x # BatchNormalization(axis=1,name='BatchNorm_postPR')(x)

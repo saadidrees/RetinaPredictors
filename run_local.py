@@ -15,9 +15,9 @@ from run_model_cnn3d import run_model
 
 expDate = 'retina1'
 subFold = '8ms_trainablePR' #'8ms_clark'
-mdl_name = 'PRFR_CNN2D' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D'
-dataset = 'photopic-10000'
-path_existing_mdl = '' #'/home/saad/data/analyses/data_kiersten/retina1/8ms_trainablePR/photopic-10000/PR_CNN2D/U-0.00_P-180_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+mdl_name = 'PRFR_CNN2D_fixed' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D'
+dataset = 'scotopic-1'
+path_existing_mdl = '/home/saad/data/analyses/data_kiersten/retina1/8ms_trainablePR/photopic-10000/PRFR_CNN2D/U-0.00_P-180_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-05' #'/home/saad/data/analyses/data_kiersten/retina1/8ms_trainablePR/photopic-10000/PR_CNN2D/U-0.00_P-180_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
 USE_CHUNKER=1
 pr_temporal_width = 180
 temporal_width=120
@@ -31,8 +31,8 @@ filt2_3rdDim=0
 chan3_n=24
 filt3_size=1
 filt3_3rdDim=0
-trainingSamps_dur = 30 # minutes
-nb_epochs=2
+trainingSamps_dur = 5 # minutes
+nb_epochs=10
 bz_ms=5000#20000 #10000
 BatchNorm=1
 MaxPool=0

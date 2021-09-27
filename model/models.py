@@ -216,8 +216,8 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         hillaffinity_init = tf.keras.initializers.Constant(1.0) # 0.5
         self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
-        gamma_init = tf.keras.initializers.Constant(10.)
-        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        gamma_init = tf.keras.initializers.Constant(1.)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
                 
         gdark_init = tf.keras.initializers.Constant(28.)
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
@@ -225,17 +225,19 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         sigma_scaleFac = tf.keras.initializers.Constant(10.) 
         self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         phi_scaleFac = tf.keras.initializers.Constant(10.) 
-        self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        eta_scaleFac = tf.keras.initializers.Constant(100.) 
-        self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        eta_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         beta_scaleFac = tf.keras.initializers.Constant(10.) 
-        self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         hillcoef_scaleFac = tf.keras.initializers.Constant(10.) 
-        self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
-        self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
-        self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        gamma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
 
     def call(self,inputs):
@@ -260,7 +262,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         betaSlow = self.betaSlow * self.betaSlow_scaleFac
         hillcoef = self.hillcoef * self.hillcoef_scaleFac
         hillaffinity = self.hillaffinity * self.hillaffinity_scaleFac
-        gamma = self.gamma/timeBin
+        gamma = (self.gamma*self.gamma_scaleFac)/timeBin
         gdark = self.gdark
         
         
@@ -275,7 +277,6 @@ def pr_cnn2d_fixed(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=1
     
     
     mdl_name = 'PR_CNN2D_fixed'
-    sigma = 0.1
     
     keras_prLayer = photoreceptor_DA(units=1)
     y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]),name='Reshape_1_pr')(inputs)
@@ -397,6 +398,23 @@ def prfr_cnn2d(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, c
     outputs = Activation('softplus')(y)
 
     mdl_name = 'PRFR_CNN2D'
+    return Model(inputs, outputs, name=mdl_name)
+
+def prfr_cnn2d_fixed(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+
+    mdl_name = 'PRFR_CNN2D_fixed'
+    
+    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]),name='Reshape_1_pr')(inputs)
+    y = photoreceptor_REIKE(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]),name='Reshape_2_pr')(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+       
+    for layer in mdl_existing.layers[idx_CNN_start:]:
+        layer.trainable = False
+        y = layer(y)
+    
+    outputs = y
+    
     return Model(inputs, outputs, name=mdl_name)
 
 

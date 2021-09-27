@@ -15,7 +15,17 @@ from matplotlib import pyplot as plt
 import multiprocessing as mp
 from functools import partial
 
-# %%
+def get_weightsDict(mdl):
+    names = [weight.name for layer in mdl.layers for weight in layer.weights]
+    weights = mdl.get_weights()
+    weights_dict = {}
+    for i in range(len(names)):
+        weight_name = names[i][:-2]        
+        weights_dict[weight_name] = np.squeeze(weights[i])
+        
+    return weights_dict
+
+
 def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred):
 
     f = h5py.File(fname_save_performance,'w')
@@ -237,11 +247,17 @@ def paramsToName(mdl_name,U=0,P=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d
                                                                                                      C2_n,C2_s,
                                                                                                      C3_n,C3_s,
                                                                                                      BN,MP)
-    elif mdl_name[:8]=='PR_CNN2D':
+    elif mdl_name[:8]=='PR_CNN2D' or mdl_name[:8]=='PR_CNN3D' or mdl_name[:10]=='PRFR_CNN2D':
         paramFileName = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,P,T,C1_n,C1_s,
                                                                                                          C2_n,C2_s,
                                                                                                          C3_n,C3_s,
                                                                                                          BN,MP)
+
+    # elif mdl_name[:8]=='PR_CNN3D':
+    #     paramFileName = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(U,P,T,C1_n,C1_s,C1_3d,
+    #                                                                                                          C2_n,C2_s,C2_3d,
+    #                                                                                                          C3_n,C3_s,C3_3d,
+    #                                                                                                          BN,MP)
     
     else:
         paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,C1_3d,
