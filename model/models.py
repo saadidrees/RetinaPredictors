@@ -188,56 +188,59 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
     def build(self,input_shape):
         sigma_init = tf.keras.initializers.Constant(1.) # 22
         self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        sigma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        phi_init = tf.keras.initializers.Constant(1.) #22
+        phi_init = tf.keras.initializers.Constant(4.) #22
         self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        
-        eta_init = tf.keras.initializers.Constant(1.) #2000
+        phi_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+       
+        eta_init = tf.keras.initializers.Constant(8.78) #2000
         self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        eta_scaleFac = tf.keras.initializers.Constant(100.) 
+        self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         beta_init = tf.keras.initializers.Constant(1.) #9
         self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        beta_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
-        cgmp2cur_init = tf.keras.initializers.Constant(0.01)  # 0.01
-        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        cgmp2cur_init = tf.keras.initializers.Constant(1)  # 0.01
+        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
-        cgmphill_init = tf.keras.initializers.Constant(3.)  # 3
-        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        cgmphill_init = tf.keras.initializers.Constant(1.)  # 3
+        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        cgmphill_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.cgmphill_scaleFac = tf.Variable(name='cgmphill_scaleFac',initial_value=cgmphill_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
         
         cdark_init = tf.keras.initializers.Constant(1.)
         self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         betaSlow_init = tf.keras.initializers.Constant(0.) #tf.keras.initializers.Constant(1.) # 0
-        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillcoef_init = tf.keras.initializers.Constant(4.) #tf.keras.initializers.Constant(1.) # 4
-        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        hillcoef_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.) # 4
+        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillaffinity_init = tf.keras.initializers.Constant(1.0) # 0.5
+        hillaffinity_init = tf.keras.initializers.Constant(1.) # 0.5
         self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         gamma_init = tf.keras.initializers.Constant(1.)
         self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        gamma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                 
         gdark_init = tf.keras.initializers.Constant(28.)
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
 
-        sigma_scaleFac = tf.keras.initializers.Constant(10.) 
-        self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        phi_scaleFac = tf.keras.initializers.Constant(10.) 
-        self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        eta_scaleFac = tf.keras.initializers.Constant(100.) 
-        self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        beta_scaleFac = tf.keras.initializers.Constant(10.) 
-        self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
-        self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
-        self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
-        self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        gamma_scaleFac = tf.keras.initializers.Constant(10.) 
-        self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
 
     def call(self,inputs):
@@ -256,7 +259,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         phi = self.phi * self.phi_scaleFac
         eta = self.eta * self.eta_scaleFac
         cgmp2cur = self.cgmp2cur
-        cgmphill = self.cgmphill
+        cgmphill = self.cgmphill * self.cgmphill_scaleFac
         cdark = self.cdark
         beta = self.beta * self.beta_scaleFac
         betaSlow = self.betaSlow * self.betaSlow_scaleFac
