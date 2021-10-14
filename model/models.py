@@ -52,7 +52,7 @@ class Normalize(tf.keras.layers.Layer):
     def __init__(self,units=1):
         super(Normalize,self).__init__()
         self.units = units
-            
+             
     def call(self,inputs):
         value_min = tf.math.reduce_min(inputs)
         value_max = tf.math.reduce_max(inputs)
@@ -184,21 +184,21 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
     def __init__(self,units=1):
         super(photoreceptor_REIKE,self).__init__()
         self.units = units
-        
+    
     def build(self,input_shape):
         sigma_init = tf.keras.initializers.Constant(1.) # 22
         self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         sigma_scaleFac = tf.keras.initializers.Constant(10.) 
         self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        phi_init = tf.keras.initializers.Constant(4.) #22
+        phi_init = tf.keras.initializers.Constant(1.) #22
         self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=True)
         phi_scaleFac = tf.keras.initializers.Constant(10.) 
         self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
        
-        eta_init = tf.keras.initializers.Constant(8.78) #2000
+        eta_init = tf.keras.initializers.Constant(1.) #2000
         self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        eta_scaleFac = tf.keras.initializers.Constant(100.) 
+        eta_scaleFac = tf.keras.initializers.Constant(10.) 
         self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         beta_init = tf.keras.initializers.Constant(1.) #9
@@ -206,12 +206,12 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         beta_scaleFac = tf.keras.initializers.Constant(10.) 
         self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
-        cgmp2cur_init = tf.keras.initializers.Constant(1)  # 0.01
-        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        cgmp2cur_init = tf.keras.initializers.Constant(0.01)  # 0.01
+        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        cgmphill_init = tf.keras.initializers.Constant(1.)  # 3
-        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        cgmphill_scaleFac = tf.keras.initializers.Constant(10.) 
+        cgmphill_init = tf.keras.initializers.Constant(3.)  # 3
+        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        cgmphill_scaleFac = tf.keras.initializers.Constant(1.) 
         self.cgmphill_scaleFac = tf.Variable(name='cgmphill_scaleFac',initial_value=cgmphill_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         
@@ -219,7 +219,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         betaSlow_init = tf.keras.initializers.Constant(0.) #tf.keras.initializers.Constant(1.) # 0
-        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=False)
         betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
@@ -234,19 +234,20 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         gamma_init = tf.keras.initializers.Constant(1.)
-        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        gamma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        gamma_scaleFac = tf.keras.initializers.Constant(100.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                 
-        gdark_init = tf.keras.initializers.Constant(28.)
+        gdark_init = tf.keras.initializers.Constant(20.)    # 28
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
-
+        
+        self.timeBin = 4 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)
 
 
     def call(self,inputs):
         X_fun = inputs
-        
-        timeBin = 8 # ms
+
+        timeBin = float(self.timeBin) # ms
         frameTime = 8 # ms
         upSamp_fac = int(frameTime/timeBin)
         TimeStep = 1e-3*timeBin
@@ -275,6 +276,25 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
             outputs = outputs[:,upSamp_fac-1::upSamp_fac]
             
         return outputs
+
+def replaceDense(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+    
+    
+    mdl_name = 'replaceDense'
+    y = inputs
+    for layer in mdl_existing.layers[idx_CNN_start:-4]:
+        layer.trainable = False
+        y = layer(y)
+    
+    # Dense layer
+    y = Flatten(name='dense_flatten')(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1,name='dense_bn')(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus',name='dense_activation')(y)
+    
+    return Model(inputs, outputs, name=mdl_name)
+
         
 def pr_cnn2d_fixed(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
@@ -288,7 +308,7 @@ def pr_cnn2d_fixed(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=1
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
        
     # y = BatchNormalization(axis=1,trainable=False,name='postPR')(y)
-    # y = Normalize(units=1)(y)
+    y = Normalize(units=1)(y)
     for layer in mdl_existing.layers[idx_CNN_start:]:
         layer.trainable = False
         y = layer(y)
@@ -411,6 +431,7 @@ def prfr_cnn2d_fixed(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width
     y = photoreceptor_REIKE(units=1)(y)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]),name='Reshape_2_pr')(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    y = Normalize(units=1)(y)
        
     for layer in mdl_existing.layers[idx_CNN_start:]:
         layer.trainable = False
@@ -476,7 +497,7 @@ def cnn_2d(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, ch
         y = inputs
         n1 = int(inputs.shape[-1])
         n2 = int(inputs.shape[-2])
-        y = Reshape((filt_temporal_width, n2, n1))(BatchNormalization(axis=-1,trainable=BatchNorm_train)(Flatten()(inputs)))
+        y = Reshape((filt_temporal_width, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
         y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     else:
         y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(inputs)

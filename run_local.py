@@ -14,10 +14,13 @@ import os
 from run_model_cnn3d import run_model
 
 expDate = 'retina1'
-subFold = '8ms_trainablePR' #'8ms_clark'
+subFold = '8ms_resamp' #'8ms_clark'
+dataset_subFold = 'hillCoef_train'
 mdl_name = 'PRFR_CNN2D_fixed' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D'
 dataset = 'scotopic-1'
-path_existing_mdl = '/home/saad/data/analyses/data_kiersten/retina1/8ms_trainablePR/photopic-10000/PRFR_CNN2D/U-0.00_P-180_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-05' #'/home/saad/data/analyses/data_kiersten/retina1/8ms_trainablePR/photopic-10000/PR_CNN2D/U-0.00_P-180_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+path_existing_mdl = '/home/saad/data/analyses/data_kiersten/retina1/8ms_resamp/photopic-10000_mdl-rieke_s-250_p-40.7_e-879_k-0.01_h-3_b-110_hc-2.64_preproc-cones_norm-1_rfac-2_tb-4/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+idx_CNN_start=1
+
 USE_CHUNKER=1
 pr_temporal_width = 180
 temporal_width=120
@@ -31,8 +34,8 @@ filt2_3rdDim=0
 chan3_n=24
 filt3_size=1
 filt3_3rdDim=0
-trainingSamps_dur = 5 # minutes
-nb_epochs=10
+trainingSamps_dur = 0 # minutes
+nb_epochs=50
 bz_ms=5000#20000 #10000
 BatchNorm=1
 MaxPool=0
@@ -44,7 +47,7 @@ BatchNorm_train = 0
 
 
 name_datasetFile = expDate+'_dataset_train_val_test_'+dataset+'.h5'
-path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold,dataset)
+path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold,dataset,dataset_subFold)
 path_dataset_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold)
 fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',name_datasetFile)
 
@@ -58,7 +61,7 @@ for c_trial in range(1,num_trials+1):
                             chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                             chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
                             nb_epochs=nb_epochs,bz_ms=bz_ms,trainingSamps_dur=trainingSamps_dur,
-                            BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER)
+                            BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER,idx_CNN_start=idx_CNN_start)
     
 plt.plot(model_performance['fev_medianUnits_allEpochs'])
 

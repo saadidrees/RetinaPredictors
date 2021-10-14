@@ -11,7 +11,7 @@ Created on Wed Apr 21 23:29:28 2021
 from model.parser import parser_run_model
 
 
-def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_existing_mdl='',
+def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_existing_mdl='',idx_CNN_start=5,
                             saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
@@ -41,7 +41,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     # bz_ms=10000
     # BatchNorm=1
     # MaxPool=0
-     
+      
 # %% prepare data
     print('expDate: '+expDate)
     print('runOnCluster: '+str(runOnCluster))
@@ -90,7 +90,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
-    from model.models import cnn_3d, cnn_2d, cnn_3d_inception, convLSTM, cnn_3d_lstm, cnn_2d_lstm, lstm_cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed
+    from model.models import cnn_3d, cnn_2d, cnn_3d_inception, convLSTM, cnn_3d_lstm, cnn_2d_lstm, lstm_cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, replaceDense
     from model.train_model import train
     from model.load_savedModel import load
     
@@ -171,7 +171,10 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
         temporal_width_eval = pr_temporal_width
         
-        
+    elif mdl_name == 'replaceDense_2D':
+        data_train = prepare_data_cnn2d(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_cnn2d(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_cnn2d(data_val,temporal_width,np.arange(len(idx_unitsToTake)))               
     
 
     
@@ -251,7 +254,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     elif mdl_name=='PR_CNN2D_fixed':
         rgb = os.path.split(path_existing_mdl)[-1]
         mdl_existing = load(os.path.join(path_existing_mdl,rgb))
-        idx_CNN_start = 5
+        # idx_CNN_start = 4
         
 
         mdl = pr_cnn2d_fixed(mdl_existing,idx_CNN_start,x, n_cells, filt_temporal_width=temporal_width,
@@ -265,11 +268,30 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         filt1_3rdDim=0
         filt2_3rdDim=0
         filt3_3rdDim=0
+        
+    elif mdl_name=='replaceDense_2D':
+        rgb = os.path.split(path_existing_mdl)[-1]
+        mdl_existing = load(os.path.join(path_existing_mdl,rgb))
+        idx_CNN_start = 6
+        
+
+        mdl = replaceDense(mdl_existing,idx_CNN_start,x, n_cells, filt_temporal_width=temporal_width,
+                             chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size,
+                             BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        
+        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,
+                                                                                     chan2_n,filt2_size,
+                                                                                     chan3_n,filt3_size,
+                                                                                     bn_val,mp_val,c_trial)
+        filt1_3rdDim=0
+        filt2_3rdDim=0
+        filt3_3rdDim=0
+
 
     elif mdl_name=='PRFR_CNN2D_fixed': # freds model
         rgb = os.path.split(path_existing_mdl)[-1]
         mdl_existing = load(os.path.join(path_existing_mdl,rgb))
-        idx_CNN_start = 5
+        # idx_CNN_start = 5
         
 
         mdl = prfr_cnn2d_fixed(mdl_existing,idx_CNN_start,x, n_cells, filt_temporal_width=temporal_width,
@@ -340,6 +362,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     
     # %% run model
     print('-----RUNNING MODEL-----')
+    # with tf.session():
     mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=5,USE_CHUNKER=USE_CHUNKER)  
     mdl_history = mdl_history.history
     
