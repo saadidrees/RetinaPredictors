@@ -242,7 +242,7 @@ def getModelParams_old(fname_modelFolder):
     return params
 
 def paramsToName(mdl_name,U=0,P=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=1,MP=0,TR=0):
-    if mdl_name=='CNN_2D':
+    if mdl_name=='CNN_2D' or mdl_name=='replaceDense_2D':
         paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,
                                                                                                      C2_n,C2_s,
                                                                                                      C3_n,C3_s,

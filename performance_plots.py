@@ -8,29 +8,29 @@ Created on Thu Mar 25 11:01:49 2021
 import h5py
 import numpy as np
 import os
+import re
+
 from global_scripts import utils_si
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator
+
 from scipy.stats import wilcoxon
 import gc
 
-
-from model.load_savedModel import load
-from model.data_handler import load_data, load_h5Dataset, prepare_data_cnn2d, prepare_data_cnn3d, prepare_data_convLSTM, prepare_data_pr_cnn2d
-from model.performance import getModelParams, model_evaluate,model_evaluate_new,paramsToName, get_weightsDict
-from model import metrics
-import tensorflow as tf
-import re
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator
 import csv
 import pylustrator
 from collections import namedtuple
 Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
+from model.load_savedModel import load
+from model.data_handler import load_data, load_h5Dataset, prepare_data_cnn2d, prepare_data_cnn3d, prepare_data_convLSTM, prepare_data_pr_cnn2d
+from model.performance import getModelParams, model_evaluate,model_evaluate_new,paramsToName, get_weightsDict
+from model import metrics
 from model import featureMaps
 from pyret.filtertools import sta, decompose
 
-# from tensorflow.keras.models import Model
+import tensorflow as tf
 gpu_devices = tf.config.experimental.list_physical_devices("GPU")
 for device in gpu_devices:
     tf.config.experimental.set_memory_growth(device, True)
@@ -38,47 +38,43 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import BatchNormalization, Input
 
 
-# path_mdl_drive = '/home/saad/data/analyses/data_saad/'
 # expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
 expDates = ('retina1',)
-subFold = '8ms_trainablePR' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-lightLevel_1 = 'photopic-10000' #'photopic-10000_mdl-clark_a-1.66clark_b--0.01_g-0.99_y-4.58_z-2.52_r-0_preproc-cones_norm-1_rfac-2' #
-models_all = ('PRFR_CNN2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
+subFold = '8ms_resamp' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
+mdl_subFold = ''
+lightLevel_1 = 'photopic-10000_mdl-rieke_s-250_p-40.7_e-879_k-0.01_h-3_b-110_hc-2.64_preproc-cones_norm-1_rfac-2_tb-4' #'photopic-10000_mdl-rieke_s-10.8_p-11.8_e-35.7_k-0.01_h-3_b-18.9_hc-4_gd-13.5_preproc-added_norm-1_rfac-2' #'photopic-10000_preproc-added_norm-1_rfac-2'
+models_all = ('CNN_2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
 
 writeToCSV = False
 
 path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
 
-
 models_list = []
 
-param_list_keys = ['U', 'T','C1_n','C1_s','C1_3d','C2_n','C2_s','C2_3d','C3_n','C3_s','C3_3d','BN','MP','TR','P']
+param_list_keys = ['U', 'T','C1_n','C1_s','C1_3d','C2_n','C2_s','C2_3d','C3_n','C3_s','C3_3d','BN','MP','TR','P']   # model parameters to group by
 csv_header = ['mdl_name','expDate','temp_window','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','FEV_median','FracExVar','corr_median','rr_corr_median']
 
-col_mdl = ('r')
 cols_lightLevels = {
     'photopic': 'r',
     'scotopic': 'b',
     }
 
     
-# %
-perf_allExps = {}
-params_allExps = {}
-paramNames_allExps = {}
+perf_allExps = {}   # Performance dict for all experiments, models, conditions
+params_allExps = {} # Dict containing parameter values for all experiments, models, conditions
+paramNames_allExps = {} #Dict containing the folder name of the model, which is basically concatenating the params together
 
 for idx_exp in range(len(expDates)):
     
     path_mdl_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDates[idx_exp],subFold)
-    # path_mdl_base = os.path.join('/mnt/cedar/scratch/RetinaPredictors/data/',expDates[idx_exp],subFold)
-    path_dataset_base = path_mdl_base #os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/')
+    path_dataset_base = path_mdl_base
 
     perf_allModels = {}
     params_allModels = {}
     paramNames_allModels = {}
     exp_select = expDates[idx_exp]
     
-    path_mdl_drive = os.path.join(path_mdl_base,lightLevel_1)
+    path_mdl_drive = os.path.join(path_mdl_base,lightLevel_1,mdl_subFold)
 
     
     ## -- this is temporary here for extracting median response of units
@@ -89,38 +85,36 @@ for idx_exp in range(len(expDates)):
     # -- this is temporary here for extracting median response of units
 
     
-
+    # mdl_select = models_all[0]
     for mdl_select in models_all:
-        fname_csv_file = 'performance_'+exp_select+'_'+lightLevel_1+'_avgAcrossTrials_'+mdl_select+'.csv'
-        fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
 
         if writeToCSV==True:
+            fname_csv_file = 'performance_'+exp_select+'_'+lightLevel_1+'_avgAcrossTrials_'+mdl_select+'.csv'
+            fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
             with open(fname_csv_file,'a',encoding='utf-8') as csvfile:
                 csvwriter = csv.writer(csvfile) 
                 csvwriter.writerow(csv_header) 
 
-        paramNames_temp = os.listdir(os.path.join(path_mdl_drive,mdl_select))     
+        # Get the folder names (paramNames) for the different runs of mdl_select
+        paramNames_temp = os.listdir(os.path.join(path_mdl_drive,mdl_select))
         paramNames = ([])
         for p in paramNames_temp:
-            if os.path.exists(os.path.join(path_mdl_drive,mdl_select,p,'performance')):
-                rgb = os.listdir(os.path.join(path_mdl_drive,mdl_select,p,'performance'))
-                if len(rgb)!=0:
+            try:     # some model runs are incomplete so don't consider them. They will not contain the performance file
+                if os.listdir(os.path.join(path_mdl_drive,mdl_select,p,'performance')):
                     paramNames.append(p)
+            except:
+                pass
         
+        # Cut out the trial number to group different trials of same models/params together
         paramNames_cut = []
         for i in range(0,len(paramNames)):
-            rgb = getModelParams(paramNames[i])
-            if 'TRSAMPS' in rgb.keys():
-                temp1 = 7 + len(str((rgb['TRSAMPS']))) + 1 + 1
-                temp2 = temp1 + 6
-                paramNames_cut_temp = paramNames[i][:-temp2]+paramNames[i][len(paramNames[i])-temp1:]
-                paramNames_cut.append(paramNames_cut_temp)
-                paramNames_unique = list(set(paramNames_cut))
-                
-            else:
-                paramNames_cut = [i[:-6] for i in paramNames]
-                paramNames_unique = list(set(paramNames_cut))
+            rgb = re.compile(r'_TR-(\d+)')
+            idx_paramMention = rgb.search(paramNames[i]).span()
+            paramNames_cut_rgb = paramNames[i][:idx_paramMention[0]] + paramNames[i][idx_paramMention[1]:]
+            paramNames_cut.append(paramNames_cut_rgb)
+        paramNames_unique = list(set(paramNames_cut))   # This contains the unique runs
         
+        # Locate where the unique names lie in the non-unique array. So this will also tell how many trials for each model/param
         idx_paramName = ([])
         for i in range(len(paramNames_unique)):
             name = paramNames_unique[i]
@@ -132,21 +126,24 @@ for idx_exp in range(len(expDates)):
         param_list = dict([(key, []) for key in param_list_keys])
 
 
+        # param_unique_idx = 0
         for param_unique_idx in range(len(paramNames_unique)):
             
-            fev_allUnits_allEpochs_allTr = np.zeros((1000,1000,len(idx_paramName[param_unique_idx])))           
-            fev_allUnits_bestEpoch_allTr = np.zeros((1000,len(idx_paramName[param_unique_idx])))
-            fev_medianUnits_allEpochs_allTr = np.zeros((1000,len(idx_paramName[param_unique_idx])))
-            fev_medianUnits_bestEpoch_allTr = np.zeros((len(idx_paramName[param_unique_idx])))
-
-            predCorr_allUnits_allEpochs_allTr = np.zeros((1000,1000,len(idx_paramName[param_unique_idx])))           
-            predCorr_allUnits_bestEpoch_allTr = np.zeros((1000,len(idx_paramName[param_unique_idx])))
-            predCorr_medianUnits_allEpochs_allTr = np.zeros((1000,len(idx_paramName[param_unique_idx])))
-            predCorr_medianUnits_bestEpoch_allTr = np.zeros((len(idx_paramName[param_unique_idx])))
-            
-            trial_id = np.zeros((len(idx_paramName[param_unique_idx])))
-            
+            # initialize variables where the last dimension size is number of trials for that model/params combo
             num_trials = len(idx_paramName[param_unique_idx])
+            
+            fev_allUnits_allEpochs_allTr = np.zeros((1000,1000,num_trials))           
+            fev_allUnits_bestEpoch_allTr = np.zeros((1000,num_trials))
+            fev_medianUnits_allEpochs_allTr = np.zeros((1000,num_trials))
+            fev_medianUnits_bestEpoch_allTr = np.zeros((num_trials))
+
+            predCorr_allUnits_allEpochs_allTr = np.zeros((1000,1000,num_trials))           
+            predCorr_allUnits_bestEpoch_allTr = np.zeros((1000,num_trials))
+            predCorr_medianUnits_allEpochs_allTr = np.zeros((1000,num_trials))
+            predCorr_medianUnits_bestEpoch_allTr = np.zeros((num_trials))
+            
+            trial_id = np.zeros((num_trials))
+            
             
             for c_tr in range(num_trials):
             
@@ -156,8 +153,6 @@ for idx_exp in range(len(expDates)):
         
                 f = h5py.File(fname_performanceFile,'r')
                 
-                
-
                 rgb = np.atleast_1d(f['model_performance']['fev_allUnits_allEpochs'])
                 num_units = rgb.shape[1]
                 num_epochs = rgb.shape[0]
@@ -334,16 +329,19 @@ paramFileName = paramsToName(select_mdl,U=select_U,P=select_P,T=select_T,BN=sele
 
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
 idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
-# perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
+trial_num = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
 # plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 
-select_TR = idx_bestTrial+1
+select_TR = int(trial_num)
 
 mdlFolder = paramFileName+'_TR-%02d' % select_TR
 path_model = os.path.join(path_mdl_drive,select_mdl,mdlFolder)
 mdl = load(os.path.join(path_model,mdlFolder))
 fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
-mdl.load_weights(os.path.join(path_model,fname_bestWeight))
+try:
+    mdl.load_weights(os.path.join(path_model,fname_bestWeight))
+except:
+    mdl.load_weights(os.path.join(path_model,fname_bestWeight+'.h5'))
 weights_dict = get_weightsDict(mdl)
 
 
@@ -359,7 +357,7 @@ filt_temporal_width = select_T
 obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
 
 
-if select_mdl[:6]=='CNN_2D':
+if select_mdl[:6]=='CNN_2D' or select_mdl == 'replaceDense_2D':
     data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
     # data_test = prepare_data_cnn2d(data_test,select_T,np.arange(data_test.y.shape[1]))
 elif select_mdl[:6]=='CNN_3D':
@@ -518,7 +516,7 @@ axs[0].tick_params(axis='both',labelsize=16)
 _ = gc.collect()
 
 # %% D2: Test model
-transferModel = True
+transferModel = False
 if transferModel == True:
     mdl_select_d2 = 'CNN_2D'
     subFold_d2 = '8ms_trainablePR'
@@ -526,7 +524,8 @@ else:
     mdl_select_d2 = mdl_select
     subFold_d2 = subFold
 
-val_dataset_2 = 'photopic-10000_mdl-rieke_s-250_p-51.8_e-883_k-0.01_h-3_b-99_hc-1.55_preproc-cones_norm-0_rfac-0' 
+idx_CNN_start = 5
+val_dataset_2 = 'scotopic-1_mdl-rieke_s-8.35_p-8.44_e-28.8_k-0.01_h-3_b-12.22_hc-4_gd-20_preproc-added_norm-1_rfac-2_tb-4' #'scotopic-1_mdl-rieke_s-6.66_p-3.1_e-33.6_k-0.01_h-3_b-3.26_hc-4_gd-20_preproc-added_norm-1_rfac-2_tb-4' 
 correctMedian = False
 samps_shift_2 = samps_shift
 
@@ -549,8 +548,10 @@ elif mdl_select_d2[:6] == 'convLS' or mdl_select_d2 == 'LSTM_CNN_2D':
 elif mdl_select_d2[:2]=='PR':
     pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
     data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
-    obs_rate_allStimTrials_d2 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
     filt_width = pr_temporal_width
+# elif mdl_select_d2[:4]=='PRFR':
+#     data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
+
 elif select_mdl[:8]=='PR_CNN3D':
     pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
     data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
@@ -558,10 +559,6 @@ elif select_mdl[:8]=='PR_CNN3D':
 
 
 if transferModel == True:
-    if select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D':
-        idx_CNN_start = 5
-    elif select_mdl[:8]=='PR_CNN3D':
-        idx_CNN_start = 8
     x = Input(shape=data_val.X.shape[1:])
     n_cells = data_val.y.shape[1]
     y = x # BatchNormalization(axis=1,name='BatchNorm_postPR')(x)
