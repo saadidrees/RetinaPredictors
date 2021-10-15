@@ -223,9 +223,9 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillcoef_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.) # 4
+        hillcoef_init = tf.keras.initializers.Constant(0.4) #tf.keras.initializers.Constant(1.) # 4
         self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
+        hillcoef_scaleFac = tf.keras.initializers.Constant(10.) 
         self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         hillaffinity_init = tf.keras.initializers.Constant(1.) # 0.5
@@ -233,12 +233,12 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        gamma_init = tf.keras.initializers.Constant(1.)
+        gamma_init = tf.keras.initializers.Constant(10.)
         self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
-        gamma_scaleFac = tf.keras.initializers.Constant(100.) 
+        gamma_scaleFac = tf.keras.initializers.Constant(1.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                 
-        gdark_init = tf.keras.initializers.Constant(20.)    # 28
+        gdark_init = tf.keras.initializers.Constant(28.)    # 28
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         self.timeBin = 4 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)
