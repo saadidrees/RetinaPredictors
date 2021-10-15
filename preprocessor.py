@@ -221,7 +221,7 @@ def model_params_t2(timeBin = 1):
     params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1  # dark calcium concentration - default 1
     params_rods['beta'] =  12.22 #25	  # rate constant for calcium removal in 1/sec - default 9
-    params_rods['betaSlow'] =  0	  
+    params_rods['betaSlow'] =  10	  
     params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] = 0.05 #0.22		# affinity for Ca2+
     params_rods['gamma'] =  10/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
@@ -252,18 +252,18 @@ def model_params_t3(timeBin = 1):
  
     # rods - mice - Retina 1 - trainable
     params_rods = {}
-    params_rods['sigma'] = 6.66 #7.66  # rhodopsin activity decay rate (1/sec) 
-    params_rods['phi'] =  3.1 #7.66     # phosphodiesterase activity decay rate (1/sec) 
-    params_rods['eta'] = 33.6 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
+    params_rods['sigma'] = 9.0 #7.66  # rhodopsin activity decay rate (1/sec) 
+    params_rods['phi'] =  9.0 #7.66     # phosphodiesterase activity decay rate (1/sec) 
+    params_rods['eta'] = 7.8 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
     params_rods['gdark'] = 20 # concentration of cGMP in darkness - default 20.5
     params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
     params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  3.26 #25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['beta'] =  14.7 #25	  # rate constant for calcium removal in 1/sec - default 9
     params_rods['betaSlow'] =  0	  
-    params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
-    params_rods['hillaffinity'] = -0.12 #0.22		# affinity for Ca2+
-    params_rods['gamma'] =  100/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['hillcoef'] =  4 #13.8  	  # cooperativity for cyclase, hill coef - default 4
+    params_rods['hillaffinity'] = 0.04 #0.22		# affinity for Ca2+
+    params_rods['gamma'] =  10/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
 
@@ -631,16 +631,15 @@ def model_params_clark():
 # _,stim_currents_rgb = RiekeModel(params,stim_photons,ode_solver)
 # plt.plot(stim_currents_rgb[300:])
         
-# % Single pr type
+# %% Single pr type
 
-# %%
 DEBUG_MODE = 1
 WRITE_TO_H5 = 0
 pr_mdl_name = 'rieke'  # 'rieke' 'clark'
 expDate = 'retina1'
-lightLevel = 'photopic'  # ['photopic','scotopic']
+lightLevel = 'scotopic'  # ['photopic','scotopic']
 pr_type = 'rods'   # ['rods','cones']
-ode_solver = 'RungeKutta' #['RungeKutta','Euler']
+ode_solver = 'Euler' #['RungeKutta','Euler']
 folder = '8ms_sampShifted'
 timeBin = 4
 frameTime = 8
@@ -812,7 +811,7 @@ pr_mdl_name = 'rieke'  # 'rieke' 'clark'
 expDate = 'retina1'
 lightLevels = ('photopic',)  # ['scotopic','photopic']
 pr_type = ('rods','cones')   # ['rods','cones']
-ode_solver = 'RungeKutta' #['RungeKutta','Euler']
+ode_solver = 'Euler' #['RungeKutta','Euler']
 folder = '8ms_sampShifted'
 timeBin = 4
 frameTime = 8

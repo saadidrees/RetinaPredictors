@@ -158,7 +158,8 @@ def riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlo
         r_curr = r_prev + TimeStep * (-1 * sigma * r_prev)
         r_curr = r_curr + gamma * X_fun[:,pnt-1,:]
         p_curr = p_prev + TimeStep * (r_prev + eta - phi * p_prev)
-        c_curr = c_prev + TimeStep * (cur2ca * (cgmp2cur * g_prev **cgmphill)/2 - beta * c_prev)
+        # c_curr = c_prev + TimeStep * (cur2ca * (cgmp2cur * g_prev **cgmphill)/2 - beta * c_prev)
+        c_curr = c_prev + TimeStep * (cur2ca * cgmp2cur * g_prev**cgmphill /(1+(cslow_prev/cdark)) - beta * c_prev)
         cslow_curr = cslow_prev - TimeStep * (betaSlow * (cslow_prev-c_prev))
         s_curr = smax / (1 + (c_curr / hillaffinity) **hillcoef)
         g_curr = g_prev + TimeStep * (s_prev - p_prev * g_prev)
@@ -219,13 +220,13 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         betaSlow_init = tf.keras.initializers.Constant(0.) #tf.keras.initializers.Constant(1.) # 0
-        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=True)
         betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillcoef_init = tf.keras.initializers.Constant(0.4) #tf.keras.initializers.Constant(1.) # 4
-        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        hillcoef_scaleFac = tf.keras.initializers.Constant(10.) 
+        hillcoef_init = tf.keras.initializers.Constant(4) #tf.keras.initializers.Constant(1.) # 4
+        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         hillaffinity_init = tf.keras.initializers.Constant(1.) # 0.5
@@ -238,7 +239,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         gamma_scaleFac = tf.keras.initializers.Constant(1.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                 
-        gdark_init = tf.keras.initializers.Constant(28.)    # 28
+        gdark_init = tf.keras.initializers.Constant(20.)    # 28 for cones; 20 for rods 
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         self.timeBin = 4 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)

@@ -170,7 +170,8 @@ def RiekeModel(params,stim_photons,ode_solver='RungeKutta'):
                 r[pnt] = r[pnt-1] + TimeStep * (-params['sigma'] * r[pnt-1])
                 r[pnt] = r[pnt] + params['gamma'] * stim_photons[pnt-1]
                 p[pnt] = p[pnt-1] + TimeStep * (r[pnt-1] + params['eta'] - params['phi'] * p[pnt-1])
-                c[pnt] = c[pnt-1] + TimeStep * (cur2ca * (cgmp2cur * g[pnt-1] **cgmphill)/2 - params['beta'] * c[pnt-1])
+                # c[pnt] = c[pnt-1] + TimeStep * (cur2ca * (cgmp2cur * g[pnt-1] **cgmphill)/2 - params['beta'] * c[pnt-1])
+                c[pnt] = c[pnt-1] + TimeStep * (cur2ca * cgmp2cur * g[pnt-1]**cgmphill /(1+(cslow[pnt-1]/cdark)) - params['beta'] * c[pnt-1])
                 cslow[pnt] = cslow[pnt-1] - TimeStep * (params['betaSlow'] * (cslow[pnt-1]-c[pnt-1]))
                 s[pnt] = smax / (1 + (c[pnt] / params['hillaffinity']) **params['hillcoef'])
                 
