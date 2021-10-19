@@ -158,9 +158,9 @@ def riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlo
         r_curr = r_prev + TimeStep * (-1 * sigma * r_prev)
         r_curr = r_curr + gamma * X_fun[:,pnt-1,:]
         p_curr = p_prev + TimeStep * (r_prev + eta - phi * p_prev)
-        # c_curr = c_prev + TimeStep * (cur2ca * (cgmp2cur * g_prev **cgmphill)/2 - beta * c_prev)
-        c_curr = c_prev + TimeStep * (cur2ca * cgmp2cur * g_prev**cgmphill /(1+(cslow_prev/cdark)) - beta * c_prev)
-        cslow_curr = cslow_prev - TimeStep * (betaSlow * (cslow_prev-c_prev))
+        c_curr = c_prev + TimeStep * (cur2ca * (cgmp2cur * g_prev **cgmphill)/2 - beta * c_prev)
+        # c_curr = c_prev + TimeStep * (cur2ca * cgmp2cur * g_prev**cgmphill /(1+(cslow_prev/cdark)) - beta * c_prev)
+        # cslow_curr = cslow_prev - TimeStep * (betaSlow * (cslow_prev-c_prev))
         s_curr = smax / (1 + (c_curr / hillaffinity) **hillcoef)
         g_curr = g_prev + TimeStep * (s_prev - p_prev * g_prev)
 
@@ -173,7 +173,7 @@ def riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlo
         c_prev = c_curr#[0,:]
         p_prev = p_curr
         r_prev = r_curr
-        cslow_prev = cslow_curr#[0,:]
+        # cslow_prev = cslow_curr#[0,:]
     
     g = g.stack()
     g = tf.transpose(g,(1,0,2))
@@ -225,12 +225,12 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         hillcoef_init = tf.keras.initializers.Constant(4) #tf.keras.initializers.Constant(1.) # 4
-        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=False)
         hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillaffinity_init = tf.keras.initializers.Constant(1.) # 0.5
-        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        hillaffinity_init = tf.keras.initializers.Constant(0.5) # 0.5
+        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=False)
         hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
