@@ -220,7 +220,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         betaSlow_init = tf.keras.initializers.Constant(0.) #tf.keras.initializers.Constant(1.) # 0
-        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=False)
         betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
@@ -239,7 +239,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         gamma_scaleFac = tf.keras.initializers.Constant(1.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                 
-        gdark_init = tf.keras.initializers.Constant(20.)    # 28 for cones; 20 for rods 
+        gdark_init = tf.keras.initializers.Constant(28.)    # 28 for cones; 20 for rods 
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         self.timeBin = 4 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)
@@ -277,25 +277,6 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
             outputs = outputs[:,upSamp_fac-1::upSamp_fac]
             
         return outputs
-
-def replaceDense(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
-    
-    
-    mdl_name = 'replaceDense'
-    y = inputs
-    for layer in mdl_existing.layers[idx_CNN_start:-4]:
-        layer.trainable = False
-        y = layer(y)
-    
-    # Dense layer
-    y = Flatten(name='dense_flatten')(y)
-    if BatchNorm is True: 
-        y = BatchNormalization(axis=-1,name='dense_bn')(y)
-    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
-    outputs = Activation('softplus',name='dense_activation')(y)
-    
-    return Model(inputs, outputs, name=mdl_name)
-
         
 def pr_cnn2d_fixed(mdl_existing,idx_CNN_start,inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
