@@ -25,11 +25,11 @@ from tensorflow.keras.layers import Input
 from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, prepare_data_pr_cnn2d
 from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
 import model.metrics as metrics
-from model.models import cnn_3d, cnn_2d, cnn_3d_lstm, lstm_cnn_2d, pr_cnn2d
+from model.models import cnn_3d, cnn_2d, pr_cnn2d, pr_cnn3d, prfr_cnn2d_fixed
 from model.train_model import train
 from model.load_savedModel import load
 from tensorflow.keras.optimizers import Adam
-
+ 
 
 import gc
 
@@ -42,10 +42,10 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
-                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1,BatchNorm_train=0,
-                            path_dataset_base='/home/saad/data/analyses/data_kiersten'):
+                            nb_epochs=100,bz_ms=10000,BatchNorm=1,MaxPool=1,c_trial=1,BatchNorm_train=0,idx_CNN_start=1,
+                            path_dataset_base='/home/saad/data/analyses/data_kiersten',path_existing_mdl=''):
 
-    
+# %%    
 # expDate = 'retina1'
 # mdl_name = 'CNN_2D'
 
@@ -71,7 +71,7 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
 # path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
 # path_model_save_base = os.path.join('/home/saad/data/analyses/data_saad',expDate)
 
-    
+
 # load train val and test datasets from saved h5 file
     path_dataset = os.path.join(path_dataset_base,'datasets')
     path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
@@ -92,6 +92,13 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
         data_train = prepare_data_cnn3d(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
         data_test = prepare_data_cnn3d(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
         data_val = prepare_data_cnn3d(data_val,temporal_width,np.arange(len(idx_unitsToTake)))
+    
+    elif mdl_name == 'PR_CNN3D':
+       data_train = prepare_data_cnn3d(data_train,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+       data_test = prepare_data_cnn3d(data_test,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+       data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+       temporal_width_eval = pr_temporal_width
+       
     elif mdl_name == 'CNN_2D' or mdl_name=='CNN_2D_LSTM':
         data_train = prepare_data_cnn2d(data_train,temporal_width,np.arange(len(idx_unitsToTake)))
         data_test = prepare_data_cnn2d(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
@@ -107,6 +114,13 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
         data_test = prepare_data_pr_cnn2d(data_test,pr_temporal_width,np.arange(len(idx_unitsToTake)))
         data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
         temporal_width_eval = pr_temporal_width
+        
+    elif mdl_name[:10] == 'PRFR_CNN2D':
+        data_train = prepare_data_cnn2d(data_train,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_cnn2d(data_test,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_cnn2d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        temporal_width_eval = pr_temporal_width
+
 
     
     t_frame = parameters['t_frame']
@@ -126,6 +140,8 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
     else:
         mp_val=0       
         MaxPool=False
+        
+    BatchNorm_train = False
      
     bz = math.ceil(bz_ms/t_frame)
      
@@ -158,44 +174,32 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
         filt2_3rdDim=0
         filt3_3rdDim=0
 
-        
-    elif mdl_name == 'CNN_3D_INCEP':       
-        mdl = cnn_3d_inception(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
-                                                                                     chan2_n,filt2_size,filt2_3rdDim,
-                                                                                     chan3_n,filt3_size,filt3_3rdDim,
-                                                                                     bn_val,mp_val,c_trial)
-    elif mdl_name == 'convLSTM':       
-        mdl = convLSTM(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
-                                                                                     chan2_n,filt2_size,filt2_3rdDim,
-                                                                                     chan3_n,filt3_size,filt3_3rdDim,
-                                                                                     bn_val,mp_val,c_trial)
-
-    elif mdl_name == 'LSTM_CNN_2D':       
-        mdl = lstm_cnn_2d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
-                                                                                     chan2_n,filt2_size,filt2_3rdDim,
-                                                                                     chan3_n,filt3_size,filt3_3rdDim,
+    elif mdl_name=='PR_CNN3D':
+        mdl = pr_cnn3d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
+                                                                                     chan2_n,filt2_size,
+                                                                                     chan3_n,filt3_size,
                                                                                      bn_val,mp_val,c_trial)
 
         
-    elif mdl_name == 'CNN_3D_LSTM':       
-        mdl = cnn_3d_lstm(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,filt1_3rdDim,
-                                                                                     chan2_n,filt2_size,filt2_3rdDim,
-                                                                                     chan3_n,filt3_size,filt3_3rdDim,
-                                                                                     bn_val,mp_val,c_trial)
+    elif mdl_name=='PRFR_CNN2D_fixed': # freds model
+        rgb = os.path.split(path_existing_mdl)[-1]
+        mdl_existing = load(os.path.join(path_existing_mdl,rgb))
+        # idx_CNN_start = 5
         
-    elif mdl_name=='CNN_2D_LSTM':
-        mdl = cnn_2d_lstm(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
-        fname_model = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,temporal_width,chan1_n,filt1_size,
+
+        mdl = prfr_cnn2d_fixed(mdl_existing,idx_CNN_start,x, n_cells, filt_temporal_width=temporal_width,
+                             chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size,
+                             BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        
+        fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
                                                                                      chan2_n,filt2_size,
                                                                                      chan3_n,filt3_size,
                                                                                      bn_val,mp_val,c_trial)
         filt1_3rdDim=0
         filt2_3rdDim=0
         filt3_3rdDim=0
+
 
     else:
         raise ValueError('Wrong model name')    
@@ -220,7 +224,7 @@ def run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,fn
     # mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm)
     
     mdl = load(os.path.join(path_model_save,fname_model))
-    mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
+    # mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
     
     obs_rate = data_val.y
     val_loss_allEpochs = np.empty(nb_epochs)

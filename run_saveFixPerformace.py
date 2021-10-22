@@ -16,8 +16,11 @@ from model.performance import getModelParams
 expDate = 'retina1'
 samps_shift = 0
 subFold = '8ms_trainablePR'
-dataset = 'photopic-10000' #'photopic-10000_preproc-added_norm-1_rfac-2'
-mdl_name = 'PR_CNN3D'
+dataset_subFold = 'largeGamma'
+dataset = 'scotopic-1' #'photopic-10000_preproc-added_norm-1_rfac-2'
+mdl_name = 'PRFR_CNN2D_fixed'
+path_existing_mdl = '/home/saad/data/analyses/data_kiersten/retina3/8ms_resamp/photopic-10000_mdl-rieke_s-250_p-40.7_e-879_k-0.01_h-3_b-110_hc-2.64_gd-28_preproc-cones_norm-1_tb-4_RungeKutta/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+idx_CNN_start = 1
 temporal_width=120
 thresh_rr=0
 chan1_n=13
@@ -39,7 +42,7 @@ num_trials=1
 c_trial = 1
 
 name_datasetFile = expDate+'_dataset_train_val_test_'+dataset+'.h5'
-path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten',expDate,subFold,dataset)
+path_model_save_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold,dataset,dataset_subFold)
 path_dataset_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDate,subFold)
 
 param_list_keys = ['U','P', 'T','C1_n','C1_s','C1_3d','C2_n','C2_s','C2_3d','C3_n','C3_s','C3_3d','BN','MP','TR']
@@ -76,12 +79,13 @@ for i in rangeToRun[0:]:
     prog = '%d of %d' %(i,rangeToRun[-1])
     print(prog)
     if os.path.exists(os.path.join(path_model_save_base,mdl_name,paramFileNames[i],paramFileNames[i])):
-        model_performance = run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,fname_performance_excel=fname_performance_excel,saveToCSV=saveToCSV,runOnCluster=0,
+        model_performance = run_fixPerformance(expDate,mdl_name,path_model_save_base,name_datasetFile,path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,
+                            fname_performance_excel=fname_performance_excel,saveToCSV=saveToCSV,runOnCluster=0,
                             temporal_width=temporal_width, pr_temporal_width = pr_temporal_width, thresh_rr=thresh_rr,samps_shift=samps_shift,
                             chan1_n=params['C1_n'][i], filt1_size=params['C1_s'][i], filt1_3rdDim=params['C1_3d'][i],
                             chan2_n=params['C2_n'][i], filt2_size=params['C2_s'][i], filt2_3rdDim=params['C2_3d'][i],
                             chan3_n=params['C3_n'][i], filt3_size=params['C3_s'][i], filt3_3rdDim=params['C3_3d'][i],
-                            bz_ms=bz_ms,BatchNorm=params['BN'][i],MaxPool=MaxPool,c_trial=params['TR'][i])
+                            bz_ms=bz_ms,BatchNorm=params['BN'][i],MaxPool=MaxPool,c_trial=params['TR'][i],idx_CNN_start=idx_CNN_start)
 
 
 #%%
