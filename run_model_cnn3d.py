@@ -19,7 +19,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
                             pr_temporal_width = 180,
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,
-                            BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=0,
+                            BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,USE_CHUNKER=0,CONTINUE_TRAINING=0,info='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 
@@ -40,7 +40,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     # nb_epochs=100
     # bz_ms=10000
     # BatchNorm=1
-    # MaxPool=0
+    # MaxPool=0 
       
 # %% prepare data
     print('expDate: '+expDate)
@@ -90,7 +90,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
-    from model.models import cnn_3d, cnn_2d, cnn_3d_inception, convLSTM, cnn_3d_lstm, cnn_2d_lstm, lstm_cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed
+    from model.models import cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime
     from model.train_model import train
     from model.load_savedModel import load
     
@@ -176,6 +176,11 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         data_test = prepare_data_cnn2d(data_test,temporal_width,np.arange(len(idx_unitsToTake)))
         data_val = prepare_data_cnn2d(data_val,temporal_width,np.arange(len(idx_unitsToTake)))               
     
+    elif mdl_name == 'PRFR_CNN2D_NOTIME':
+        data_train = prepare_data_cnn2d(data_train,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_test = prepare_data_cnn2d(data_test,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        data_val = prepare_data_cnn2d(data_val,pr_temporal_width,np.arange(len(idx_unitsToTake)))
+        temporal_width_eval = pr_temporal_width
 
     
     if BatchNorm:
@@ -244,6 +249,16 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         filt2_3rdDim=0
         filt3_3rdDim=0
         
+    elif mdl_name=='PRFR_CNN2D_NOTIME':
+        mdl = prfr_cnn2d_noTime(x, n_cells, filt_temporal_width = 0, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
+        fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
+                                                                                     chan2_n,filt2_size,
+                                                                                     chan3_n,filt3_size,
+                                                                                     bn_val,mp_val,c_trial)
+        filt1_3rdDim=0
+        filt2_3rdDim=0
+        filt3_3rdDim=0
+       
     elif mdl_name=='PR_CNN3D':
         mdl = pr_cnn3d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
         fname_model = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_TR-%02d' %(thresh_rr,pr_temporal_width,temporal_width,chan1_n,filt1_size,
@@ -342,10 +357,19 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     
     fname_excel = 'performance_'+fname_model+'.csv'
     
-    # %% run model
+    # %% Train model
+    
+    # continue a halted training: load existing model checkpoint and initial_epoch value to pass on for continuing the training
+    if CONTINUE_TRAINING==1:       
+        initial_epoch = len([f for f in os.listdir(path_model_save) if f.endswith('index')])
+        if initial_epoch == 0:
+            initial_epoch = len([f for f in os.listdir(path_model_save) if f.startswith('weights')])
+    else:
+        initial_epoch = 0
+
     print('-----RUNNING MODEL-----')
     # with tf.session():
-    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=5,USE_CHUNKER=USE_CHUNKER)  
+    mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz, nb_epochs=nb_epochs,validation_batch_size = data_val.X.shape[0],validation_freq=1,USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch)  
     mdl_history = mdl_history.history
     
     # %% Model Evaluation
@@ -380,7 +404,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     check_trainVal_contamination(data_train.X,data_val.X,temporal_width)
     
     print('-----EVALUATING PERFORMANCE-----')
-    for i in range(nb_epochs-1):
+    for i in range(0,nb_epochs-1):
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
@@ -503,14 +527,16 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     
 
     metaInfo = {
-       ' mdl_name': mdl.name,
-        'path_model_save': path_model_save,
-        'uname_selectedUnits': np.array(data_quality['uname_selectedUnits'],dtype='bytes'),#[idx_unitsToTake],dtype='bytes'),
-        'idx_unitsToTake': idx_unitsToTake,
-        'thresh_rr': thresh_rr,
-        'trial_num': c_trial,
-        'Date': np.array(datetime.datetime.now(),dtype='bytes')
-        }
+       'mdl_name': mdl.name,
+       'existing_mdl': np.array(path_existing_mdl,dtype='bytes'),
+       'path_model_save': path_model_save,
+       'uname_selectedUnits': np.array(data_quality['uname_selectedUnits'],dtype='bytes'),#[idx_unitsToTake],dtype='bytes'),
+       'idx_unitsToTake': idx_unitsToTake,
+       'thresh_rr': thresh_rr,
+       'trial_num': c_trial,
+       'Date': np.array(datetime.datetime.now(),dtype='bytes'),
+       'info': np.array(info,dtype='bytes')
+       }
         
     model_params = {
                 'chan1_n' : chan1_n,

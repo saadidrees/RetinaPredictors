@@ -15,11 +15,13 @@ from run_model_cnn3d import run_model
 
 expDate = 'retina1'
 subFold = '8ms_resamp' #'8ms_clark'
-dataset_subFold = 'hillCoef_train'
+dataset_subFold = 'trainAllParams'
 mdl_name = 'PRFR_CNN2D_fixed' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D'
 dataset = 'scotopic-1'
-path_existing_mdl = '/home/saad/data/analyses/data_kiersten/retina1/8ms_resamp/photopic-10000_mdl-rieke_s-250_p-40.7_e-879_k-0.01_h-3_b-110_hc-2.64_preproc-cones_norm-1_rfac-2_tb-4/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+path_existing_mdl = '/home/saad/data/analyses/data_kiersten/retina1/8ms_resamp/photopic-10000_mdl-rieke_s-250_p-40.7_e-879_k-0.01_h-3_b-110_hc-2.64_gd-28_preproc-cones_norm-1_tb-4_RungeKutta_RF-2/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01'
+info = ''
 idx_CNN_start=1
+CONTINUE_TRAINING=0
 
 USE_CHUNKER=1
 pr_temporal_width = 180
@@ -35,8 +37,8 @@ chan3_n=24
 filt3_size=1
 filt3_3rdDim=0
 trainingSamps_dur = 0 # minutes
-nb_epochs=50
-bz_ms=5000#20000 #10000
+nb_epochs=30
+bz_ms=1000#20000 #10000
 BatchNorm=1
 MaxPool=0
 saveToCSV=1
@@ -61,7 +63,7 @@ for c_trial in range(1,num_trials+1):
                             chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                             chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
                             nb_epochs=nb_epochs,bz_ms=bz_ms,trainingSamps_dur=trainingSamps_dur,
-                            BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER,idx_CNN_start=idx_CNN_start)
+                            BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER,idx_CNN_start=idx_CNN_start,CONTINUE_TRAINING=CONTINUE_TRAINING,info=info)
     
 plt.plot(model_performance['fev_medianUnits_allEpochs'])
 
