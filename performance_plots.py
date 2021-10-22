@@ -40,10 +40,10 @@ from tensorflow.keras.layers import BatchNormalization, Input
 
 # expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
 expDates = ('retina1',)
-subFold = '8ms_resamp' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = ''
-lightLevel_1 = 'photopic-10000_mdl-rieke_s-250_p-40.7_e-879_k-0.01_h-3_b-110_hc-2.64_preproc-cones_norm-1_rfac-2_tb-4' #'photopic-10000_mdl-rieke_s-10.8_p-11.8_e-35.7_k-0.01_h-3_b-18.9_hc-4_gd-13.5_preproc-added_norm-1_rfac-2' #'photopic-10000_preproc-added_norm-1_rfac-2'
-models_all = ('CNN_2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
+subFold = '8ms_trainablePR' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
+mdl_subFold = 'fewParams'
+lightLevel_1 = 'photopic-10000'
+models_all = ('PRFR_CNN2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM')  
 
 writeToCSV = False
 
@@ -375,7 +375,7 @@ elif select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D':
 elif select_mdl[:8]=='PR_CNN3D':
     pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
     data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
-    obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
+    obs_rate_allStimTrials_d1 = dattaset_rr['stim_0']['val'][:,pr_temporal_width:,:]
 
 obs_rate = data_val.y
 
@@ -519,13 +519,13 @@ _ = gc.collect()
 transferModel = False
 if transferModel == True:
     mdl_select_d2 = 'CNN_2D'
-    subFold_d2 = '8ms_trainablePR'
+    subFold_d2 = '8ms_preTrainedPR_rieke'
 else:
     mdl_select_d2 = mdl_select
     subFold_d2 = subFold
 
-idx_CNN_start = 5
-val_dataset_2 = 'scotopic-1_mdl-rieke_s-8.35_p-8.44_e-28.8_k-0.01_h-3_b-12.22_hc-4_gd-20_preproc-added_norm-1_rfac-2_tb-4' #'scotopic-1_mdl-rieke_s-6.66_p-3.1_e-33.6_k-0.01_h-3_b-3.26_hc-4_gd-20_preproc-added_norm-1_rfac-2_tb-4' 
+idx_CNN_start = 6
+val_dataset_2 = 'scotopic-1_mdl-rieke_s-8.35_p-8.44_e-28.8_g-2.5_k-0.01_h-3_b-12.22_hc-4_gd-20_preproc-added_norm-1_tb-4_RungeKutta_RF-2' 
 correctMedian = False
 samps_shift_2 = samps_shift
 
@@ -637,7 +637,7 @@ idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1]
 # idx_unitsToPred = [6,42,16,14]
 
 # %
-t_start = 20
+t_start = 10
 t_dur = obs_rate.shape[0]
 t_end = t_dur-20
 win_display = (t_start,t_start+t_dur)
