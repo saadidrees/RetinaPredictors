@@ -9,7 +9,10 @@ Created on Mon Jun 28 20:19:23 2021
 import numpy as np
 import tensorflow as tf
 from scipy.integrate import solve_ivp, odeint
+import scipy
 
+
+# RungeKutta('dcdt',params,TimeStep,g[pnt-1],c[pnt-1],method=method_rk)
 
 def drdt(params,x,y):
     # output = (params['gamma']*x)-(params['sigma']*y)
@@ -120,39 +123,75 @@ def RiekeModel(params,stim_photons,ode_solver='RungeKutta'):
         NumPixels = 1
     TimeStep = params['tme'][1] - params['tme'][0]
     
-    if params['biophysFlag']==1:
-        
-        cdark = params['cdark']
-        cgmphill=params['h']
-        cgmp2cur = params['k']
-        
-        params['gdark'] = (2 * params['darkCurrent'] / cgmp2cur) **(1/cgmphill)
-        
-        cur2ca = params['beta'] * cdark / params['darkCurrent'];                # get q using steady state
-        smax = params['eta']/params['phi'] * params['gdark'] * (1 + (cdark / params['hillaffinity']) **params['hillcoef'])		# get smax using steady state
-        
-        params['cur2ca'] = cur2ca
-        
-        g     = np.zeros((NumPts,NumPixels)) # free cgmp
-        s     = np.zeros((NumPts,NumPixels)) # cgmp synthesis rate
-        c     = np.zeros((NumPts,NumPixels)) # free calcium concentration
-        p     = np.zeros((NumPts,NumPixels)) # pde activity
-        r     = np.zeros((NumPts,NumPixels)) # rhodopsin activity
-        cslow = np.zeros((NumPts,NumPixels))
+    cdark = params['cdark']
+    cgmphill=params['h']
+    cgmp2cur = params['k']
     
-        # initial conditions
-        g[0] = params['gdark']
-        s[0] = params['gdark'] * params['eta']/params['phi']
-        c[0] = cdark
-        r[0] = stim_photons[0] * params['gamma'] / params['sigma']
-        p[0] = (params['eta'] + r[0])/params['phi']
-        cslow[0] = cdark
-        
-        # r_sol = (stim_photons * params['gamma'] / params['sigma']) + np.tile(np.exp(- params['sigma']*params['tme']),(stim_photons.shape[-1],1)).T
+    params['gdark'] = (2 * params['darkCurrent'] / cgmp2cur) **(1/cgmphill)
     
-        # solve difference equations
-        if ode_solver=='RungeKutta':
-            for pnt in range(1,NumPts):           
+    cur2ca = params['beta'] * cdark / params['darkCurrent'];                # get q using steady state
+    smax = params['eta']/params['phi'] * params['gdark'] * (1 + (cdark / params['hillaffinity']) **params['hillcoef'])		# get smax using steady state
+    
+    params['cur2ca'] = cur2ca
+    
+    g     = np.zeros((NumPts,NumPixels)) # free cgmp
+    s     = np.zeros((NumPts,NumPixels)) # cgmp synthesis rate
+    c     = np.zeros((NumPts,NumPixels)) # free calcium concentration
+    p     = np.zeros((NumPts,NumPixels)) # pde activity
+    r     = np.zeros((NumPts,NumPixels)) # rhodopsin activity
+    cslow = np.zeros((NumPts,NumPixels))
+
+    # initial conditions
+    g[0] = params['gdark']
+    s[0] = params['gdark'] * params['eta']/params['phi']
+    c[0] = cdark
+    r[0] = stim_photons[0] * params['gamma'] / params['sigma']
+    p[0] = (params['eta'] + r[0])/params['phi']
+    cslow[0] = cdark
+     
+    
+        
+    # solve difference equations
+    if ode_solver=='hybrid':
+
+        TimeStep_new = 1e-3#TimeStep
+        resampFac = int(TimeStep/TimeStep_new)
+        x = stim_photons.copy() / TimeStep
+        x = x * TimeStep_new
+        x = np.repeat(x,resampFac,axis=0)
+        tm = np.arange(0,x.shape[0])*TimeStep_new
+        
+        r_kern = np.exp(-params['sigma']*tm)
+        out_r = np.apply_along_axis(lambda m: scipy.signal.convolve(m,r_kern), axis=0, arr=x)*params['gamma']
+        out_r = out_r[:x.shape[0],:] + ((x[0,:] * params['gamma'] / params['sigma'])*r_kern[:,None])
+        out_r = np.concatenate((np.atleast_1d(r[0])[None,:],out_r[:-1,:]))
+        # out_r = out_r[::resampFac]
+        # r = out_r
+        
+        p_kern = np.exp(-params['phi']*tm)
+        out_p = np.apply_along_axis(lambda m: scipy.signal.convolve(m,p_kern), axis=0, arr=out_r)*TimeStep_new
+        out_p = out_p[:x.shape[0],:]
+        out_p = out_p + (params['eta']/params['phi'])+(((x[0,:] * params['gamma']) / (params['sigma']*params['phi']))*p_kern[:,None])
+        # p = out_p
+        
+        r = out_r[::resampFac]
+        p = out_p[::resampFac]
+
+
+        
+        for pnt in range(1,NumPts):           
+            c[pnt] = RungeKutta('dcdt',params,TimeStep,g[pnt-1],c[pnt-1],method=method_rk)
+            s[pnt] = smax / (1 + (c[pnt] / params['hillaffinity']) **params['hillcoef'])
+            params['p'] = p[pnt-1]
+            rgb_g = RungeKutta('dgdt',params,TimeStep,s[pnt-1],g[pnt-1],method=method_rk)
+            idx_nan = np.isnan(rgb_g)
+            rgb_g[idx_nan] = 0 #-(cgmp2cur * params['gdark'] **cgmphill)/2
+            g[pnt] = rgb_g
+
+
+    elif ode_solver=='RungeKutta':
+        for pnt in range(1,NumPts):           
+            with np.errstate(all='ignore'):
                 r[pnt] = RungeKutta('drdt',params,TimeStep,stim_photons[pnt-1],r[pnt-1],method=method_rk)
                 r[pnt] = r[pnt] + params['gamma'] * stim_photons[pnt-1]
                 p[pnt] = RungeKutta('dpdt',params,TimeStep,r[pnt-1],p[pnt-1],method=method_rk)
@@ -164,36 +203,33 @@ def RiekeModel(params,stim_photons,ode_solver='RungeKutta'):
                 rgb_g[idx_nan] = 0 #-(cgmp2cur * params['gdark'] **cgmphill)/2
                 g[pnt] = rgb_g
 
-                
-        elif ode_solver=='Euler':
-            for pnt in range(1,NumPts):     
-                r[pnt] = r[pnt-1] + TimeStep * (-params['sigma'] * r[pnt-1])
-                r[pnt] = r[pnt] + params['gamma'] * stim_photons[pnt-1]
-                p[pnt] = p[pnt-1] + TimeStep * (r[pnt-1] + params['eta'] - params['phi'] * p[pnt-1])
-                # c[pnt] = c[pnt-1] + TimeStep * (cur2ca * (cgmp2cur * g[pnt-1] **cgmphill)/2 - params['beta'] * c[pnt-1])
-                c[pnt] = c[pnt-1] + TimeStep * (cur2ca * cgmp2cur * g[pnt-1]**cgmphill /(1+(cslow[pnt-1]/cdark)) - params['beta'] * c[pnt-1])
-                cslow[pnt] = cslow[pnt-1] - TimeStep * (params['betaSlow'] * (cslow[pnt-1]-c[pnt-1]))
-                s[pnt] = smax / (1 + (c[pnt] / params['hillaffinity']) **params['hillcoef'])
-                
-                rgb_g = g[pnt-1] + TimeStep * (s[pnt-1] - p[pnt-1] * g[pnt-1])
-                idx_nan = np.isnan(rgb_g)
-                rgb_g[idx_nan] = 0 #-(cgmp2cur * params['gdark'] **cgmphill)/2
-                g[pnt] = rgb_g
+            
+    elif ode_solver=='Euler':
+        for pnt in range(1,NumPts):     
+            r[pnt] = r[pnt-1] + TimeStep * (-params['sigma'] * r[pnt-1])
+            r[pnt] = r[pnt] + params['gamma'] * stim_photons[pnt-1]
+            p[pnt] = p[pnt-1] + TimeStep * (r[pnt-1] + params['eta'] - params['phi'] * p[pnt-1])
+            # c[pnt] = c[pnt-1] + TimeStep * (cur2ca * (cgmp2cur * g[pnt-1] **cgmphill)/2 - params['beta'] * c[pnt-1])
+            c[pnt] = c[pnt-1] + TimeStep * (cur2ca * cgmp2cur * g[pnt-1]**cgmphill /(1+(cslow[pnt-1]/cdark)) - params['beta'] * c[pnt-1])
+            cslow[pnt] = cslow[pnt-1] - TimeStep * (params['betaSlow'] * (cslow[pnt-1]-c[pnt-1]))
+            s[pnt] = smax / (1 + (c[pnt] / params['hillaffinity']) **params['hillcoef'])
+            
+            rgb_g = g[pnt-1] + TimeStep * (s[pnt-1] - p[pnt-1] * g[pnt-1])
+            idx_nan = np.isnan(rgb_g)
+            rgb_g[idx_nan] = 0 #-(cgmp2cur * params['gdark'] **cgmphill)/2
+            g[pnt] = rgb_g
 
 
+    with np.errstate(over='ignore'):
         response = -(cgmp2cur * g **cgmphill)/2
-        response = np.squeeze(response)
-        params['p'] = p
-        params['g'] = g
-        params['c'] = c
-        params['cslow'] = cslow
+    response = np.squeeze(response)
+    params['p'] = p
+    params['g'] = g
+    params['c'] = c
+    params['cslow'] = cslow
+    params['s'] = s
+    params['r'] = r
         
-    else:   # linear
-        filt = params['ScFact'] * (((params['tme']/params['TauR'])**3)/(1+((params['tme']/params['TauR'])**3))) * np.exp(-((params['tme']/params['TauD']))) * np.cos(((2*np.pi*params['tme'])/params['TauP'])+(2*np.pi*params['Phi']/360));
-        # filt = abs(params['ScFact']) * (1 - np.exp(-params['tme'] / abs(params['TauR'])))**abs(params['pow']) * np.exp(-params['tme'] / abs(params['TauR']));
-        params['response'] = np.real(np.fft.ifft(np.fft.fft(params['stm']) * np.fft.fft(filt))); # - params['darkCurrent'];
-        params['response'] = params['response'] - np.mean(params['response']);
-
         
     return params,response
 
