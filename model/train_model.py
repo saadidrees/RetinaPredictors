@@ -31,18 +31,21 @@ def chunker(data,batch_size,nsamps=0):
         for cbatch in range(0, X.shape[0], batch_size):
             yield (X[cbatch:(cbatch + batch_size)], y[cbatch:(cbatch + batch_size)])
 
-
-def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0):
+ 
+def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1):
     lr = 1e-2
-    # p_regex = re.compile(r'\w+([fixed])')
-    # rgb = p_regex.search(a)
-    # rgb = p_regex.search(b)
-    # if rgb == "":
-    mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
-    # else:
-    # mdl.compile(loss='mean_squared_error', optimizer='sgd', metrics=[metrics.cc, metrics.rmse, metrics.fev])  # for PR_CNN2D_fixed
 
-    # fname_excel = 'training-T%03d-C1%02d-F1%02d-C2%02d-F2%02d-C3%02d-F3%02d-Fr%0.2f-B%d-SS%s.csv' %(filt_width,nchan_1,filt_size_1,nchan_2,filt_size_2,nchan_3,filt_size_3,frac_val,bz_ms,sig_spikes)
+    mdl.compile(loss='poisson', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev])
+    
+    if initial_epoch>1:
+        try:
+            weight_file = 'weights_'+fname_model+'_epoch-%03d' % initial_epoch
+            mdl.load_weights(os.path.join(path_model_base,weight_file))
+        except:
+            weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % initial_epoch
+            mdl.load_weights(os.path.join(path_model_base,weight_file))
+
+
     # define model callbacks
     fname_cb = 'weights_'+ fname_model + '_epoch-{epoch:03d}' 
     cbs = [cb.ModelCheckpoint(os.path.join(path_model_base, fname_cb),save_weights_only=True),
@@ -55,16 +58,24 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
     #        cb.ReduceLROnPlateau(min_lr=0, factor=0.2, patience=10),
     #        cb.CSVLogger(os.path.join(path_model_base, fname_excel))]
 
-    
+        
+        # try:
+        #     weight_file = 'weights_'+fname_model+'_epoch-%03d' % initial_epoch
+        # except:
+        #     weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % initial_epoch
+            
+        # mdl.load_weights(os.path.join(path_model_save,weight_file))
+
+
     if USE_CHUNKER==0:
         mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
-                          callbacks=cbs, validation_data=(data_val.X,data_val.y), validation_batch_size=validation_batch_size, validation_freq=validation_freq, shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
+                          callbacks=cbs, validation_data=(data_val.X,data_val.y), validation_batch_size=validation_batch_size, validation_freq=validation_freq, shuffle=True, initial_epoch=initial_epoch)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
         
     else:
         batch_size = bz
         steps_per_epoch = int(np.ceil(data_train.X.shape[0]/batch_size))
         gen = chunker(data_train,batch_size,0)
-        mdl_history = mdl.fit(gen,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=(data_val.X,data_val.y), shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
+        mdl_history = mdl.fit(gen,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=(data_val.X,data_val.y), shuffle=True,initial_epoch=initial_epoch,use_multiprocessing=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
 
     # mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
     #                   callbacks=cbs, shuffle=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
