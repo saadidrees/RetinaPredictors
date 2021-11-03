@@ -69,7 +69,7 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
 
     if USE_CHUNKER==0:
         mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
-                          callbacks=cbs, validation_data=(data_val.X,data_val.y), validation_batch_size=validation_batch_size, validation_freq=validation_freq, shuffle=True, initial_epoch=initial_epoch)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
+                          callbacks=cbs, validation_data=(data_val.X,data_val.y), validation_batch_size=validation_batch_size, validation_freq=validation_freq, shuffle=True, initial_epoch=initial_epoch,use_multiprocessing=True)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val)
         
     else:
         batch_size = bz
