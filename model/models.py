@@ -180,7 +180,7 @@ def riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlo
     outputs = -(cgmp2cur * g **cgmphill)/2
     
     return outputs
-
+ 
 class photoreceptor_REIKE(tf.keras.layers.Layer):
     def __init__(self,units=1):
         super(photoreceptor_REIKE,self).__init__()
@@ -224,12 +224,12 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillcoef_init = tf.keras.initializers.Constant(4.) #tf.keras.initializers.Constant(1.) # 4
+        hillcoef_init = tf.keras.initializers.Constant(2.64) #tf.keras.initializers.Constant(1.) # 4
         self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=True)
         hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillaffinity_init = tf.keras.initializers.Constant(0.5) # 0.5
+        hillaffinity_init = tf.keras.initializers.Constant(1.51) # 0.5
         self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=True)
         hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
