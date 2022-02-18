@@ -183,7 +183,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         
     else:
 
-        model_func = globals()[mdl_name.lower()]
+        model_func = locals()[mdl_name.lower()]
         mdl = model_func(x, n_cells, **dict_params)
         
         
