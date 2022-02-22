@@ -43,7 +43,7 @@ class CustomCallback(keras.callbacks.Callback):
         print("LR - {}".format(self.model.optimizer.learning_rate))
 
 def lr_scheduler(epoch,lr):
-    if epoch == 2:
+    if epoch == 30:
         lr = lr/10
     return lr
 
