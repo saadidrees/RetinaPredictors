@@ -1486,9 +1486,8 @@ class photoreceptor_DA_multichan(tf.keras.layers.Layer):
 
 
 
-
 def bp_cnn2d_multibp(inputs,n_out,**kwargs):
-    
+    # BP --> 3D CNN --> 2D CNN
     # filt_temporal_width = dict_params['filt_temporal_width']
     # chan1_n = dict_params['chan1_n']
     # filt1_size = dict_params['filt1_size']
@@ -1566,17 +1565,8 @@ def bp_cnn2d_multibp(inputs,n_out,**kwargs):
     return Model(inputs, outputs, name=mdl_name)
 
 def bp_cnn2d_multibp3cnns(inputs,n_out,**kwargs):
-    
-    # filt_temporal_width = dict_params['filt_temporal_width']
-    # chan1_n = dict_params['chan1_n']
-    # filt1_size = dict_params['filt1_size']
-    # chan2_n = dict_params['chan2_n']
-    # filt2_size = dict_params['filt2_size']
-    # chan3_n = dict_params['chan3_n']
-    # filt3_size = dict_params['filt3_size']
-    # BatchNorm = bool(dict_params['BatchNorm'])
-    # MaxPool = bool(dict_params['MaxPool'])
-    
+    # BP --> 3D CNN (same chans as BP) --> 2D CNN --> 2D CNN
+   
     filt_temporal_width = kwargs['filt_temporal_width']
     chan1_n = kwargs['chan1_n']
     filt1_size = kwargs['filt1_size']
@@ -1644,17 +1634,7 @@ def bp_cnn2d_multibp3cnns(inputs,n_out,**kwargs):
     return Model(inputs, outputs, name=mdl_name)
 
 def bp_cnn2d_multibp3cnnsendtime(inputs,n_out,**kwargs):
-    
-    # filt_temporal_width = dict_params['filt_temporal_width']
-    # chan1_n = dict_params['chan1_n']
-    # filt1_size = dict_params['filt1_size']
-    # chan2_n = dict_params['chan2_n']
-    # filt2_size = dict_params['filt2_size']
-    # chan3_n = dict_params['chan3_n']
-    # filt3_size = dict_params['filt3_size']
-    # BatchNorm = bool(dict_params['BatchNorm'])
-    # MaxPool = bool(dict_params['MaxPool'])
-    
+# BP --> 2D CNN (only end time point of BP and same chans as BP) --> 2D CNN --> 2D CNN    
     filt_temporal_width = kwargs['filt_temporal_width']
     chan1_n = kwargs['chan1_n']
     filt1_size = kwargs['filt1_size']
@@ -1722,18 +1702,8 @@ def bp_cnn2d_multibp3cnnsendtime(inputs,n_out,**kwargs):
 
 
 
-
 def bp_cnn2d_multibplinconv(inputs,n_out,**kwargs):
-    
-    # filt_temporal_width = dict_params['filt_temporal_width']
-    # chan1_n = dict_params['chan1_n']
-    # filt1_size = dict_params['filt1_size']
-    # chan2_n = dict_params['chan2_n']
-    # filt2_size = dict_params['filt2_size']
-    # chan3_n = dict_params['chan3_n']
-    # filt3_size = dict_params['filt3_size']
-    # BatchNorm = bool(dict_params['BatchNorm'])
-    # MaxPool = bool(dict_params['MaxPool'])
+    # BP --> 3D CNN to combine BPs --> 2D CNN --> 2D CNN
     
     filt_temporal_width = kwargs['filt_temporal_width']
     chan1_n = kwargs['chan1_n']
