@@ -31,7 +31,8 @@ import numpy as np
 # mixed_precision.set_global_policy('mixed_float16')
 
 def model_definitions():
-    models_2D = ('CNN_2D','PRFR_CNN2D','PRFR_CNN2D_MULTIPR','PRFR_CNN2D_fixed','PR_CNN2D','PR_CNN2D_fixed','PR_CNN2D_MULTIPR','PRFR_CNN2D_RC','BP_CNN2D','BP_CNN2D_MULTIBP')
+    models_2D = ('CNN_2D','PRFR_CNN2D','PRFR_CNN2D_MULTIPR','PRFR_CNN2D_fixed','PR_CNN2D','PR_CNN2D_fixed','PR_CNN2D_MULTIPR','PRFR_CNN2D_RC','BP_CNN2D','BP_CNN2D_MULTIBP',
+                 'BP_CNN2D_MULTIBPLINCONV','BP_CNN2D_MULTIBP3CNNS','BP_CNN2D_MULTIBP3CNNSENDTIME')
     models_3D = ('CNN_3D','PR_CNN3D')
     
     return (models_2D,models_3D)
@@ -1394,7 +1395,6 @@ def generate_simple_filter_multichan(tau,n,t):
    
     return f
 
-
 def conv_oper_multichan(x,kernel_1D):
     spatial_dims = x.shape[-1]
     x_reshaped = tf.expand_dims(x,axis=2)
@@ -1408,7 +1408,6 @@ def conv_oper_multichan(x,kernel_1D):
     conv_output = tf.nn.depthwise_conv2d(x_reshaped,kernel_reshaped,strides=[1,1,1,1],padding=pad_vec,data_format='NHWC')
     # conv_output = tf.reshape(conv_output,(conv_output.shape[0],conv_output.shape[1],conv_output.shape[2],spatial_dims,kernel_1D.shape[-1]))
     return conv_output
-
 
 class photoreceptor_DA_multichan(tf.keras.layers.Layer):
     def __init__(self,units=1):
@@ -1478,14 +1477,95 @@ class photoreceptor_DA_multichan(tf.keras.layers.Layer):
         z_tf_reshape = tf.reshape(z_tf,(-1,z_tf.shape[1],z_tf.shape[2],inputs.shape[-1],alpha.shape[-1]))
         # y_tf_reshape = tf.squeeze(y_tf_reshape)
         # z_tf_reshape = tf.squeeze(z_tf_reshape)
-        print(y_tf_reshape.shape)
-        print(z_tf_reshape.shape)
+        # print(y_tf_reshape.shape)
+        # print(z_tf_reshape.shape)
     
         outputs = (alpha[None,None,:,None,:]*y_tf_reshape)/(1+(beta[None,None,:,None,:]*z_tf_reshape))
         
         return outputs
 
+
+
+
 def bp_cnn2d_multibp(inputs,n_out,**kwargs):
+    
+    # filt_temporal_width = dict_params['filt_temporal_width']
+    # chan1_n = dict_params['chan1_n']
+    # filt1_size = dict_params['filt1_size']
+    # chan2_n = dict_params['chan2_n']
+    # filt2_size = dict_params['filt2_size']
+    # chan3_n = dict_params['chan3_n']
+    # filt3_size = dict_params['filt3_size']
+    # BatchNorm = bool(dict_params['BatchNorm'])
+    # MaxPool = bool(dict_params['MaxPool'])
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    chans_bp = chan1_n
+
+    sigma = 0.1
+    
+    keras_prLayer = photoreceptor_DA_multichan(units=chan1_n)
+    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    y = keras_prLayer(y)
+    y = y[:,:,0,:,:]
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1],chan1_n))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:,:]
+    
+    y = Normalize(units=1)(y)
+    y = Permute((4,2,3,1))(y)   # Channels first
+    
+    # CNN - first layer
+    y = Conv3D(chan2_n, (filt2_size,filt2_size,filt_temporal_width), data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    y = tf.keras.backend.squeeze(y,-1) # y[:,:,:,:,0]
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # # CNN - third layer
+    # if chan3_n>0:
+    #     y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    #     if BatchNorm is True:
+    #         n1 = int(y.shape[-1])
+    #         n2 = int(y.shape[-2])
+    #         y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+    #     y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_MULTIBP'
+    return Model(inputs, outputs, name=mdl_name)
+
+def bp_cnn2d_multibp3cnns(inputs,n_out,**kwargs):
     
     # filt_temporal_width = dict_params['filt_temporal_width']
     # chan1_n = dict_params['chan1_n']
@@ -1519,9 +1599,9 @@ def bp_cnn2d_multibp(inputs,n_out,**kwargs):
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:,:]
     
     y = Normalize(units=1)(y)
+    y = Permute((4,2,3,1))(y)   # Channels first
     
     # CNN - first layer
-    y = Permute((4,2,3,1))(y)
     y = Conv3D(chan1_n, (filt1_size,filt1_size,filt_temporal_width), data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
     y = tf.keras.backend.squeeze(y,-1) # y[:,:,:,:,0]
     if BatchNorm is True:
@@ -1551,6 +1631,167 @@ def bp_cnn2d_multibp(inputs,n_out,**kwargs):
             n2 = int(y.shape[-2])
             y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
         y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_MULTIBP'
+    return Model(inputs, outputs, name=mdl_name)
+
+def bp_cnn2d_multibp3cnnsendtime(inputs,n_out,**kwargs):
+    
+    # filt_temporal_width = dict_params['filt_temporal_width']
+    # chan1_n = dict_params['chan1_n']
+    # filt1_size = dict_params['filt1_size']
+    # chan2_n = dict_params['chan2_n']
+    # filt2_size = dict_params['filt2_size']
+    # chan3_n = dict_params['chan3_n']
+    # filt3_size = dict_params['filt3_size']
+    # BatchNorm = bool(dict_params['BatchNorm'])
+    # MaxPool = bool(dict_params['MaxPool'])
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    chans_bp = chan1_n
+
+    sigma = 0.1
+    
+    keras_prLayer = photoreceptor_DA_multichan(units=chans_bp)
+    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    y = keras_prLayer(y)
+    y = y[:,:,0,:,:]
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1],chans_bp))(y)
+    y = y[:,-1,:,:,:]
+    
+    y = Normalize(units=1)(y)
+    y = Permute((3,1,2))(y)   # Channels first
+    
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_MULTIBP'
+    return Model(inputs, outputs, name=mdl_name)
+
+
+
+
+def bp_cnn2d_multibplinconv(inputs,n_out,**kwargs):
+    
+    # filt_temporal_width = dict_params['filt_temporal_width']
+    # chan1_n = dict_params['chan1_n']
+    # filt1_size = dict_params['filt1_size']
+    # chan2_n = dict_params['chan2_n']
+    # filt2_size = dict_params['filt2_size']
+    # chan3_n = dict_params['chan3_n']
+    # filt3_size = dict_params['filt3_size']
+    # BatchNorm = bool(dict_params['BatchNorm'])
+    # MaxPool = bool(dict_params['MaxPool'])
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    chans_bp = chan1_n
+
+    sigma = 0.1
+    
+    keras_prLayer = photoreceptor_DA_multichan(units=chan1_n)
+    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    y = keras_prLayer(y)
+    y = y[:,:,0,:,:]
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1],chan1_n))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:,:]
+    
+    y = Normalize(units=1)(y)
+    y = Permute((4,2,3,1))(y)   # Channels first
+    
+    y = Conv3D(1,(1,1,1),data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    y = tf.keras.backend.squeeze(y,1) # y[:,:,:,:,0]
+    y = Permute((3,1,2))(y)   # Channels first
+    
+    # CNN - first layer
+    y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # # CNN - third layer
+    # if chan3_n>0:
+    #     y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    #     if BatchNorm is True:
+    #         n1 = int(y.shape[-1])
+    #         n2 = int(y.shape[-2])
+    #         y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+    #     y = Activation('relu')(GaussianNoise(sigma)(y))
 
     
     # Dense layer
