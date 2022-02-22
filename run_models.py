@@ -48,7 +48,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
     from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
-        bp_cnn2d
+        bp_cnn2d, bp_cnn2d_multibp,bp_cnn2d_multibplinconv,bp_cnn2d_multibp3cnns,bp_cnn2d_multibp3cnnsendtime
     from model.train_model import train, chunker
     from model.load_savedModel import load
     
@@ -182,7 +182,6 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         mdl = load(os.path.join(path_model_save,fname_model))
         
     else:
-
         model_func = locals()[mdl_name.lower()]
         mdl = model_func(x, n_cells, **dict_params)
         
@@ -236,12 +235,12 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         
         
         
-        path_save_model_performance = os.path.join(path_model_save,'performance')
-        if not os.path.exists(path_save_model_performance):
-            os.makedirs(path_save_model_performance)
-                    
-        
-        fname_excel = 'performance_'+fname_model+'.csv'
+    path_save_model_performance = os.path.join(path_model_save,'performance')
+    if not os.path.exists(path_save_model_performance):
+        os.makedirs(path_save_model_performance)
+                
+    
+    fname_excel = 'performance_'+fname_model+'.csv'
         
 
     # %% Train model
@@ -253,7 +252,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     if initial_epoch < nb_epochs:
         print('-----RUNNING MODEL-----')
         validation_batch_size = 100 # samples
-        mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=500,USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr)  
+        mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=500,
+                            USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=1)  
         mdl_history = mdl_history.history
         _ = gc.collect()
     
