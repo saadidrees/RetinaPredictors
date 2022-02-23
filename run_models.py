@@ -33,14 +33,6 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     import csv
 
     import tensorflow as tf
-    config = tf.compat.v1.ConfigProto(log_device_placement=True)
-    config.gpu_options.allow_growth  = True
-    config.gpu_options.per_process_gpu_memory_fraction = .9
-    tf.compat.v1.Session(config=config)
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    tf.config.experimental.set_memory_growth(gpus[0], True)
-    tf.compat.v1.disable_eager_execution()
-    tf.compat.v1.experimental.output_all_intermediates(True) 
 
     from tensorflow.keras.layers import Input
     
@@ -48,7 +40,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
     from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
-        bp_cnn2d, bp_cnn2d_multibp,bp_cnn2d_multibplinconv,bp_cnn2d_multibp3cnns,bp_cnn2d_multibp3cnnsendtime
+        bp_cnn2d, bp_cnn2d_multibp,bp_cnn2d_multibplinconv,bp_cnn2d_multibp3cnns,bp_cnn2d_multibp3cnnsendtime,bp_cnn2d_prfrtrainablegamma
     from model.train_model import train, chunker
     from model.load_savedModel import load
     
@@ -57,6 +49,18 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     
     from collections import namedtuple
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
+
+    # Set up the gpu
+    config = tf.compat.v1.ConfigProto(log_device_placement=True)
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = .9
+    tf.compat.v1.Session(config=config)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if not 'FR' in mdl_name:
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+        tf.compat.v1.disable_eager_execution()
+        tf.compat.v1.experimental.output_all_intermediates(True) 
+
 
     # if only 1 layer cnn then set all parameters for next layers to 0
     if chan2_n == 0:
@@ -163,6 +167,18 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     
     dict_params['filt_temporal_width'] = temporal_width
     
+    # filt_temporal_width = dict_params['filt_temporal_width']
+    # chan1_n = dict_params['chan1_n']
+    # filt1_size = dict_params['filt1_size']
+    # chan2_n = dict_params['chan2_n']
+    # filt2_size = dict_params['filt2_size']
+    # chan3_n = dict_params['chan3_n']
+    # filt3_size = dict_params['filt3_size']
+    # BatchNorm = bool(dict_params['BatchNorm'])
+    # MaxPool = bool(dict_params['MaxPool'])
+    
+
+    
     path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)   # the model save directory is the fname_model appened to save path
     
     if not os.path.exists(path_model_save):
@@ -183,57 +199,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         
     else:
         model_func = locals()[mdl_name.lower()]
-        mdl = model_func(x, n_cells, **dict_params)
-        
-        
-        # if mdl_name == 'CNN_3D':       
-        #     mdl = cnn_3d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim, chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim, chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        
-        # elif mdl_name=='CNN_2D':
-        #     mdl = cnn_2d(x, n_cells, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        
-        # elif mdl_name=='PR_CNN2D':
-        #     mdl = pr_cnn2d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        
-        # elif mdl_name=='PR_CNN2D_MULTIPR':
-        #     mdl = pr_cnn2d_multipr(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-    
-        # elif mdl_name=='PRFR_CNN2D':
-        #     mdl = prfr_cnn2d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-            
-        # elif mdl_name=='PRFR_CNN2D_MULTIPR':
-        #     mdl = prfr_cnn2d_multipr(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        
-        # elif mdl_name=='PRFR_CNN2D_RC':
-        #     mdl = prfr_cnn2d_rc(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-           
-        # elif mdl_name=='PR_CNN3D':
-        #     mdl = pr_cnn3d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-            
-        # elif mdl_name=='PR_CNN2D_fixed':    # this is where the PR layer is fixed and only CNNs are trained. Hmm or the other way around.
-        #     rgb = os.path.split(path_existing_mdl)[-1]
-        #     mdl_existing = load(os.path.join(path_existing_mdl,rgb))
-        #     # idx_CNN_start = 4
-        #     mdl = pr_cnn2d_fixed(mdl_existing,idx_CNN_start,x, n_cells, filt_temporal_width=temporal_width,
-        #                          chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size,
-        #                          BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
-            
-        # elif mdl_name=='PRFR_CNN2D_fixed': # freds model
-        #     rgb = os.path.split(path_existing_mdl)[-1]
-        #     mdl_existing = load(os.path.join(path_existing_mdl,rgb))
-        #     # idx_CNN_start = 5
-        #     mdl = prfr_cnn2d_fixed(mdl_existing,idx_CNN_start,x, n_cells, filt_temporal_width=temporal_width,
-        #                          chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size,
-        #                          BatchNorm=BatchNorm,MaxPool=MaxPool,BatchNorm_train = BatchNorm_train)
-    
-        # elif mdl_name=='BP_CNN2D':
-        #     # mdl = bp_cnn2d(x, n_cells, filt_temporal_width = temporal_width, chan1_n=chan1_n, filt1_size=filt1_size, chan2_n=chan2_n, filt2_size=filt2_size, chan3_n=chan3_n, filt3_size=filt3_size, BatchNorm=BatchNorm,MaxPool=MaxPool)
-        #     mdl = bp_cnn2d(x, n_cells, **dict_params)
-
-        # else:
-        #     raise ValueError('Wrong model name')
-        
-        
+        mdl = model_func(x, n_cells, **dict_params)      
         
     path_save_model_performance = os.path.join(path_model_save,'performance')
     if not os.path.exists(path_save_model_performance):
