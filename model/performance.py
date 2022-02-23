@@ -24,8 +24,8 @@ def get_weightsDict(mdl):
         weights_dict[weight_name] = np.squeeze(weights[i])
         
     return weights_dict
-
-
+ 
+ 
 def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred):
 
     f = h5py.File(fname_save_performance,'w')
@@ -36,7 +36,7 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
     #     del f[grpName_mdl]
         
     # grp_model = f.create_group(grpName_mdl)
-    
+     
     keys = list(metaInfo.keys())
     for i in range(len(metaInfo)):
         f.create_dataset(keys[i], data=metaInfo[keys[i]])
@@ -104,7 +104,7 @@ def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quali
     
      
     f.close()
-
+ 
 def getModelParams(fname_modelFolder):
     params = {}
     
@@ -174,6 +174,13 @@ def getModelParams(fname_modelFolder):
         params['TRSAMPS'] = int(rgb.group(1))
     except:
         pass
+    
+    try:
+        rgb = re.compile(r'LR-(\d+)')
+        rgb = rgb.search(fname_modelFolder)
+        params['LR'] = float(rgb.group(1))
+    except:
+        pass
 
     return params
 
@@ -241,24 +248,31 @@ def getModelParams_old(fname_modelFolder):
     
     return params
 
-def paramsToName(mdl_name,U=0,P=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=1,MP=0,TR=0):
+def paramsToName(mdl_name,LR=None,U=0,P=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=1,MP=0,TR=0):
     if mdl_name=='CNN_2D' or mdl_name=='replaceDense_2D':
-        paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,
-                                                                                                     C2_n,C2_s,
-                                                                                                     C3_n,C3_s,
-                                                                                                     BN,MP)
-    elif mdl_name[:8]=='PR_CNN2D' or mdl_name[:8]=='PR_CNN3D' or mdl_name[:10]=='PRFR_CNN2D':
-        paramFileName = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,P,T,C1_n,C1_s,
+        if LR==None:    # backwards compatibility
+            paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,
                                                                                                          C2_n,C2_s,
                                                                                                          C3_n,C3_s,
                                                                                                          BN,MP)
-
-    # elif mdl_name[:8]=='PR_CNN3D':
-    #     paramFileName = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(U,P,T,C1_n,C1_s,C1_3d,
-    #                                                                                                          C2_n,C2_s,C2_3d,
-    #                                                                                                          C3_n,C3_s,C3_3d,
-    #                                                                                                          BN,MP)
-    
+        else:
+            paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_LR-%0.4f' %(U,T,C1_n,C1_s,
+                                                                                                         C2_n,C2_s,
+                                                                                                         C3_n,C3_s,
+                                                                                                         BN,MP,LR)
+            
+        
+    elif mdl_name[:8]=='PR_CNN2D' or mdl_name[:8]=='PR_CNN3D' or mdl_name[:10]=='PRFR_CNN2D' or mdl_name[:8]=='BP_CNN2D':
+        if LR==None:    # backwards compatibility
+            paramFileName = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d' %(U,P,T,C1_n,C1_s,
+                                                                                                             C2_n,C2_s,
+                                                                                                             C3_n,C3_s,
+                                                                                                             BN,MP)   
+        else:
+            paramFileName = 'U-%0.2f_P-%03d_T-%03d_C1-%02d-%02d_C2-%02d-%02d_C3-%02d-%02d_BN-%d_MP-%d_LR-%0.4f' %(U,P,T,C1_n,C1_s,
+                                                                                                                 C2_n,C2_s,
+                                                                                                                 C3_n,C3_s,
+                                                                                                                 BN,MP,LR)       
     else:
         paramFileName = 'U-%0.2f_T-%03d_C1-%02d-%02d-%02d_C2-%02d-%02d-%02d_C3-%02d-%02d-%02d_BN-%d_MP-%d' %(U,T,C1_n,C1_s,C1_3d,
                                                                                                              C2_n,C2_s,C2_3d,
@@ -315,48 +329,63 @@ def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=
 
     return fev, fracExplainableVar, pred_corr, rr_corr
 
-def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False,lag = 2):
+def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False,lag = 0,obs_noise=None):
     numCells = obs_rate_allStimTrials.shape[-1]
-    num_trials = obs_rate_allStimTrials.shape[0]
-    idx_allTrials = np.arange(num_trials)
-    
-    t_start = 20
-    # t_end = obs_rate_allStimTrials.shape[1]-t_start-10
-    
-    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,filt_width:,:]
-    t_end = obs_rate_allStimTrials_corrected.shape[1]-t_start-20
-    obs_rate_allStimTrials_corrected = obs_rate_allStimTrials_corrected[:,t_start:t_end-lag,:]
-    
-    # if RR_ONLY is False:
-    pred_rate_corrected = pred_rate[t_start+lag:t_end,:]
-# for predicting trial averaged responses
-
-    idx_trials_r1 = np.array(random.sample(range(0,len(idx_allTrials)),int(np.ceil(len(idx_allTrials)/2))))
-    assert(np.unique(idx_trials_r1).shape[0] == idx_trials_r1.shape[0])
-    idx_trials_r2 = np.setdiff1d(idx_allTrials,idx_trials_r1)
-
-    r1 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r1,:,:],axis=0)
-    r2 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r2,:,:],axis=0)
-    
-    noise_trialAveraged = np.mean((r1-r2)**2,axis=0)
-    fracExplainableVar = (np.var(r2,axis=0) - noise_trialAveraged)/np.var(r2,axis=0)
-    
-    if RR_ONLY is True:
-        fev = None
+    if obs_rate_allStimTrials.ndim>2:
+        num_trials = obs_rate_allStimTrials.shape[0]
+        idx_allTrials = np.arange(num_trials)
     else:
-        r_pred = pred_rate_corrected
-        mse_resid = np.mean((r_pred-r2)**2,axis=0)
-        fev = 1 - ((mse_resid-noise_trialAveraged)/(np.var(r2,axis=0)-noise_trialAveraged))
-        # fev = 1 - ((mse_resid)/(np.var(r2,axis=0)-noise_trialAveraged))
+        num_trials = 1
     
+    if num_trials > 1:  # for kierstens data or where we have multiple trials of the validation data
     
-# Pearson correlation
-    rr_corr = correlation_coefficient_distribution(r1,r2)
-    if RR_ONLY is True:
-        pred_corr = None
+        t_start = 20
+        
+        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,filt_width:,:]
+        t_end = obs_rate_allStimTrials_corrected.shape[1]-t_start-20
+        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials_corrected[:,t_start:t_end-lag,:]
+        
+        # if RR_ONLY is False:
+        pred_rate_corrected = pred_rate[t_start+lag:t_end,:]
+        
+        
+        # for predicting trial averaged responses
+        idx_trials_r1 = np.array(random.sample(range(0,len(idx_allTrials)),int(np.ceil(len(idx_allTrials)/2))))
+        assert(np.unique(idx_trials_r1).shape[0] == idx_trials_r1.shape[0])
+        idx_trials_r2 = np.setdiff1d(idx_allTrials,idx_trials_r1)
+    
+        r1 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r1,:,:],axis=0)
+        r2 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r2,:,:],axis=0)
+        
+        noise_trialAveraged = np.mean((r1-r2)**2,axis=0)
+        fracExplainableVar = (np.var(r2,axis=0) - noise_trialAveraged)/np.var(r2,axis=0)
+        
+        if RR_ONLY is True:
+            fev = None
+        else:
+            r_pred = pred_rate_corrected
+            mse_resid = np.mean((r_pred-r2)**2,axis=0)
+            fev = 1 - ((mse_resid-noise_trialAveraged)/(np.var(r2,axis=0)-noise_trialAveraged))
+            # fev = 1 - ((mse_resid)/(np.var(r2,axis=0)-noise_trialAveraged))
+        
+        
+        # Pearson correlation
+        rr_corr = correlation_coefficient_distribution(r1,r2)
+        if RR_ONLY is True:
+            pred_corr = None
+        else:
+            pred_corr = correlation_coefficient_distribution(r2,r_pred)
+            
     else:
-        pred_corr = correlation_coefficient_distribution(r2,r_pred)
-    
+        resid = obs_rate_allStimTrials - pred_rate
+        mse_resid = np.mean(resid**2,axis=0)
+        var_test = np.var(obs_rate_allStimTrials,axis=0)
+        fev = 1 - ((mse_resid - obs_noise)/(var_test-obs_noise))
+        fracExplainableVar = None #(var_test-obs_noise)/var_test
+        
+        pred_corr = correlation_coefficient_distribution(obs_rate_allStimTrials,pred_rate)
+        rr_corr = None
+   
 
     return fev, fracExplainableVar, pred_corr, rr_corr
 
