@@ -26,9 +26,9 @@ from scipy import integrate
 import tensorflow as tf
 
 #betaSlow makes things worse
-  
+
 def model_params_orig(timeBin=1):
-# retina 1
+# retina 1 
     ##  cones - monkey
     params_cones = {}
     params_cones['sigma'] =  22 #22  # rhodopsin activity decay rate (1/sec) - default 22
@@ -135,117 +135,22 @@ def model_params_orig(timeBin=1):
     
     return params_cones,params_rods
    
-def model_params_t1(timeBin = 1):
-    
-    ##  cones - trainable model
-    params_cones = {}
-    params_cones['sigma'] =  250 #22  # rhodopsin activity decay rate (1/sec) - default 22
-    params_cones['phi'] =  40.7 #22    # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_cones['eta'] =  879  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
-    params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
-    params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
-    params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
-    params_cones['cdark'] =  1  # dark calcium concentration - default 1
-    params_cones['beta'] = 110 # 9	  # rate constant for calcium removal in 1/sec - default 9
-    params_cones['betaSlow'] =  10 #0	  
-    params_cones['hillcoef'] =  2.64 #4  	  # cooperativity for cyclase, hill coef - default 4
-    params_cones['hillaffinity'] =  1.51 #0.5   # hill affinity for cyclase - default 0.5
-    params_cones['gamma'] =  10/timeBin #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    params_cones['timeStep'] =  1e-3  # freds default is 1e-4
-    params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
-
- 
-    # rods - mice - Retina 1 - trainable
-    params_rods = {}
-    params_rods['sigma'] = 10.8 #7.66  # rhodopsin activity decay rate (1/sec) 
-    params_rods['phi'] =  11.8 #7.66     # phosphodiesterase activity decay rate (1/sec) 
-    params_rods['eta'] = 35.7 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
-    params_rods['gdark'] = 28 #28 # concentration of cGMP in darkness - default 20.5
-    params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
-    params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
-    params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  18.9 #25	  # rate constant for calcium removal in 1/sec - default 9
-    params_rods['betaSlow'] =  0	  
-    params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
-    params_rods['hillaffinity'] = 0.087 #0.22		# affinity for Ca2+
-    params_rods['gamma'] =  2.44/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    params_rods['timeStep'] =  1e-3 # freds default is 1e-3
-    params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
-
-
-    # # rods - mice - Retina 2 (trainable)
-    # params_rods = {}
-    # params_rods['sigma'] = 14.44 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
-    # params_rods['phi'] =  14.58  #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
-    # params_rods['eta'] = 20.44  #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
-    # params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
-    # params_rods['k'] =  0.01 #0.01     # constant relating cGMP to current - default 0.02
-    # params_rods['h'] =  3 #3       # cooperativity for cGMP->current - default 3
-    # params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    # params_rods['beta'] =  23 #25	  # rate constant for calcium removal in 1/sec - default 9
-    # params_rods['betaSlow'] =  0	  
-    # params_rods['hillcoef'] =  5.99  	  # cooperativity for cyclase, hill coef - default 4
-    # params_rods['hillaffinity'] =  0.33		# affinity for Ca2+
-    # params_rods['gamma'] =  5.4/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    # params_rods['timeStep'] =  1e-3 # freds default is 1e-3
-    # params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
-
-
-    return params_cones,params_rods
-
-def model_params_t2(timeBin = 1):
-    
-    ##  cones - trainable model
-    params_cones = {}
-    params_cones['sigma'] =  250 #22  # rhodopsin activity decay rate (1/sec) - default 22
-    params_cones['phi'] =  40.7 #22    # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_cones['eta'] =  879  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
-    params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
-    params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
-    params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
-    params_cones['cdark'] =  1  # dark calcium concentration - default 1
-    params_cones['beta'] = 110 # 9	  # rate constant for calcium removal in 1/sec - default 9
-    params_cones['betaSlow'] =  10 #0	  
-    params_cones['hillcoef'] =  2.64 #4  	  # cooperativity for cyclase, hill coef - default 4
-    params_cones['hillaffinity'] =  1.51 #0.5   # hill affinity for cyclase - default 0.5
-    params_cones['gamma'] =  10/timeBin #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    params_cones['timeStep'] =  1e-3  # freds default is 1e-4
-    params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
- 
-    # rods - mice - Retina 1 - trainable
-    params_rods = {}
-    params_rods['sigma'] = 8.35 #7.66  # rhodopsin activity decay rate (1/sec) 
-    params_rods['phi'] =  8.44 #7.66     # phosphodiesterase activity decay rate (1/sec) 
-    params_rods['eta'] = 28.8 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
-    params_rods['gdark'] = 20 # concentration of cGMP in darkness - default 20.5
-    params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
-    params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
-    params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  12.22 #25	  # rate constant for calcium removal in 1/sec - default 9
-    params_rods['betaSlow'] =  0	  
-    params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
-    params_rods['hillaffinity'] = 0.05 #0.22		# affinity for Ca2+
-    params_rods['gamma'] =  10/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    params_rods['timeStep'] =  1e-3 # freds default is 1e-3
-    params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
-
-
-    return params_cones,params_rods
-
-def model_params_t3(timeBin = 1):
+def model_params_trainable(timeBin = 1):
+    # Train most of cone params and then for rods, set initial params to cone params.
     ##  cones - trainable model - fewParams
+    # /home/saad/data/analyses/data_kiersten/retina1/8ms_trainablePR/photopic-10000/PRFR_CNN2D_best
     params_cones = {}
-    params_cones['sigma'] =  100 #22  # rhodopsin activity decay rate (1/sec) - default 22
-    params_cones['phi'] =  15 #22    # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_cones['eta'] =  24.2  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_cones['sigma'] =  250 #22  # rhodopsin activity decay rate (1/sec) - default 22
+    params_cones['phi'] =  40.7 #22    # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_cones['eta'] =  879  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
     params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
     params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
     params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
     params_cones['cdark'] =  1  # dark calcium concentration - default 1
-    params_cones['beta'] = 65 # 9	  # rate constant for calcium removal in 1/sec - default 9
-    params_cones['betaSlow'] =  0 #0	  
-    params_cones['hillcoef'] =  4 #4  	  # cooperativity for cyclase, hill coef - default 4
-    params_cones['hillaffinity'] =  0.5 #0.5   # hill affinity for cyclase - default 0.5
+    params_cones['beta'] = 110 # 9	  # rate constant for calcium removal in 1/sec - default 9
+    params_cones['betaSlow'] =  10 #0	  
+    params_cones['hillcoef'] =  2.64 #4  	  # cooperativity for cyclase, hill coef - default 4
+    params_cones['hillaffinity'] =  1.51 #0.5   # hill affinity for cyclase - default 0.5
     params_cones['gamma'] =  10/timeBin #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_cones['timeStep'] =  1e-3  # freds default is 1e-4
     params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
@@ -254,60 +159,22 @@ def model_params_t3(timeBin = 1):
     params_rods = {}
     params_rods['sigma'] = 10 #7.66  # rhodopsin activity decay rate (1/sec) 
     params_rods['phi'] =  10 #7.66     # phosphodiesterase activity decay rate (1/sec) 
-    params_rods['eta'] = 30 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
+    params_rods['eta'] = 20 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
     params_rods['gdark'] = 20 # concentration of cGMP in darkness - default 20.5
     params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
     params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  15.6 #25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['beta'] =  15.7 #25	  # rate constant for calcium removal in 1/sec - default 9
     params_rods['betaSlow'] =  0	  
-    params_rods['hillcoef'] =  4 #13.8  	  # cooperativity for cyclase, hill coef - default 4
-    params_rods['hillaffinity'] = 0.5 #0.22		# affinity for Ca2+
-    params_rods['gamma'] =  100/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['hillcoef'] =  5.2 #13.8  	  # cooperativity for cyclase, hill coef - default 4
+    params_rods['hillaffinity'] = 0.26 #0.22		# affinity for Ca2+
+    params_rods['gamma'] =  10/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
 
 
     return params_cones,params_rods
 
-def model_params_t4(timeBin = 1):
-    # LARGE GAMMA
-    ##  cones - trainable model
-    params_cones = {}
-    params_cones['sigma'] =  100 #22  # rhodopsin activity decay rate (1/sec) - default 22
-    params_cones['phi'] =  15 #22    # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_cones['eta'] =  24  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
-    params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
-    params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
-    params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
-    params_cones['cdark'] =  1  # dark calcium concentration - default 1
-    params_cones['beta'] = 65 # 9	  # rate constant for calcium removal in 1/sec - default 9
-    params_cones['betaSlow'] =  0 #0	  
-    params_cones['hillcoef'] =  4 #4  	  # cooperativity for cyclase, hill coef - default 4
-    params_cones['hillaffinity'] =  0.5 #0.5   # hill affinity for cyclase - default 0.5
-    params_cones['gamma'] =  10/timeBin #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    params_cones['timeStep'] =  1e-3  # freds default is 1e-4
-    params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
- 
-    # rods - mice - Retina 1 - trainable
-    params_rods = {}
-    params_rods['sigma'] = 10.02 #7.66  # rhodopsin activity decay rate (1/sec) 
-    params_rods['phi'] =  10.52 #7.66     # phosphodiesterase activity decay rate (1/sec) 
-    params_rods['eta'] = 19.89 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
-    params_rods['gdark'] = 28 # concentration of cGMP in darkness - default 20.5
-    params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
-    params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
-    params_rods['cdark'] =  1  # dark calcium concentration - default 1
-    params_rods['beta'] =  16.88 #25	  # rate constant for calcium removal in 1/sec - default 9
-    params_rods['betaSlow'] =  0	  
-    params_rods['hillcoef'] =  5.45  	  # cooperativity for cyclase, hill coef - default 4
-    params_rods['hillaffinity'] = 0.187 #0.22		# affinity for Ca2+
-    params_rods['gamma'] =  100/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
-    params_rods['timeStep'] =  1e-3 # freds default is 1e-3
-    params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
-
-
-    return params_cones,params_rods
 
 
 def parallel_runRiekeModel(params,stim_frames_photons,idx_pixelToTake):
@@ -672,10 +539,10 @@ def model_params_clark():
 # _,stim_currents_rgb = RiekeModel(params,stim_photons,ode_solver)
 # plt.plot(stim_currents_rgb[300:])
         
-# %% Single pr type
+#%% Single pr type
 
 DEBUG_MODE = 0
-WRITE_TO_H5 = 1
+WRITE_TO_H5 = 0
 pr_mdl_name = 'rieke'  # 'rieke' 'clar2k'
 expDate = 'retina1'
 lightLevel = 'photopic'  # ['photopic','scotopic']
@@ -705,7 +572,8 @@ elif lightLevel == 'photopic':
 # t_frame = .008
 
 if pr_mdl_name == 'rieke':
-    params_cones,params_rods = model_params_t2(timeBin)
+    # params_cones,params_rods = model_params_trainable(timeBin)
+    params_cones,params_rods = model_params_orig(timeBin)
     params_cones['timeStep'] = 1e-3*(frameTime/upSampFac)
     params_rods['timeStep'] = 1e-3*(frameTime/upSampFac)
     
@@ -853,8 +721,8 @@ plt.show()
 DEBUG_MODE = 1
 WRITE_TO_H5 = 1
 pr_mdl_name = 'rieke'  # 'rieke' 'clark'
-expDate = 'retina1'
-lightLevels = ('photopic',)  # ['scotopic','photopic']
+expDate = 'retina3'
+lightLevels = ('scotopic','photopic',)  # ['scotopic','photopic']
 pr_type = ('rods','cones')   # ['rods','cones']
 ode_solver = 'RungeKutta' #['hybrid','RungeKutta','Euler']
 folder = '8ms_sampShifted'
@@ -873,7 +741,7 @@ else:
 
 
 if pr_mdl_name == 'rieke':
-    params_cones,params_rods = model_params_t4(timeBin)
+    params_cones,params_rods = model_params_t3(timeBin)
     params_cones['timeStep'] = 1e-3*(frameTime/upSampFac)
     params_rods['timeStep'] = 1e-3*(frameTime/upSampFac)
     thresh_lower_cones = -params_cones['darkCurrent'] - 10
@@ -1400,3 +1268,103 @@ plt.ylim((-50,+50))
 
 
 
+# %% OLD
+
+def model_params_t2(timeBin = 1):
+    
+    ##  cones - trainable model
+    params_cones = {}
+    params_cones['sigma'] =  250 #22  # rhodopsin activity decay rate (1/sec) - default 22
+    params_cones['phi'] =  40.7 #22    # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_cones['eta'] =  879  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
+    params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
+    params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
+    params_cones['cdark'] =  1  # dark calcium concentration - default 1
+    params_cones['beta'] = 110 # 9	  # rate constant for calcium removal in 1/sec - default 9
+    params_cones['betaSlow'] =  10 #0	  
+    params_cones['hillcoef'] =  2.64 #4  	  # cooperativity for cyclase, hill coef - default 4
+    params_cones['hillaffinity'] =  1.51 #0.5   # hill affinity for cyclase - default 0.5
+    params_cones['gamma'] =  10/timeBin #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_cones['timeStep'] =  1e-3  # freds default is 1e-4
+    params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
+ 
+    # rods - mice - Retina 1 - trainable - path: /home/saad/data/analyses/data_kiersten/retina1/8ms_resamp/scotopic-1/PRFR_CNN2D_fixed/
+    params_rods = {}
+    params_rods['sigma'] = 8.35 #7.66  # rhodopsin activity decay rate (1/sec) 
+    params_rods['phi'] =  8.44 #7.66     # phosphodiesterase activity decay rate (1/sec) 
+    params_rods['eta'] = 28.8 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
+    params_rods['gdark'] = 20 # concentration of cGMP in darkness - default 20.5
+    params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
+    params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
+    params_rods['cdark'] =  1  # dark calcium concentration - default 1
+    params_rods['beta'] =  12.22 #25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['betaSlow'] =  0	  
+    params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
+    params_rods['hillaffinity'] = 0.05 #0.22		# affinity for Ca2+
+    params_rods['gamma'] =  10/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['timeStep'] =  1e-3 # freds default is 1e-3
+    params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
+
+
+    return params_cones,params_rods
+
+
+
+def model_params_t1(timeBin = 1):
+    
+    ##  cones - trainable model
+    params_cones = {}
+    params_cones['sigma'] =  250 #22  # rhodopsin activity decay rate (1/sec) - default 22
+    params_cones['phi'] =  40.7 #22    # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_cones['eta'] =  879  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
+    params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
+    params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
+    params_cones['cdark'] =  1  # dark calcium concentration - default 1
+    params_cones['beta'] = 110 # 9	  # rate constant for calcium removal in 1/sec - default 9
+    params_cones['betaSlow'] =  10 #0	  
+    params_cones['hillcoef'] =  2.64 #4  	  # cooperativity for cyclase, hill coef - default 4
+    params_cones['hillaffinity'] =  1.51 #0.5   # hill affinity for cyclase - default 0.5
+    params_cones['gamma'] =  10/timeBin #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_cones['timeStep'] =  1e-3  # freds default is 1e-4
+    params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
+
+ 
+    # rods - mice - Retina 1 - trainable
+    params_rods = {}
+    params_rods['sigma'] = 10.8 #7.66  # rhodopsin activity decay rate (1/sec) 
+    params_rods['phi'] =  11.8 #7.66     # phosphodiesterase activity decay rate (1/sec) 
+    params_rods['eta'] = 35.7 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
+    params_rods['gdark'] = 28 #28 # concentration of cGMP in darkness - default 20.5
+    params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
+    params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
+    params_rods['cdark'] =  1  # dark calcium concentration - default 1
+    params_rods['beta'] =  18.9 #25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['betaSlow'] =  0	  
+    params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
+    params_rods['hillaffinity'] = 0.087 #0.22		# affinity for Ca2+
+    params_rods['gamma'] =  2.44/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['timeStep'] =  1e-3 # freds default is 1e-3
+    params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
+
+
+    # # rods - mice - Retina 2 (trainable)
+    # params_rods = {}
+    # params_rods['sigma'] = 14.44 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
+    # params_rods['phi'] =  14.58  #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
+    # params_rods['eta'] = 20.44  #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    # params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
+    # params_rods['k'] =  0.01 #0.01     # constant relating cGMP to current - default 0.02
+    # params_rods['h'] =  3 #3       # cooperativity for cGMP->current - default 3
+    # params_rods['cdark'] =  1  # dark calcium concentration - default 1
+    # params_rods['beta'] =  23 #25	  # rate constant for calcium removal in 1/sec - default 9
+    # params_rods['betaSlow'] =  0	  
+    # params_rods['hillcoef'] =  5.99  	  # cooperativity for cyclase, hill coef - default 4
+    # params_rods['hillaffinity'] =  0.33		# affinity for Ca2+
+    # params_rods['gamma'] =  5.4/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    # params_rods['timeStep'] =  1e-3 # freds default is 1e-3
+    # params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
+
+
+    return params_cones,params_rods
