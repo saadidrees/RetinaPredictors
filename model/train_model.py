@@ -44,15 +44,15 @@ class CustomCallback(keras.callbacks.Callback):
         
 
 def lr_scheduler(epoch,lr):
-    if epoch == 30:
+    if epoch == 20:
         lr = lr/10
         
-    elif epoch == 60:
+    elif epoch == 50:
         lr = lr/10
     return lr
 
 # %%
-def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,use_lrscheduler=0):
+def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0):
     
     optimizer = Adam(lr)
     mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
@@ -70,7 +70,7 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
             mdl.load_weights(os.path.join(path_model_base,weight_file))
             
 
-        # tf.keras.backend.set_value(mdl.optimizer.learning_rate, lr)
+        tf.keras.backend.set_value(mdl.optimizer.learning_rate, lr/lr_fac)  # lr_fac controls how much to divide the learning rate whenever training is resumed
 
             
     # mdl.compile(loss='mean_squared_error', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)

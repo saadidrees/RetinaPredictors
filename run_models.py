@@ -20,7 +20,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
                             pr_temporal_width = 180,
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
-                            lr=0.01,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
+                            lr=0.01,lr_fac=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
  
           
@@ -219,7 +219,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         print('-----RUNNING MODEL-----')
         validation_batch_size = 100 # samples
         mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=500,
-                            USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=1)  
+                            USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=1,lr_fac=lr_fac)  
         mdl_history = mdl_history.history
         _ = gc.collect()
     
