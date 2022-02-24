@@ -15,7 +15,7 @@ from collections import namedtuple
 from model import utils_si
 from model.performance import model_evaluate
 import re
-  
+   
   
 def rolling_window(array, window, time_axis=0):
     """
@@ -81,6 +81,8 @@ def unroll_data(data,time_axis=0,rolled_axis=1):
     # rgb = np.concatenate((rgb,data[-1:,0,:]),axis=0)
     return rgb
         
+
+
 def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,idx_cells=None,thresh_rr=0.45):
     
     # Data
@@ -735,12 +737,12 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
         idx_val_end = -1
     else:
         nsamps_val = int((nsamps_val*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
-        idx_val_start = 2000
+        idx_val_start = 0
         idx_val_end = idx_val_start+nsamps_val
         
         
     if nsamps_train==-1 or nsamps_train==0 :
-        idx_train_start = 2000
+        idx_train_start = 0
         idx_train_end = -1
     else:
         LOAD_ALL_TR = False
