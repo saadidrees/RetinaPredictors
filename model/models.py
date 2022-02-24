@@ -1886,11 +1886,9 @@ def bp_cnn2d_prfrtrainablegamma(inputs,n_out,**kwargs):
     # RIEKE PR Layer
     y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
     y = photoreceptor_REIKE_fixed(units=1)(y)
-    # y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
-    # y = Normalize(units=1)(y)
+    y = Normalize(units=1)(y)
 
     # Clark's layer for BP
-    # y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
     y = photoreceptor_DA(units=1)(y)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
