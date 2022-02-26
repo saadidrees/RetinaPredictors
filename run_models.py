@@ -40,7 +40,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
     from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
-        bp_cnn2d, bp_cnn2d_multibp,bp_cnn2d_multibplinconv,bp_cnn2d_multibp3cnns,bp_cnn2d_multibp3cnnsendtime,bp_cnn2d_prfrtrainablegamma
+        bp_cnn2d, bp_cnn2d_multibp,bp_cnn2d_multibplinconv,bp_cnn2d_multibp3cnns, bp_cnn2d_multibp3cnns_bpactiv, bp_cnn2d_multibp3cnnsendtime,bp_cnn2d_prfrtrainablegamma,\
+        bpfelix_cnn2d
     from model.train_model import train, chunker
     from model.load_savedModel import load
     
@@ -56,10 +57,12 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     config.gpu_options.per_process_gpu_memory_fraction = .9
     tf.compat.v1.Session(config=config)
     gpus = tf.config.experimental.list_physical_devices('GPU')
+    # tf.compat.v1.enable_eager_execution()
     if not 'FR' in mdl_name:
         tf.config.experimental.set_memory_growth(gpus[0], True)
         tf.compat.v1.disable_eager_execution()
         tf.compat.v1.experimental.output_all_intermediates(True) 
+        USE_CHUNKER = 0
 
 
     # if only 1 layer cnn then set all parameters for next layers to 0
