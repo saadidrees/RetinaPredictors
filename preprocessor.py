@@ -7,7 +7,7 @@ Created on Tue Jun 29 13:08:47 2021
 """
 import sys
 from model.RiekeModel import RiekeModel, RiekeModel_tf
-from model.data_handler import load_h5Dataset, save_h5Dataset, rolling_window
+from model.data_handler import load_h5Dataset, save_h5Dataset, rolling_window, unroll_data
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -189,15 +189,20 @@ def parallel_runClarkModel(params,stim_photons,idx_pixelToTake):
         
     return stim_currents
 
-def run_model(pr_mdl_name,stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=0,NORM=1,DOWN_SAMP=1,ROLLING_FAC=30,runOnGPU=False,ode_solver='RungeKutta'):
+def run_model(pr_mdl_name,stim,resp,params,meanIntensity,upSampFac,downSampFac=17,n_discard=0,NORM=1,DOWN_SAMP=1,ROLLING_FAC=30,runOnGPU=False,ode_solver='RungeKutta',changeIntensities=False):
     
     stim_spatialDims = stim.shape[1:]
     stim = stim.reshape(stim.shape[0],stim.shape[1]*stim.shape[2])
     
     stim = np.repeat(stim,upSampFac,axis=0)
     
-    stim[stim>0] = 2*meanIntensity
-    stim[stim<0] = (2*meanIntensity)/300
+    if changeIntensities==True:
+        stim[stim>0] = 2*meanIntensity
+        stim[stim<0] = (2*meanIntensity)/300
+        stim_photons = stim * params['timeStep']
+        
+    else:
+        stim_photons = stim / upSampFac
 
     idx_allPixels = np.arange(0,stim.shape[1])
     
@@ -207,7 +212,6 @@ def run_model(pr_mdl_name,stim,resp,params,meanIntensity,upSampFac,downSampFac=1
     
     t = time.time()
     if pr_mdl_name == 'rieke':
-        stim_photons = stim * params['timeStep']        # so now in photons per time bin
         params['tme'] = np.arange(0,stim_photons.shape[0])*params['timeStep']
         params['biophysFlag'] = 1
         
@@ -226,17 +230,8 @@ def run_model(pr_mdl_name,stim,resp,params,meanIntensity,upSampFac,downSampFac=1
         
 
         
-        # result = Parallel(n_jobs=num_cores, verbose=50)(delayed(parallel_runRiekeModel)(params,stim_photons,i)for i in idx_allPixels)
-        
     elif pr_mdl_name == 'clark':
-        stim_photons = stim * 1e-3 * params['timeStep']
         _,stim_currents = DA_model_iter(params,stim_photons)
-        
-        # result = Parallel(n_jobs=num_cores, verbose=50)(delayed(parallel_runClarkModel)(params,stim_photons,i)for i in idx_allPixels)        
-        # _ = gc.collect()    
-        # rgb = np.array([item for item in result])
-        # stim_currents = rgb.T
-        
         
         
     t_elasped_parallel = time.time()-t
@@ -332,18 +327,18 @@ def DA_model(params):
         
         return dx
 
-    alpha = params['alpha']
-    beta = params['beta']
-    gamma = params['gamma']
-    tau_y = params['tau_y']
+    alpha = params['alpha'] / params['timeBin']
+    beta = params['beta'] / params['timeBin']
+    gamma = params['gamma'] / params['timeBin']
+    tau_y = params['tau_y'] / params['timeBin']
     n_y = params['n_y']   
-    tau_z = params['tau_z']
+    tau_z = params['tau_z'] / params['timeBin']
     n_z = params['n_z']
-    tau_r = params['tau_r']
+    tau_r = params['tau_r'] / params['timeBin']
     
     stim = params['stm']
     
-    t = np.arange(0,1000)
+    t = np.arange(0,1000/timeBin)
 
     Ky = generate_simple_filter(tau_y,n_y,t)
     Kz = (gamma*Ky) + ((1-gamma) * generate_simple_filter(tau_z,n_z,t))
@@ -527,27 +522,106 @@ def model_params_clark():
 
     return params_cones,params_rods
     
+def model_params_clark_init():
+    params_cones = {}
+    # params_cones['alpha'] =  0.99
+    # params_cones['beta'] = -0.02 
+    # params_cones['gamma'] =  0.44 
+    # params_cones['tau_y'] =  3.66 
+    # params_cones['tau_z'] =  18.78 
+    # params_cones['n_y'] =  11.84   
+    # params_cones['n_z'] =  9.23 
+    # params_cones['timeStep'] = 1e-3
+    # params_cones['tau_r'] = 0
+    
+    # retina 1 - TRAINABLE
+    params_cones = {}
+    params_cones['alpha'] =  1
+    params_cones['beta'] = 1
+    params_cones['gamma'] =  1
+    params_cones['tau_y'] =  1
+    params_cones['tau_z'] =  1 
+    params_cones['n_y'] =  1
+    params_cones['n_z'] =  1
+    params_cones['timeStep'] = 1e-3
+    params_cones['tau_r'] = 0
 
-# params_cones,params_rods = model_params_t3(timeBin)
-# params_cones['timeStep'] = 1e-3*(frameTime/upSampFac)
-# params_rods['timeStep'] = 1e-3*(frameTime/upSampFac)
 
-# stim_photons = np.zeros((500))
-# params['biophysFlag'] = 1
-# params['tme'] = np.arange(0,stim_photons.shape[0])*params['timeStep']
-# params = params_cones
-# _,stim_currents_rgb = RiekeModel(params,stim_photons,ode_solver)
-# plt.plot(stim_currents_rgb[300:])
+    # retina 1
+    # params_rods = {}
+    # params_rods['alpha'] =  1 
+    # params_rods['beta'] =  0.9976
+    # params_rods['gamma'] =  1.001
+    # params_rods['tau_y'] =  14.98 
+    # params_rods['tau_z'] = 10 
+    # params_rods['n_y'] =  8.4554
+    # params_rods['n_z'] =  10
+    # params_rods['timeStep'] = 1e-3
+    # params_rods['tau_r'] = 0 
+    
+    # retina 1 - from trainable
+    # params_rods = {}
+    # params_rods['alpha'] =  1 
+    # params_rods['beta'] =  0.99
+    # params_rods['gamma'] =  1
+    # params_rods['tau_y'] =  14.98 
+    # params_rods['tau_z'] = 10 
+    # params_rods['n_y'] =  8.45
+    # params_rods['n_z'] =  10 
+    # params_rods['timeStep'] = 1e-3
+    # params_rods['tau_r'] = 0 
+
+    
+    # retina 2
+    # params_rods = {}
+    # params_rods['alpha'] =  1  
+    # params_rods['beta'] =  0.36 
+    # params_rods['gamma'] =  0.448
+    # params_rods['tau_y'] =  17
+    # params_rods['n_y'] =  6.4
+    # params_rods['tau_z'] =  1000
+    # params_rods['n_z'] =  1
+    # params_rods['timeStep'] = 1e-3
+    # params_rods['tau_r'] = 0 #4.78
+    
+    # retina 2 - TRAINABLE
+    params_rods = {}
+    params_rods['alpha'] =  0.59  
+    params_rods['beta'] =  4
+    params_rods['gamma'] =  -9.22
+    params_rods['tau_y'] =  13.7
+    params_rods['n_y'] =  9.8
+    params_rods['tau_z'] =  12.45
+    params_rods['n_z'] =  2.7
+    params_rods['timeStep'] = 1e-3
+    params_rods['tau_r'] = 0 #4.78
+
+
+    # retina 3
+    # params_rods = {}
+    # params_rods['alpha'] =  1  
+    # params_rods['beta'] =  0.36 
+    # params_rods['gamma'] =  0.448
+    # params_rods['tau_y'] =  13
+    # params_rods['n_y'] =  7.4
+    # params_rods['tau_z'] =  166
+    # params_rods['n_z'] =  1
+    # params_rods['timeStep'] = 1e-3
+    # params_rods['tau_r'] = 0 #4.78
+
+
+    return params_cones,params_rods
+    
         
 #%% Single pr type
 
 DEBUG_MODE = 0
 WRITE_TO_H5 = 0
-pr_mdl_name = 'rieke'  # 'rieke' 'clar2k'
+pr_mdl_name = 'rieke'  # 'rieke' 'clark'
 expDate = 'retina1'
-lightLevel = 'photopic'  # ['photopic','scotopic']
+lightLevel = 'photopic-10000'  # ['photopic','scotopic']
 pr_type = 'cones'   # ['rods','cones']
-ode_solver = 'RungeKutta' #['hybrid','RungeKutta','Euler']
+ode_solver = 'Euler' #['hybrid','RungeKutta','Euler']
 folder = '8ms_sampShifted'
 timeBin = 4
 frameTime = 8
@@ -563,9 +637,9 @@ else:
     ROLLING_FAC = 2
 
 
-if lightLevel == 'scotopic':
+if 'scotopic' in lightLevel:
     meanIntensity = 1
-elif lightLevel == 'photopic':
+elif 'photopic' in lightLevel:
     meanIntensity = 10000
 
 
@@ -622,7 +696,7 @@ frames_X_orig = data_train_orig.X[:nsamps_end]
 
 # Training data
 
-stim_train,resp_train = run_model(pr_mdl_name,data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC,ode_solver=ode_solver)
+stim_train,resp_train = run_model(pr_mdl_name,data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC,ode_solver=ode_solver,changeIntensities=False)
 
 if NORM==1:
     value_min = np.min(stim_train)
@@ -716,12 +790,13 @@ plt.plot(b_tf)
 plt.plot(a_tf)
 plt.show()
 
+
 # %% Added pr signals
 
-DEBUG_MODE = 1
-WRITE_TO_H5 = 1
+DEBUG_MODE = 0
+WRITE_TO_H5 = 0
 pr_mdl_name = 'rieke'  # 'rieke' 'clark'
-expDate = 'retina3'
+expDate = 'retina1'
 lightLevels = ('scotopic','photopic',)  # ['scotopic','photopic']
 pr_type = ('rods','cones')   # ['rods','cones']
 ode_solver = 'RungeKutta' #['hybrid','RungeKutta','Euler']
@@ -1266,6 +1341,105 @@ for l in lightLevels:
 plt.plot(stim_val_norm[:,0,0])
 plt.ylim((-50,+50))
 
+
+
+
+# %% Norm values
+DEBUG_MODE=0
+WRITE_TO_H5 = 0
+pr_mdl_name = 'clark'  # 'rieke' 'clark'
+expDate = 'retina1'
+lightLevel = 'photopic-10000_mdl-rieke_s-22_p-22_e-2000_k-0.01_h-3_b-9_hc-4_gd-28_preproc-cones_norm-0_tb-4_Euler_RF-2'  # ['photopic','scotopic']
+pr_type = 'cones'   # ['rods','cones']
+ode_solver = 'Euler' #['hybrid','RungeKutta','Euler']
+folder = '8ms_sampShifted'
+timeBin = 8
+frameTime = 8
+NORM = 1
+DOWN_SAMP = 1
+ROLLING_FAC = 2
+upSampFac = int(frameTime/timeBin) #1#8 #17
+downSampFac = upSampFac
+
+if DOWN_SAMP==0:
+    ROLLING_FAC = 0
+else:
+    ROLLING_FAC = 2
+
+
+if lightLevel == 'scotopic':
+    meanIntensity = 1
+elif lightLevel == 'photopic':
+    meanIntensity = 10000
+
+
+# t_frame = .008
+
+if pr_mdl_name == 'rieke':
+    # params_cones,params_rods = model_params_trainable(timeBin)
+    params_cones,params_rods = model_params_orig(timeBin)
+    params_cones['timeStep'] = 1e-3*(frameTime/upSampFac)
+    params_rods['timeStep'] = 1e-3*(frameTime/upSampFac)
+    
+
+elif pr_mdl_name == 'clark':
+    params_cones,params_rods = model_params_clark_init()
+    params_cones['timeStep'] = frameTime/upSampFac
+    params_rods['timeStep'] = frameTime/upSampFac
+
+
+
+if pr_type == 'cones':
+    params = params_cones
+    y_lim = (-120,-40)
+elif pr_type == 'rods':
+    params = params_rods
+    y_lim = (-10,2)
+
+params['timeBin'] = timeBin
+
+path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/'+folder)
+fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
+fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
+
+path_dataset_save = os.path.join(path_dataset)#,'filterTest')
+
+# if pr_mdl_name == 'rieke':
+#     dataset_name = lightLevel+'-'+str(meanIntensity)+'_mdl-'+pr_mdl_name+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_gd-'+str(params['gdark'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_tb-'+str(timeBin)+'_'+ode_solver+'_RF-'+str(ROLLING_FAC)
+# elif pr_mdl_name == 'clark':
+#     dataset_name = lightLevel+'-'+str(meanIntensity)+'_mdl-'+pr_mdl_name+'_a-'+str(params['alpha'])+pr_mdl_name+'_b-'+str(params['beta'])+'_g-'+str(params['gamma'])+'_y-'+str(params['tau_y'])+'_z-'+str(params['tau_z'])+'_r-'+str(params['tau_r'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)+'_tb-'+str(timeBin)
+
+
+# fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
+# fname_dataset_save = os.path.join(path_dataset_save,fname_dataset_save)
+
+data_train_orig,data_val_orig,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
+
+if DEBUG_MODE==1:
+    nsamps_end = 10000  #10000
+else:
+    nsamps_end = data_train_orig.X.shape[0]-1 
+
+frames_X_orig = data_train_orig.X[:nsamps_end]
+X = frames_X_orig.reshape((frames_X_orig.shape[0]*frames_X_orig.shape[1]*frames_X_orig.shape[2]))
+# Training data
+
+stim_train,resp_train = run_model(pr_mdl_name,data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC,ode_solver=ode_solver,changeIntensities=False)
+X_preproc = stim_train.reshape((stim_train.shape[0]*stim_train.shape[1]*stim_train.shape[2]))
+
+
+if NORM==1:
+    value_min = np.min(stim_train)
+    value_max = np.max(stim_train)
+    stim_train_norm = (stim_train - value_min)/(value_max-value_min)
+    stim_train_med = np.nanmean(stim_train_norm)
+    stim_train_norm = stim_train_norm - stim_train_med
+else:
+    stim_train_norm = stim_train
+    
+value_min = -0.05428597854503988  #tf.math.reduce_min(inputs)
+value_max = 0.05213165772027483  #tf.math.reduce_max(inputs)
+stim_train_med = 0.50609481460525 #tf.math.reduce_mean(R_norm)   
 
 
 # %% OLD
