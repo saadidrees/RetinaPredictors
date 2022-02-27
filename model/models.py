@@ -63,7 +63,7 @@ def get_model_memory_usage(batch_size, model):
     
     return gbytes
 
-def modelFileName(U=0,P=0,T=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=0,MP=0,LR=0,TR=0):
+def modelFileName(U=0,P=0,T=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=0,MP=0,LR=0,TR=0,with_TR=True):
 
     def parse_param(key,val,fname):
         fname = fname+key+'-'+val+'_'    
@@ -134,8 +134,9 @@ def modelFileName(U=0,P=0,T=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0
     LR = '%0.4f'%LR
     fname = parse_param('LR',LR,fname)    
     
-    TR = '%02d'%TR
-    fname = parse_param('TR',TR,fname)    
+    if with_TR==True:
+        TR = '%02d'%TR
+        fname = parse_param('TR',TR,fname)    
         
     # fname = ''
     # for i in param_list:
