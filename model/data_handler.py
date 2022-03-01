@@ -16,7 +16,7 @@ from model import utils_si
 from model.performance import model_evaluate
 import re
    
-  
+   
 def rolling_window(array, window, time_axis=0):
     """
     Make an ndarray with a rolling window of the last dimension
