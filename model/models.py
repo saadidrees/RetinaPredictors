@@ -1434,8 +1434,8 @@ def bp_cnn2d(inputs,n_out,**kwargs):
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
     
-    y = Normalize_PRDA_GF(units=1)(y)
-    # y = Normalize_PRDA(units=1)(y)
+    # y = Normalize_PRDA_GF(units=1)(y)
+    y = Normalize(units=1)(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
@@ -1612,7 +1612,7 @@ def bp_cnn2d_multibp(inputs,n_out,**kwargs): # BP --> 3D CNN --> 2D CNN
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1],chan1_n))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:,:]
     
-    y = Normalize_PRDA_GF(units=1)(y)
+    y = Normalize(units=1)(y)
     y = Permute((4,2,3,1))(y)   # Channels first
     
     # CNN - first layer
@@ -1681,7 +1681,7 @@ def bp_cnn2d_multibp3cnns(inputs,n_out,**kwargs):     # BP --> 3D CNN (same chan
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1],chans_bp))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:,:]
     
-    y = Normalize_PRDA_GF(units=1)(y)
+    y = Normalize(units=1)(y)
     y = Permute((4,2,3,1))(y)   # Channels first
     
     # CNN - first layer
@@ -2062,13 +2062,15 @@ def bp_cnn2d_prfrtrainablegamma(inputs,n_out,**kwargs):
     # RIEKE PR Layer
     y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
     y = photoreceptor_REIKE_fixed(units=1)(y)
-    y = Normalize_PRFR_GF(units=1)(y)
+    # y = Normalize_PRFR_GF(units=1)(y)
+    y = Normalize(units=1)(y)
 
     # Clark's layer for BP
     y = photoreceptor_DA(units=1)(y)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
-    y = Normalize_PRDA_GF(units=1)(y)
+    # y = Normalize_PRDA_GF(units=1)(y)
+    y = Normalize(units=1)(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
