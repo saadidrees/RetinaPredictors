@@ -42,7 +42,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     import model.metrics as metrics
     from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
         bp_cnn2d, bp_cnn2d_multibp, bp_cnn2d_multibp3cnns, bp_cnn2d_prfrtrainablegamma, bp_cnn2d_multibp_prfrtrainablegamma,\
-        bpfelix_cnn2d
+        bpfelix_cnn2d, bp_cnn2d_hc
     from model.train_model import train, chunker
     from model.load_savedModel import load
     

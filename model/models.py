@@ -12,7 +12,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.layers import Dense, Activation, Flatten, Reshape, ConvLSTM2D, LSTM, TimeDistributed, MaxPool3D, MaxPool2D, Concatenate, Permute, AveragePooling2D, AveragePooling3D
 from tensorflow.keras.layers import Conv2D, Conv3D
-from tensorflow.keras.layers import BatchNormalization, Dropout, concatenate, Permute
+from tensorflow.keras.layers import BatchNormalization, Dropout, concatenate, Permute, subtract
 from tensorflow.keras.layers import GaussianNoise
 from tensorflow.keras.regularizers import l1, l2
 import numpy as np
@@ -31,7 +31,8 @@ def model_definitions():
     models_2D = ('CNN_2D','PRFR_CNN2D','PRFR_CNN2D_MULTIPR','PRFR_CNN2D_fixed','PR_CNN2D','PR_CNN2D_fixed','PR_CNN2D_MULTIPR','PRFR_CNN2D_RC',
                  'BP_CNN2D','BP_CNN2D_MULTIBP',
                  'BP_CNN2D_MULTIBP3CNNS','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA',
-                 'BPFELIX_CNN2D')
+                 'BPFELIX_CNN2D',
+                 'BP_CNN2D_HC')
     models_3D = ('CNN_3D','PR_CNN3D')
     
     return (models_2D,models_3D)
@@ -566,6 +567,46 @@ class bipolar_FELIX(tf.keras.layers.Layer):
         outputs = alpha*y
     
         return outputs
+
+class horizontalcell(tf.keras.layers.Layer):
+    def __init__(self,units=1):
+        super(horizontalcell,self).__init__()
+        self.units = units
+            
+    def build(self,input_shape):
+        alpha_init = tf.keras.initializers.Constant(0.) #tf.keras.initializers.Constant(16.2) #tf.keras.initializers.Constant(1.) #tf.random_normal_initializer(mean=1)
+        self.alpha = tf.Variable(name='alpha',initial_value=alpha_init(shape=(1,self.units),dtype='float32'),trainable=True)
+                
+        tauH_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
+        self.tauH = tf.Variable(name='tauH',initial_value=tauH_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        nH_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.439) #tf.keras.initializers.Constant(4.33) #tf.random_normal_initializer(mean=4.33) #tf.random_uniform_initializer(minval=1)
+        self.nH = tf.Variable(name='nH',initial_value=nH_init(shape=(1,self.units),dtype='float32'),trainable=True)   
+        
+        tauH_mulFac = tf.keras.initializers.Constant(10.) #tf.keras.initializers.Constant(10.) 
+        self.tauH_mulFac = tf.Variable(name='tauH_mulFac',initial_value=tauH_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        nH_mulFac = tf.keras.initializers.Constant(10.) #tf.keras.initializers.Constant(10.) 
+        self.nH_mulFac = tf.Variable(name='nH_mulFac',initial_value=nH_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+    def call(self,inputs):
+       
+        timeBin = 8
+        
+        alpha =  self.alpha / timeBin
+        tau_H =  (self.tauH_mulFac*self.tauH) / timeBin
+        n_H =  (self.nH_mulFac*self.nH)
+        
+        t = tf.range(0,1000/timeBin,dtype='float32')
+        
+        Kh = generate_simple_filter(tau_H,n_H,t)   
+       
+        h_tf = conv_oper(inputs,Kh)
+
+        outputs = alpha*h_tf
+        
+        return outputs
+
 
 # %% MODELS
 
@@ -2038,3 +2079,75 @@ def bpfelix_cnn2d(inputs,n_out,**kwargs):
 
     mdl_name = 'BPFELIX_CNN2D'
     return Model(inputs, outputs, name=mdl_name)
+
+
+# %% Horizontal-Bipolar
+def bp_cnn2d_hc(inputs,n_out,**kwargs):
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    sigma = 0.1
+    
+    inputs_reshaped = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    # Horizontal cell layer and action
+    y = horizontalcell(units=1)(inputs_reshaped)
+    y = tf.keras.backend.squeeze(y,-2)
+    y = subtract([inputs_reshaped,y])
+    y = Normalize(units=1)(y)
+    
+    # Bipolar cell
+    y = photoreceptor_DA(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    y = Normalize(units=1)(y)
+    
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_HC'
+    return Model(inputs, outputs, name=mdl_name)
+        
+
