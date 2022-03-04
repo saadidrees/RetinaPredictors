@@ -44,10 +44,10 @@ class CustomCallback(keras.callbacks.Callback):
         
 
 def lr_scheduler(epoch,lr):
-    # if epoch == 20:
-    #     lr = lr/10
+    if epoch == 20:
+        lr = lr/10
         
-    if epoch == 30:
+    elif epoch == 50:
         lr = lr/10
     return lr
 
@@ -82,8 +82,8 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
     cbs = [cb.ModelCheckpoint(os.path.join(path_model_base, fname_cb),save_weights_only=True),
            cb.TensorBoard(log_dir=path_model_base, histogram_freq=0, write_grads=False),
            cb.CSVLogger(os.path.join(path_model_base, fname_excel)),
-           cb.ReduceLROnPlateau(monitor='loss',min_lr=1e-6, factor=0.2, patience=5),
            CustomCallback()]
+            # cb.ReduceLROnPlateau(monitor='loss',min_lr=1e-6, factor=0.2, patience=5),
    
     if use_lrscheduler==1:
         cbs.append(cb.LearningRateScheduler(lr_scheduler))
