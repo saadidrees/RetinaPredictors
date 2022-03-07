@@ -29,10 +29,10 @@ import math
 
 def model_definitions():
     models_2D = ('CNN_2D','PRFR_CNN2D','PRFR_CNN2D_MULTIPR','PRFR_CNN2D_fixed','PR_CNN2D','PR_CNN2D_fixed','PR_CNN2D_MULTIPR','PRFR_CNN2D_RC',
-                 'BP_CNN2D','BP_CNN2D_MULTIBP',
-                 'BP_CNN2D_MULTIBP3CNNS','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA',
+                 'BP_CNN2D','BP_CNN2D_NOISE','BP_CNN2D_MULTIBP',
+                 'BP_CNN2D_MULTIBP3CNNS','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_PRFRTRAINABLEGAMMA_RODS', 'BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA',
                  'BPFELIX_CNN2D',
-                 'BP_CNN2D_HC')
+                 'BP_CNN2D_HC','BP_CNN2D_HC2','BP_CNN2D_HC3','BP_CNN2D_HCFR')
     models_3D = ('CNN_3D','PR_CNN3D')
     
     return (models_2D,models_3D)
@@ -110,10 +110,10 @@ def modelFileName(U=0,P=0,T=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0
         else:
             C2 = '%02d-%02d'%(C2_n,C2_s)
         
-        dict_params['chan2_n'] = C2_n
-        dict_params['filt2_size'] = C2_s
         key = 'C2'
         fname = fname+key+'-'+eval(key)+'_'    
+    dict_params['chan2_n'] = C2_n
+    dict_params['filt2_size'] = C2_s
 
         
     if C2_n>0 and C3_n>0:
@@ -123,10 +123,10 @@ def modelFileName(U=0,P=0,T=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0
         else:
             C3 = '%02d-%02d'%(C3_n,C3_s)
             
-        dict_params['chan3_n'] = C3_n
-        dict_params['filt3_size'] = C3_s
         key = 'C3'
         fname = fname+key+'-'+eval(key)+'_'    
+    dict_params['chan3_n'] = C3_n
+    dict_params['filt3_size'] = C3_s
     
             
     BN = '%d'%BN
@@ -463,9 +463,9 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
             
         return outputs
 
-class Normalize_PRFR(tf.keras.layers.Layer):
+class Normalize_PRFR_SI(tf.keras.layers.Layer):
     def __init__(self,units=1):
-        super(Normalize_PRFR,self).__init__()
+        super(Normalize_PRFR_SI,self).__init__()
         self.units = units
         
     def get_config(self):
@@ -476,10 +476,16 @@ class Normalize_PRFR(tf.keras.layers.Layer):
          return config   
              
     def call(self,inputs):
-        value_min = -103 #tf.math.reduce_min(inputs)
-        value_max = -87 #tf.math.reduce_max(inputs)
+        # value_min = -103 #tf.math.reduce_min(inputs)
+        # value_max = -87 #tf.math.reduce_max(inputs)
+        # R_norm = (inputs - value_min)/(value_max-value_min)
+        # R_mean = 0.54 #tf.math.reduce_mean(R_norm)       
+        
+        value_min = -111 
+        value_max = -105
         R_norm = (inputs - value_min)/(value_max-value_min)
-        R_mean = 0.54 #tf.math.reduce_mean(R_norm)       
+        R_mean = 0.51
+
         R_norm = R_norm - R_mean
         return R_norm
 
@@ -546,7 +552,7 @@ class bipolar_FELIX(tf.keras.layers.Layer):
         
         tau_init = tf.keras.initializers.Constant(0.5)
         self.tau = tf.Variable(name='tau',initial_value=tau_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        tau_scaleFac = tf.keras.initializers.Constant(1.) 
+        tau_scaleFac = tf.keras.initializers.Constant(10.) 
         self.tau_scaleFac = tf.Variable(name='tau_scaleFac',initial_value=tau_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                
         self.timeBin = 8 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)
@@ -568,25 +574,92 @@ class bipolar_FELIX(tf.keras.layers.Layer):
     
         return outputs
 
+class horizontalcell2(tf.keras.layers.Layer):
+    def __init__(self,units=1):
+        super(horizontalcell2,self).__init__()
+        self.units = units
+            
+    def build(self,input_shape):
+        alpha_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(16.2) #tf.keras.initializers.Constant(1.) #tf.random_normal_initializer(mean=1)
+        self.alpha = tf.Variable(name='alpha',initial_value=alpha_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        beta_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(-13.46) #tf.keras.initializers.Constant(0.36) #tf.random_normal_initializer(mean=0.36)
+        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        gamma_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(16.49) #tf.keras.initializers.Constant(0.448) #tf.random_normal_initializer(mean=0.448)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        # self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        tauY_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
+        self.tauY = tf.Variable(name='tauY',initial_value=tauY_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        tauZ_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.008) #tf.keras.initializers.Constant(166) #tf.random_normal_initializer(mean=166) #tf.random_uniform_initializer(minval=100)
+        self.tauZ = tf.Variable(name='tauZ',initial_value=tauZ_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        nY_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.439) #tf.keras.initializers.Constant(4.33) #tf.random_normal_initializer(mean=4.33) #tf.random_uniform_initializer(minval=1)
+        self.nY = tf.Variable(name='nY',initial_value=nY_init(shape=(1,self.units),dtype='float32'),trainable=True)   
+        
+        nZ_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.29) #tf.keras.initializers.Constant(1) #tf.random_uniform_initializer(minval=1)
+        self.nZ = tf.Variable(name='nZ',initial_value=nZ_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        
+        
+        tauY_mulFac = tf.keras.initializers.Constant(10.) #tf.keras.initializers.Constant(10.) 
+        self.tauY_mulFac = tf.Variable(name='tauY_mulFac',initial_value=tauY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        tauZ_mulFac = tf.keras.initializers.Constant(10.) #tf.keras.initializers.Constant(10.) 
+        self.tauZ_mulFac = tf.Variable(name='tauZ_mulFac',initial_value=tauZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+    
+        nY_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
+        self.nY_mulFac = tf.Variable(name='nY_mulFac',initial_value=nY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+    
+        nZ_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
+        self.nZ_mulFac = tf.Variable(name='nZ_mulFac',initial_value=nZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+    
+    def call(self,inputs):
+       
+        timeBin = 8
+        
+        alpha =  self.alpha / timeBin
+        beta = self.beta / timeBin
+        # beta = tf.sigmoid(float(self.beta / timeBin))
+        gamma =  self.gamma
+        # gamma =  tf.sigmoid(float(self.gamma))
+        tau_y =  (self.tauY_mulFac*self.tauY) / timeBin
+        tau_z =  (self.tauZ_mulFac*self.tauZ) / timeBin
+        n_y =  (self.nY_mulFac*self.nY)
+        n_z =  (self.nZ_mulFac*self.nZ)
+        
+        t = tf.range(0,1000/timeBin,dtype='float32')
+        
+        Ky = generate_simple_filter(tau_y,n_y,t)   
+        Kz = (gamma*Ky) + ((1-gamma) * generate_simple_filter(tau_z,n_z,t))
+       
+        y_tf = conv_oper(inputs,Ky)
+        z_tf = conv_oper(inputs,Kz)
+
+        outputs = (alpha*y_tf)/(1+(beta*z_tf))
+        
+        return outputs
+
 class horizontalcell(tf.keras.layers.Layer):
     def __init__(self,units=1):
         super(horizontalcell,self).__init__()
         self.units = units
             
     def build(self,input_shape):
-        alpha_init = tf.keras.initializers.Constant(0.) #tf.keras.initializers.Constant(16.2) #tf.keras.initializers.Constant(1.) #tf.random_normal_initializer(mean=1)
+        alpha_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(16.2) #tf.keras.initializers.Constant(1.) #tf.random_normal_initializer(mean=1)
         self.alpha = tf.Variable(name='alpha',initial_value=alpha_init(shape=(1,self.units),dtype='float32'),trainable=True)
-                
+        
         tauH_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
         self.tauH = tf.Variable(name='tauH',initial_value=tauH_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
         nH_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.439) #tf.keras.initializers.Constant(4.33) #tf.random_normal_initializer(mean=4.33) #tf.random_uniform_initializer(minval=1)
         self.nH = tf.Variable(name='nH',initial_value=nH_init(shape=(1,self.units),dtype='float32'),trainable=True)   
         
-        tauH_mulFac = tf.keras.initializers.Constant(10.) #tf.keras.initializers.Constant(10.) 
+        tauH_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
         self.tauH_mulFac = tf.Variable(name='tauH_mulFac',initial_value=tauH_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        nH_mulFac = tf.keras.initializers.Constant(10.) #tf.keras.initializers.Constant(10.) 
+        nH_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
         self.nH_mulFac = tf.Variable(name='nH_mulFac',initial_value=nH_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
     def call(self,inputs):
@@ -605,6 +678,109 @@ class horizontalcell(tf.keras.layers.Layer):
 
         outputs = alpha*h_tf
         
+        return outputs
+
+class horizontalcell_REIKE(tf.keras.layers.Layer):
+    def __init__(self,units=1):
+        super(horizontalcell_REIKE,self).__init__()
+        self.units = units
+        
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'units': self.units,
+        })
+        return config
+
+    def build(self,input_shape):
+        sigma_init = tf.keras.initializers.Constant(1.) # 22
+        self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        sigma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        phi_init = tf.keras.initializers.Constant(1.) #22
+        self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        phi_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+       
+        eta_init = tf.keras.initializers.Constant(1.) #2000
+        self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        eta_scaleFac = tf.keras.initializers.Constant(1000.) 
+        self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        beta_init = tf.keras.initializers.Constant(1.) #9
+        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        beta_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+
+        cgmp2cur_init = tf.keras.initializers.Constant(0.01) # 0.01
+        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        cgmphill_init = tf.keras.initializers.Constant(3.)  # 3
+        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        cgmphill_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.cgmphill_scaleFac = tf.Variable(name='cgmphill_scaleFac',initial_value=cgmphill_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        cdark_init = tf.keras.initializers.Constant(1.)
+        self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        betaSlow_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.) # 0
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        hillcoef_init = tf.keras.initializers.Constant(4.) #tf.keras.initializers.Constant(1.) # 4
+        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        hillaffinity_init = tf.keras.initializers.Constant(0.5) # 0.5
+        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        gamma_init = tf.keras.initializers.Constant(1.)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        gamma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+                
+        gdark_init = tf.keras.initializers.Constant(0.28)    # 28 for cones; 20 for rods 
+        self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        self.timeBin = 8 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)
+
+ 
+    def call(self,inputs):
+        X_fun = inputs
+
+        timeBin = float(self.timeBin) # ms
+        frameTime = 8 # ms
+        upSamp_fac = int(frameTime/timeBin)
+        TimeStep = 1e-3*timeBin
+        
+        if upSamp_fac>1:
+            X_fun = tf.keras.backend.repeat_elements(X_fun,upSamp_fac,axis=1) 
+            X_fun = X_fun/upSamp_fac     # appropriate scaling for photons/ms
+
+        sigma = self.sigma * self.sigma_scaleFac
+        phi = self.phi * self.phi_scaleFac
+        eta = self.eta * self.eta_scaleFac
+        cgmp2cur = self.cgmp2cur
+        cgmphill = self.cgmphill * self.cgmphill_scaleFac
+        cdark = self.cdark
+        beta = self.beta * self.beta_scaleFac
+        betaSlow = self.betaSlow * self.betaSlow_scaleFac
+        hillcoef = self.hillcoef * self.hillcoef_scaleFac
+        hillaffinity = self.hillaffinity * self.hillaffinity_scaleFac
+        gamma = (self.gamma*self.gamma_scaleFac)/timeBin
+        gdark = self.gdark*100
+        
+        
+        outputs = riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlow,hillcoef,hillaffinity,gamma,gdark)
+        
+        if upSamp_fac>1:
+            outputs = outputs[:,upSamp_fac-1::upSamp_fac]
+            
         return outputs
 
 
@@ -1878,6 +2054,111 @@ class photoreceptor_REIKE_fixed(tf.keras.layers.Layer):
             
         return outputs
 
+class photoreceptor_REIKE_fixed_rods(tf.keras.layers.Layer):
+    def __init__(self,units=1):
+        super(photoreceptor_REIKE_fixed_rods,self).__init__()
+        self.units = units
+        
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'units': self.units,
+        })
+        return config
+
+
+    def build(self,input_shape):
+        sigma_init = tf.keras.initializers.Constant(0.766) # 22
+        self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        sigma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        phi_init = tf.keras.initializers.Constant(0.766) #22
+        self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        phi_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+       
+        eta_init = tf.keras.initializers.Constant(0.00162) #2000
+        self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        eta_scaleFac = tf.keras.initializers.Constant(1000.) 
+        self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        beta_init = tf.keras.initializers.Constant(2.5) #9
+        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        beta_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+
+        cgmp2cur_init = tf.keras.initializers.Constant(0.01) # 0.01
+        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        cgmphill_init = tf.keras.initializers.Constant(3.)  # 3
+        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        cgmphill_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.cgmphill_scaleFac = tf.Variable(name='cgmphill_scaleFac',initial_value=cgmphill_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        cdark_init = tf.keras.initializers.Constant(1.)
+        self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        betaSlow_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.) # 0
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        hillcoef_init = tf.keras.initializers.Constant(4.) #tf.keras.initializers.Constant(1.) # 4
+        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        hillcoef_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        hillaffinity_init = tf.keras.initializers.Constant(0.4) # 0.5
+        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
+        self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        gamma_init = tf.keras.initializers.Constant(1.)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        gamma_scaleFac = tf.keras.initializers.Constant(10.) 
+        self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+                
+        gdark_init = tf.keras.initializers.Constant(0.28)    # 28 for cones; 20 for rods 
+        self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        self.timeBin = 8 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)
+
+ 
+    def call(self,inputs):
+        X_fun = inputs
+
+        timeBin = float(self.timeBin) # ms
+        frameTime = 8 # ms
+        upSamp_fac = int(frameTime/timeBin)
+        TimeStep = 1e-3*timeBin
+        
+        if upSamp_fac>1:
+            X_fun = tf.keras.backend.repeat_elements(X_fun,upSamp_fac,axis=1) 
+            X_fun = X_fun/upSamp_fac     # appropriate scaling for photons/ms
+
+        sigma = self.sigma * self.sigma_scaleFac
+        phi = self.phi * self.phi_scaleFac
+        eta = self.eta * self.eta_scaleFac
+        cgmp2cur = self.cgmp2cur
+        cgmphill = self.cgmphill * self.cgmphill_scaleFac
+        cdark = self.cdark
+        beta = self.beta * self.beta_scaleFac
+        betaSlow = self.betaSlow * self.betaSlow_scaleFac
+        hillcoef = self.hillcoef * self.hillcoef_scaleFac
+        hillaffinity = self.hillaffinity * self.hillaffinity_scaleFac
+        gamma = (self.gamma*self.gamma_scaleFac)/timeBin
+        gdark = self.gdark*100
+        
+
+        outputs = riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlow,hillcoef,hillaffinity,gamma,gdark)
+        
+        if upSamp_fac>1:
+            outputs = outputs[:,upSamp_fac-1::upSamp_fac]
+            
+        return outputs
+
+
 def bp_cnn2d_prfrtrainablegamma(inputs,n_out,**kwargs):
     
     filt_temporal_width = kwargs['filt_temporal_width']
@@ -1895,14 +2176,14 @@ def bp_cnn2d_prfrtrainablegamma(inputs,n_out,**kwargs):
     # RIEKE PR Layer
     y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
     y = photoreceptor_REIKE_fixed(units=1)(y)
-    # y = Normalize_PRFR_GF(units=1)(y)
-    y = Normalize(units=1)(y)
+    y = Normalize_PRFR_SI(units=1)(y)
+    # y = Normalize(units=1)(y)
 
     # Clark's layer for BP
     y = photoreceptor_DA(units=1)(y)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
-    # y = Normalize_PRDA_GF(units=1)(y)
+    # y = Normalize_PRDA_SI(units=1)(y)
     y = Normalize(units=1)(y)
     
     # CNN - first layer
@@ -1946,6 +2227,75 @@ def bp_cnn2d_prfrtrainablegamma(inputs,n_out,**kwargs):
     mdl_name = 'BP_CNN2D_PRFRTRAINABLEGAMMA'
     return Model(inputs, outputs, name=mdl_name)
  
+def bp_cnn2d_prfrtrainablegamma_rods(inputs,n_out,**kwargs):
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    sigma = 0.1
+    
+    # RIEKE PR Layer
+    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    y = photoreceptor_REIKE_fixed_rods(units=1)(y)
+    # y = Normalize_PRFR_SI(units=1)(y)
+    y = Normalize(units=1)(y)
+
+    # Clark's layer for BP
+    y = photoreceptor_DA(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    # y = Normalize_PRDA_SI(units=1)(y)
+    y = Normalize(units=1)(y)
+    
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_PRFRTRAINABLEGAMMA_RODS'
+    return Model(inputs, outputs, name=mdl_name)
+ 
+
 
 def bp_cnn2d_multibp_prfrtrainablegamma(inputs,n_out,**kwargs):
     filt_temporal_width = kwargs['filt_temporal_width']
@@ -2015,7 +2365,6 @@ def bp_cnn2d_multibp_prfrtrainablegamma(inputs,n_out,**kwargs):
     mdl_name = 'BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA'
     return Model(inputs, outputs, name=mdl_name)
  
-
 # %% Bipolar models - FELIX
 def bpfelix_cnn2d(inputs,n_out,**kwargs):
     
@@ -2149,5 +2498,211 @@ def bp_cnn2d_hc(inputs,n_out,**kwargs):
 
     mdl_name = 'BP_CNN2D_HC'
     return Model(inputs, outputs, name=mdl_name)
-        
 
+# Includes beta and gamma        
+def bp_cnn2d_hc2(inputs,n_out,**kwargs):
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    sigma = 0.1
+    
+    inputs_reshaped = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    # Horizontal cell layer and action
+    y = horizontalcell2(units=1)(inputs_reshaped)
+    y = tf.keras.backend.squeeze(y,-2)
+    y = subtract([inputs_reshaped,y])
+    y = Normalize(units=1)(y)
+    
+    # Bipolar cell
+    y = photoreceptor_DA(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    y = Normalize(units=1)(y)
+    
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_HC2'
+    return Model(inputs, outputs, name=mdl_name)
+        
+# Includes beta and gamma but does not subtract the signal
+def bp_cnn2d_hc3(inputs,n_out,**kwargs):
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    sigma = 0.1
+    
+    inputs_reshaped = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    # Horizontal cell layer and action
+    y = horizontalcell2(units=1)(inputs_reshaped)
+    y = tf.keras.backend.squeeze(y,-2)
+    # y = subtract([inputs_reshaped,y])
+    y = Normalize(units=1)(y)
+    
+    # Bipolar cell
+    y = photoreceptor_DA(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    y = Normalize(units=1)(y)
+    
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_HC3'
+    return Model(inputs, outputs, name=mdl_name)
+        
+# %% Horizontal-Reike
+
+def bp_cnn2d_hcfr(inputs,n_out,**kwargs):
+    
+    filt_temporal_width = kwargs['filt_temporal_width']
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+    
+    sigma = 0.1
+    
+    # RIEKE PR Layer
+    inputs_reshaped = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
+    y = horizontalcell_REIKE(units=1)(inputs_reshaped)
+    y = subtract([inputs_reshaped,y])
+    y = Normalize(units=1)(y)
+
+    # Clark's layer for BP
+    y = photoreceptor_DA(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    y = Normalize(units=1)(y)
+    
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+    if BatchNorm is True:
+        n1 = int(y.shape[-1])
+        n2 = int(y.shape[-2])
+        y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True:
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan3_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'BP_CNN2D_HCFR'
+    return Model(inputs, outputs, name=mdl_name)
+ 
