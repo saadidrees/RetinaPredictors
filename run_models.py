@@ -9,7 +9,6 @@ Created on Wed Apr 21 23:29:28 2021
 
 
 from model.parser import parser_run_model
-# from model.models import *
 
 
 def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
@@ -34,6 +33,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     import math
     import csv
     import h5py
+    import glob
+    import importlib
 
     import tensorflow as tf
 
@@ -42,9 +43,11 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
-    from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
-        bp_cnn2d, bp_cnn2d_multibp, bp_cnn2d_multibp3cnns, bp_cnn2d_prfrtrainablegamma, bp_cnn2d_prfrtrainablegamma_rods, bp_cnn2d_multibp_prfrtrainablegamma,\
-        bpfelix_cnn2d, bp_cnn2d_hc, bp_cnn2d_hc2, bp_cnn2d_hc3, bp_cnn2d_hcfr
+    import model.models
+
+    # from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
+    #     bp_cnn2d, bp_cnn2d_multibp, bp_cnn2d_multibp3cnns, bp_cnn2d_prfrtrainablegamma, bp_cnn2d_prfrtrainablegamma_rods, bp_cnn2d_multibp_prfrtrainablegamma,\
+    #     bpfelix_cnn2d, bp_cnn2d_hc, bp_cnn2d_hc2, bp_cnn2d_hc3, bp_cnn2d_hcfr
     from model.train_model import train, chunker
     from model.load_savedModel import load
     
@@ -121,7 +124,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         pr_temporal_width = 0
 
     
-    modelNames_all = model_definitions()    # get all model names
+    modelNames_all = model.models.model_definitions()    # get all model names
     modelNames_2D = modelNames_all[0]
     modelNames_3D = modelNames_all[1]
     
@@ -163,49 +166,43 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     n_cells = data_train.y.shape[1]         # number of units in output layer
 
 # %% Select model 
-    # Figure out a better way of fname_model
+    """
+     There are three ways of selecting/building a model
+     1. Continue training an existing model whose training was interrupted
+     2. Build a new model
+     3. Build a new model but transfer some or all weights (In this case the weight transferring layers should be similar)
+    """
     
-    fname_model,dict_params = modelFileName(U=thresh_rr,P=pr_temporal_width,T=temporal_width,
-                                C1_n=chan1_n,C1_s=filt1_size,C1_3d=filt1_3rdDim,
-                                C2_n=chan2_n,C2_s=filt2_size,C2_3d=filt2_3rdDim,
-                                C3_n=chan3_n,C3_s=filt3_size,C3_3d=filt3_3rdDim,
-                                BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial)
-    
+    fname_model,dict_params = model.models.modelFileName(U=thresh_rr,P=pr_temporal_width,T=temporal_width,
+                                                        C1_n=chan1_n,C1_s=filt1_size,C1_3d=filt1_3rdDim,
+                                                        C2_n=chan2_n,C2_s=filt2_size,C2_3d=filt2_3rdDim,
+                                                        C3_n=chan3_n,C3_s=filt3_size,C3_3d=filt3_3rdDim,
+                                                        BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial)
     dict_params['filt_temporal_width'] = temporal_width
     
-    # filt_temporal_width = dict_params['filt_temporal_width']
-    # chan1_n = dict_params['chan1_n']
-    # filt1_size = dict_params['filt1_size']
-    # chan2_n = dict_params['chan2_n']
-    # filt2_size = dict_params['filt2_size']
-    # chan3_n = dict_params['chan3_n']
-    # filt3_size = dict_params['filt3_size']
-    # BatchNorm = bool(dict_params['BatchNorm'])
-    # MaxPool = bool(dict_params['MaxPool'])
+    # filt_temporal_width = dict_params['filt_temporal_width']; chan1_n = dict_params['chan1_n']; filt1_size = dict_params['filt1_size']; chan2_n = dict_params['chan2_n']; filt2_size = dict_params['filt2_size']
+    # chan3_n = dict_params['chan3_n']; filt3_size = dict_params['filt3_size']; BatchNorm = bool(dict_params['BatchNorm']); MaxPool = bool(dict_params['MaxPool'])
     
-
     
     path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)   # the model save directory is the fname_model appened to save path
-    
     if not os.path.exists(path_model_save):
         os.makedirs(path_model_save)
         
-        
+    
     if CONTINUE_TRAINING==1:       
-        # glob.glob()
-        initial_epoch = len([f for f in os.listdir(path_model_save) if f.endswith('index')])
+        initial_epoch = len(glob.glob(path_model_save+'/*.index'))
         if initial_epoch == 0:
-            initial_epoch = len([f for f in os.listdir(path_model_save) if f.startswith('weights')])
+            initial_epoch = len(glob.glob(path_model_save+'/weights_*'))    # This is for backwards compatibility
     else:
         initial_epoch = 0
         
-        
+
     if (initial_epoch>1 and initial_epoch < nb_epochs) or nb_epochs==0:
         mdl = load(os.path.join(path_model_save,fname_model))
-        
     else:
         # create the model
-        model_func = locals()[mdl_name.lower()]
+        # model_func = locals()['model.models.'+mdl_name.lower()]
+        model_func = getattr(model.models,mdl_name.lower())
         mdl = model_func(x, n_cells, **dict_params)      
 
         # Transfer weights to new model from an existing model
@@ -213,18 +210,12 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
             fname_model_existing = os.path.basename(path_existing_mdl)
             mdl_existing = load(os.path.join(path_existing_mdl,fname_model_existing))
             
-            try:    # try to load the best weights
-                fname_performance_existing = os.path.join(path_existing_mdl,'performance',expDate+'_'+fname_model_existing+'.h5')
-                f = h5py.File(fname_performance_existing,'r')
-                idx_bestEpoch_existing = np.array(f['model_performance']['idx_bestEpoch'])
-                fname_bestWeight = 'weights_'+fname_model_existing+'_epoch-%03d' % (idx_bestEpoch_existing+1)
-                try:
-                    mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight))
-                except:
-                    mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight+'.h5'))
-                    
-            except:
-                pass
+            # load the best weights of the existing model
+            fname_performance_existing = os.path.join(path_existing_mdl,'performance',expDate+'_'+fname_model_existing+'.h5')
+            f = h5py.File(fname_performance_existing,'r')
+            idx_bestEpoch_existing = np.array(f['model_performance']['idx_bestEpoch'])
+            fname_bestWeight = 'weights_'+fname_model_existing+'_epoch-%03d' % (idx_bestEpoch_existing+1)
+            mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight))     # would need to add .h5 in the end for backwards compatibility
 
             # set the required layers to non trainable and load weights from existing model
             list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
@@ -232,10 +223,6 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                 mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
                 mdl.layers[l].trainable = False
                 
-        
-    
-        
-        
         
     path_save_model_performance = os.path.join(path_model_save,'performance')
     if not os.path.exists(path_save_model_performance):
@@ -247,7 +234,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     # %% Train model
     
-    gbytes_usage = get_model_memory_usage(bz, mdl)  # for PRFR layer models, this is not a good estimate.
+    gbytes_usage = model.models.get_model_memory_usage(bz, mdl)  # for PRFR layer models, this is not a good estimate.
     print('Memory required = %0.2f GB' %gbytes_usage)
     # continue a halted training: load existing model checkpoint and initial_epoch value to pass on for continuing the training
     
@@ -484,6 +471,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
         
 if __name__ == "__main__":
+
     args = parser_run_model()
     # Raw print arguments
     print("Arguments: ")
