@@ -12,7 +12,8 @@ from model.parser import parser_run_model
 # from model.models import *
 
 
-def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_existing_mdl='',idx_CNN_start=5,
+def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
+                            path_existing_mdl='',idxStart_fixedLayers=0,idxEnd_fixedLayers=-1,
                             saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
@@ -24,7 +25,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
  
-          
+
 # %% prepare data
     
 # import needed modules
@@ -32,6 +33,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     import os
     import math
     import csv
+    import h5py
 
     import tensorflow as tf
 
@@ -41,8 +43,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
     from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
-        bp_cnn2d, bp_cnn2d_multibp, bp_cnn2d_multibp3cnns, bp_cnn2d_prfrtrainablegamma, bp_cnn2d_multibp_prfrtrainablegamma,\
-        bpfelix_cnn2d, bp_cnn2d_hc
+        bp_cnn2d, bp_cnn2d_multibp, bp_cnn2d_multibp3cnns, bp_cnn2d_prfrtrainablegamma, bp_cnn2d_prfrtrainablegamma_rods, bp_cnn2d_multibp_prfrtrainablegamma,\
+        bpfelix_cnn2d, bp_cnn2d_hc, bp_cnn2d_hc2, bp_cnn2d_hc3, bp_cnn2d_hcfr
     from model.train_model import train, chunker
     from model.load_savedModel import load
     
@@ -202,8 +204,38 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,pa
         mdl = load(os.path.join(path_model_save,fname_model))
         
     else:
+        # create the model
         model_func = locals()[mdl_name.lower()]
         mdl = model_func(x, n_cells, **dict_params)      
+
+        # Transfer weights to new model from an existing model
+        if path_existing_mdl != '' and idxStart_fixedLayers>0:     
+            fname_model_existing = os.path.basename(path_existing_mdl)
+            mdl_existing = load(os.path.join(path_existing_mdl,fname_model_existing))
+            
+            try:    # try to load the best weights
+                fname_performance_existing = os.path.join(path_existing_mdl,'performance',expDate+'_'+fname_model_existing+'.h5')
+                f = h5py.File(fname_performance_existing,'r')
+                idx_bestEpoch_existing = np.array(f['model_performance']['idx_bestEpoch'])
+                fname_bestWeight = 'weights_'+fname_model_existing+'_epoch-%03d' % (idx_bestEpoch_existing+1)
+                try:
+                    mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight))
+                except:
+                    mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight+'.h5'))
+                    
+            except:
+                pass
+
+            # set the required layers to non trainable and load weights from existing model
+            list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
+            for l in list_idx:
+                mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
+                mdl.layers[l].trainable = False
+                
+        
+    
+        
+        
         
     path_save_model_performance = os.path.join(path_model_save,'performance')
     if not os.path.exists(path_save_model_performance):
