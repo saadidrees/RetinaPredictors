@@ -5,7 +5,6 @@ Created on Tue Mar 23 20:42:39 2021
 
 @author: saad
 """
-
  
 import tensorflow as tf
 from tensorflow.keras import backend as K
@@ -284,6 +283,10 @@ class Normalize_PRFR_GF(tf.keras.layers.Layer):
 def generate_simple_filter(tau,n,t):
     f = (t**n)*tf.math.exp(-t/tau) # functional form in paper
     f = (f/tau**(n+1))/tf.math.exp(tf.math.lgamma(n+1)) # normalize appropriately
+    print(t.shape)
+    print(n.shape)
+    print(tau.shape)
+
     return f
 
 def conv_oper(x,kernel_1D):
@@ -1333,17 +1336,56 @@ def bp_cnn2d(inputs,n_out,**kwargs):
 
 
 # %% Multichannel bipolar
-@tf.function
+# def generate_simple_filter_multichan(tau,n,t):
+
+#     t_shape = t.shape[0]
+#     t = tf.tile(t,tf.constant([tau.shape[-1]], tf.int32))
+#     t = tf.reshape(t,(t_shape,tau.shape[-1]))
+#     f = (t**n[:,None])*tf.math.exp(-t/tau[:,None]) # functional form in paper
+#     rgb = tau**(n+1)
+#     f = (f/rgb[:,None])/tf.math.exp(tf.math.lgamma(n+1))[:,None] # normalize appropriately
+    
+#     print(t.shape)
+#     print(n.shape)
+#     print(tau.shape)
+   
+#     return f
+
 def generate_simple_filter_multichan(tau,n,t):
 
     t_shape = t.shape[0]
     t = tf.tile(t,tf.constant([tau.shape[-1]], tf.int32))
-    t = tf.reshape(t,(t_shape,tau.shape[-1]))
+    t = tf.reshape(t,(tau.shape[-1],t_shape))
+    t = tf.transpose(t)
     f = (t**n[:,None])*tf.math.exp(-t/tau[:,None]) # functional form in paper
     rgb = tau**(n+1)
     f = (f/rgb[:,None])/tf.math.exp(tf.math.lgamma(n+1))[:,None] # normalize appropriately
+    # print(t.shape)
+    # print(n.shape)
+    # print(tau.shape)
    
     return f
+
+""" test filter 
+
+    tau = tf.constant([[0.18,1]],dtype=tf.float32)
+    n = tf.constant([[0.15,1]],dtype=tf.float32)
+    t = tf.range(0,1000/timeBin,dtype='float32')
+    t_shape = t.shape[0]
+    t = tf.tile(t,tf.constant([tau.shape[-1]], tf.int32))
+    t = tf.reshape(t,(tau.shape[-1],t_shape))
+    t = tf.transpose(t)
+    tN = np.squeeze(t.eval(session=tf.compat.v1.Session()))
+    a = t**n; aN = np.squeeze(a.eval(session=tf.compat.v1.Session()))
+    f = (t**n)*tf.math.exp(-t/tau) # functional form in paper
+    rgb = tau**(n+1)
+    f = (f/rgb)/tf.math.exp(tf.math.lgamma(n+1)) # normalize appropriately
+    
+    f = np.squeeze(f.eval(session=tf.compat.v1.Session()))
+    plt.plot(f)
+
+
+"""
 
 def conv_oper_multichan(x,kernel_1D):
     spatial_dims = x.shape[-1]
@@ -1375,10 +1417,10 @@ class photoreceptor_DA_multichan(tf.keras.layers.Layer):
         self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         # self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
-        tauY_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
+        tauY_init = tf.keras.initializers.Constant(0.5) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
         self.tauY = tf.Variable(name='tauY',initial_value=tauY_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
-        tauZ_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.008) #tf.keras.initializers.Constant(166) #tf.random_normal_initializer(mean=166) #tf.random_uniform_initializer(minval=100)
+        tauZ_init = tf.keras.initializers.Constant(0.8) #tf.keras.initializers.Constant(0.008) #tf.keras.initializers.Constant(166) #tf.random_normal_initializer(mean=166) #tf.random_uniform_initializer(minval=100)
         self.tauZ = tf.Variable(name='tauZ',initial_value=tauZ_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
         nY_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.439) #tf.keras.initializers.Constant(4.33) #tf.random_normal_initializer(mean=4.33) #tf.random_uniform_initializer(minval=1)
