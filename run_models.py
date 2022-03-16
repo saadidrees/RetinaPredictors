@@ -23,8 +23,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
- 
-
+  
 # %% prepare data
     
 # import needed modules
@@ -43,7 +42,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
-    import model.models
+    import model.models  # can improve this by only importing the model that is being used
 
     # from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
     #     bp_cnn2d, bp_cnn2d_multibp, bp_cnn2d_multibp3cnns, bp_cnn2d_prfrtrainablegamma, bp_cnn2d_prfrtrainablegamma_rods, bp_cnn2d_multibp_prfrtrainablegamma,\
@@ -189,7 +188,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         os.makedirs(path_model_save)
         
     
-    if CONTINUE_TRAINING==1:       
+    if CONTINUE_TRAINING==1:       # if to continue a halted or previous training
         initial_epoch = len(glob.glob(path_model_save+'/*.index'))
         if initial_epoch == 0:
             initial_epoch = len(glob.glob(path_model_save+'/weights_*'))    # This is for backwards compatibility
@@ -197,11 +196,10 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         initial_epoch = 0
         
 
-    if (initial_epoch>1 and initial_epoch < nb_epochs) or nb_epochs==0:
+    if (initial_epoch>0 and initial_epoch < nb_epochs) or nb_epochs==0:     # Load existing model if true
         mdl = load(os.path.join(path_model_save,fname_model))
     else:
         # create the model
-        # model_func = locals()['model.models.'+mdl_name.lower()]
         model_func = getattr(model.models,mdl_name.lower())
         mdl = model_func(x, n_cells, **dict_params)      
 
@@ -221,7 +219,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
             list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
             for l in list_idx:
                 mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
-                mdl.layers[l].trainable = False
+                mdl.layers[l].trainable = False         # Parameterize this
                 
         
     path_save_model_performance = os.path.join(path_model_save,'performance')
@@ -230,6 +228,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                 
     
     fname_excel = 'performance_'+fname_model+'.csv'
+    
+    mdl.summary()
         
 
     # %% Train model

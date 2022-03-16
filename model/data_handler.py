@@ -737,7 +737,7 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
         idx_val_end = -1
     else:
         nsamps_val = int((nsamps_val*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
-        idx_val_start = 0
+        idx_val_start = 1000
         idx_val_end = idx_val_start+nsamps_val
         
         
@@ -747,7 +747,7 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
     else:
         LOAD_ALL_TR = False
         nsamps_train = int((nsamps_train*60*1000)/t_frame)
-        idx_train_start = 0
+        idx_train_start = 1000
         idx_train_end = idx_train_start+nsamps_train
 
     

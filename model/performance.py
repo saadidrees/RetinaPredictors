@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Apr 22 09:54:56 2021
-
+ 
 @author: saad
 """
 import h5py
@@ -14,6 +14,7 @@ from model.metrics import fraction_of_explainable_variance_explained
 from matplotlib import pyplot as plt
 import multiprocessing as mp
 from functools import partial
+import os
 
 def get_weightsDict(mdl):
     names = [weight.name for layer in mdl.layers for weight in layer.weights]
@@ -24,8 +25,27 @@ def get_weightsDict(mdl):
         weights_dict[weight_name] = np.squeeze(weights[i])
         
     return weights_dict
- 
- 
+
+def get_weightsOfLayer(weights_dict,layer_name):
+    weights_keys = list(weights_dict.keys())
+    rgb = re.compile(layer_name+'*')
+    layer_weight_names = list(filter(rgb.match, weights_keys))
+    weights_layer = {}
+    for l_name in layer_weight_names:
+        param_name_full = os.path.basename(l_name)
+        rgb = re.findall(r'[^0-9]',param_name_full)
+        rgb = ''.join(rgb)
+        if rgb[-1] == '_':
+            rgb = rgb[:-1]
+        
+        param_name = rgb
+        weights_layer[param_name] = weights_dict[l_name]
+    
+    return weights_layer
+        
+        
+
+  
 def save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred):
 
     f = h5py.File(fname_save_performance,'w')
@@ -176,7 +196,7 @@ def getModelParams(fname_modelFolder):
         pass
     
     try:
-        rgb = re.compile(r'LR-(\d+)')
+        rgb = re.compile(r'LR-(\d+\.\d+)')
         rgb = rgb.search(fname_modelFolder)
         params['LR'] = float(rgb.group(1))
     except:

@@ -4,7 +4,7 @@
 Created on Tue Jun 29 13:08:47 2021
 
 @author: saad
-"""
+""" 
 import sys
 from model.RiekeModel import RiekeModel, RiekeModel_tf
 from model.data_handler import load_h5Dataset, save_h5Dataset, rolling_window, unroll_data
@@ -48,18 +48,18 @@ def model_params_orig(timeBin=1):
 
     ## rods - mice - ORIGINAL
     params_rods = {}
-    params_rods['sigma'] = 9 #7.66 #16 #30 # 7.66  # rhodopsin activity decay rate (1/sec) - default 22
-    params_rods['phi'] =  10 #7.66 #16 #10 #7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_rods['eta'] = 4 #1.62 #2.2 #1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_rods['sigma'] = 7.66  # rhodopsin activity decay rate (1/sec) - default 22
+    params_rods['phi'] =  7.66     # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_rods['eta'] = 1.62	  # phosphodiesterase activation rate constant (1/sec) - default 2000
     params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
     params_rods['k'] =  0.01 #0.01     # constant relating cGMP to current - default 0.02
-    params_rods['h'] =  3 #3       # cooperativity for cGMP->current - default 3
+    params_rods['h'] =  3       # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1#1  # dark calcium concentration - default 1
-    params_rods['beta'] = 10 #25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['beta'] = 25	  # rate constant for calcium removal in 1/sec - default 9
     params_rods['betaSlow'] =  0	  
     params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] =  0.40		# affinity for Ca2+
-    params_rods['gamma'] =  800/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['gamma'] =  10/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
     
@@ -206,7 +206,7 @@ def run_model(pr_mdl_name,stim,resp,params,meanIntensity,upSampFac,downSampFac=1
 
     idx_allPixels = np.arange(0,stim.shape[1])
     
-    num_cores = mp.cpu_count()
+    # num_cores = mp.cpu_count()
     
 
     
@@ -257,7 +257,7 @@ def run_model(pr_mdl_name,stim,resp,params,meanIntensity,upSampFac,downSampFac=1
         rgb[np.isnan(rgb)] = np.nanmedian(rgb)
         
         rollingFac = ROLLING_FAC
-        a = np.empty((130,rollingFac))
+        a = np.empty((len(idx_allPixels),rollingFac))
         a[:] = np.nan
         a = np.concatenate((a,rgb),axis=1)
         rgb8 = np.nanmean(rolling_window(a,rollingFac,time_axis = -1),axis=-1)
@@ -615,14 +615,26 @@ def model_params_clark_init():
         
 #%% Single pr type
 
-DEBUG_MODE = 0
+DEBUG_MODE = 1
 WRITE_TO_H5 = 0
+data_pers = 'kiersten'  #['saad','kiersten']
+expDate = 'retina1' #'retina1'  20180502_s3
+lightLevel = 'scotopic-1' #'photopic-10000'  # ['photopic','scotopic','mesopic-2026']
+stimName = ''  # SACC_T2
+folder = '8ms_sampShifted'  # 8ms_sampShifted
+path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDate,'datasets/'+folder)
+if stimName == '':
+    fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
+else:
+    fname_dataset = expDate+'_dataset_train_val_test_'+stimName+'_'+lightLevel+'.h5'
+fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
+
+
+changeIntensities = False
 pr_mdl_name = 'rieke'  # 'rieke' 'clark'
-expDate = 'retina1'
-lightLevel = 'photopic-10000'  # ['photopic','scotopic']
-pr_type = 'cones'   # ['rods','cones']
+pr_type = 'rods'   # ['rods','cones']
 ode_solver = 'Euler' #['hybrid','RungeKutta','Euler']
-folder = '8ms_sampShifted'
+
 timeBin = 4
 frameTime = 8
 NORM = 1
@@ -630,6 +642,8 @@ DOWN_SAMP = 1
 ROLLING_FAC = 2
 upSampFac = int(frameTime/timeBin) #1#8 #17
 downSampFac = upSampFac
+meanIntensity = 0
+
 
 if DOWN_SAMP==0:
     ROLLING_FAC = 0
@@ -637,10 +651,10 @@ else:
     ROLLING_FAC = 2
 
 
-if 'scotopic' in lightLevel:
-    meanIntensity = 1
-elif 'photopic' in lightLevel:
-    meanIntensity = 10000
+# if 'scotopic' in lightLevel:
+#     meanIntensity = 1
+# elif 'photopic' in lightLevel:
+#     meanIntensity = 10000
 
 
 # t_frame = .008
@@ -667,36 +681,34 @@ elif pr_type == 'rods':
     y_lim = (-10,2)
 
 
-path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/'+folder)
-fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
-fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
-
 path_dataset_save = os.path.join(path_dataset)#,'filterTest')
 
 if pr_mdl_name == 'rieke':
-    dataset_name = lightLevel+'-'+str(meanIntensity)+'_mdl-'+pr_mdl_name+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_gd-'+str(params['gdark'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_tb-'+str(timeBin)+'_'+ode_solver+'_RF-'+str(ROLLING_FAC)
+    dataset_name = lightLevel+'_mdl-'+pr_mdl_name+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_gd-'+str(params['gdark'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_tb-'+str(timeBin)+'_'+ode_solver+'_RF-'+str(ROLLING_FAC)
 elif pr_mdl_name == 'clark':
-    dataset_name = lightLevel+'-'+str(meanIntensity)+'_mdl-'+pr_mdl_name+'_a-'+str(params['alpha'])+pr_mdl_name+'_b-'+str(params['beta'])+'_g-'+str(params['gamma'])+'_y-'+str(params['tau_y'])+'_z-'+str(params['tau_z'])+'_r-'+str(params['tau_r'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)+'_tb-'+str(timeBin)
+    dataset_name = lightLevel+'_mdl-'+pr_mdl_name+'_a-'+str(params['alpha'])+pr_mdl_name+'_b-'+str(params['beta'])+'_g-'+str(params['gamma'])+'_y-'+str(params['tau_y'])+'_z-'+str(params['tau_z'])+'_r-'+str(params['tau_r'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)+'_tb-'+str(timeBin)
 
 
 fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
 
 fname_dataset_save = os.path.join(path_dataset_save,fname_dataset_save)
 
-data_train_orig,data_val_orig,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
-
 if DEBUG_MODE==1:
-    nsamps_end = 10000  #10000
+    nsamps_end = 5000  #10000
+    data_train_orig,data_val_orig,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test,nsamps_val=nsamps_end*8/1000/60,nsamps_train=nsamps_end*8/1000/60)
+
 else:
-    nsamps_end = data_train_orig.X.shape[0]-1 
+    nsamps_end = -1 
+    data_train_orig,data_val_orig,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test,nsamps_val=-1,nsamps_train=-1)
+
 
 frames_X_orig = data_train_orig.X[:nsamps_end]
-
+# %%
 
 
 # Training data
 
-stim_train,resp_train = run_model(pr_mdl_name,data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC,ode_solver=ode_solver,changeIntensities=False)
+stim_train,resp_train = run_model(pr_mdl_name,data_train_orig.X[:nsamps_end],data_train_orig.y[:nsamps_end],params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=1000,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC,ode_solver=ode_solver,changeIntensities=changeIntensities)
 
 if NORM==1:
     value_min = np.min(stim_train)
@@ -707,6 +719,9 @@ if NORM==1:
 else:
     stim_train_norm = stim_train
 
+parameters['value_min'] = value_min
+parameters['value_max'] = value_max
+parameters['stim_train_med'] = stim_train_med
 
 # Validation data
 n_discard_val = 50
@@ -725,7 +740,8 @@ else:
 # Update dataset
 data_train = Exptdata(stim_train_norm,resp_train)
 data_val = Exptdata(stim_val_norm,resp_val)
-dataset_rr['stim_0']['val'] = dataset_rr['stim_0']['val'][:,n_discard_val:,:]
+if data_pers == 'kiersten':
+    dataset_rr['stim_0']['val'] = dataset_rr['stim_0']['val'][:,n_discard_val:,:]
 
 # Update parameters
 for j in params.keys():
@@ -763,16 +779,16 @@ idx_unit = 5
 t_start = 0
 t_end = stim_train_norm.shape[0]
 
-temporal_feature = rwa_stim(frames_X,stim_train_norm,temporal_window,idx_unit,t_start,t_end)
+# temporal_feature = rwa_stim(frames_X,stim_train_norm,temporal_window,idx_unit,t_start,t_end)
 # plt.plot(filt_rieke,'k')
 # plt.plot(temporal_feature)
 # plt.title(dataset_name)
 # plt.show()
 
-rgb = np.where(temporal_feature==np.max(temporal_feature))
+# rgb = np.where(temporal_feature==np.max(temporal_feature))
 # print(temporal_window-rgb[0][0])
 # print(((temporal_window-rgb[0][0])*8)-22)
-print(rgb)
+# print(rgb)
 
 # Save dataset
 # if DEBUG_MODE==0 and WRITE_TO_H5==1:
@@ -780,15 +796,15 @@ if WRITE_TO_H5==1:
     save_h5Dataset(fname_dataset_save,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
 
 
-a = stim_val_norm
-plt.plot(b[:,0,0])
-plt.plot(a[:,0,0])
-plt.show()
+# a = stim_val_norm
+# plt.plot(b[:,0,0])
+# plt.plot(a[:,0,0])
+# plt.show()
 
-a_tf = temporal_feature
-plt.plot(b_tf)
-plt.plot(a_tf)
-plt.show()
+# a_tf = temporal_feature
+# plt.plot(b_tf)
+# plt.plot(a_tf)
+# plt.show()
 
 
 # %% Added pr signals
