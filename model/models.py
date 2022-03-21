@@ -1351,6 +1351,37 @@ def bp_cnn2d(inputs,n_out,**kwargs):
    
 #     return f
 
+class Normalize_multichan(tf.keras.layers.Layer):
+    """
+    BatchNorm is where you calculate normalization factors for each dimension seperately based on
+    the batch data
+    LayerNorm is where you calculate the normalization factors based on channels and dimensions
+    Normalize_multichan calculates normalization factors based on all dimensions for each channel seperately
+    """
+    
+    def __init__(self,units=1):
+        super(Normalize_multichan,self).__init__()
+        self.units = units
+        
+    def get_config(self):
+         config = super().get_config()
+         config.update({
+             "units": self.units,
+         })
+         return config   
+             
+    def call(self,inputs):
+        inputs_perChan = tf.reshape(inputs,(-1,inputs.shape[-1]))
+        value_min = tf.reduce_min(inputs_perChan,axis=0)
+        value_max = tf.reduce_max(inputs_perChan,axis=0)
+        
+        # value_min = tf.expand_dims(value_min,axis=0)
+        R_norm = (inputs - value_min[None,None,None,None,:])/(value_max[None,None,None,None,:]-value_min[None,None,None,None,:])
+        R_norm_perChan = tf.reshape(R_norm,(-1,R_norm.shape[-1]))
+        R_mean = tf.reduce_mean(R_norm_perChan,axis=0)       
+        R_norm = R_norm - R_mean[None,None,None,None,:]
+        return R_norm
+
 def generate_simple_filter_multichan(tau,n,t):
 
     t_shape = t.shape[0]
@@ -1417,7 +1448,7 @@ class photoreceptor_DA_multichan(tf.keras.layers.Layer):
         self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         # self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
-        tauY_init = tf.keras.initializers.Constant(.5) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
+        tauY_init = tf.keras.initializers.Constant(.3) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
         self.tauY = tf.Variable(name='tauY',initial_value=tauY_init(shape=(1,self.units),dtype='float32'),trainable=True)
         tauY_mulFac = tf.keras.initializers.Constant(100.) #tf.keras.initializers.Constant(10.) 
         self.tauY_mulFac = tf.Variable(name='tauY_mulFac',initial_value=tauY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
