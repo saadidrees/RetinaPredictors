@@ -1399,8 +1399,8 @@ def generate_simple_filter_multichan(tau,n,t):
 
 """ test filter 
 
-    tau = tf.constant([[0.18,1]],dtype=tf.float32)
-    n = tf.constant([[0.15,1]],dtype=tf.float32)
+    tau = tf.constant([[1]],dtype=tf.float32)
+    n = tf.constant([[1]],dtype=tf.float32)
     t = tf.range(0,1000/timeBin,dtype='float32')
     t_shape = t.shape[0]
     t = tf.tile(t,tf.constant([tau.shape[-1]], tf.int32))
@@ -1421,7 +1421,7 @@ def generate_simple_filter_multichan(tau,n,t):
 def conv_oper_multichan(x,kernel_1D):
     spatial_dims = x.shape[-1]
     x_reshaped = tf.expand_dims(x,axis=2)
-    kernel_1D = tf.squeeze(kernel_1D)
+    kernel_1D = tf.squeeze(kernel_1D,axis=0)
     kernel_1D = tf.reverse(kernel_1D,[0])
     tile_fac = tf.constant([spatial_dims,1])
     kernel_reshaped = tf.tile(kernel_1D,(tile_fac))
@@ -1489,7 +1489,6 @@ class photoreceptor_DA_multichan(tf.keras.layers.Layer):
         Ky = generate_simple_filter_multichan(tau_y,n_y,t)   
         Kz = (gamma*Ky) + ((1-gamma) * generate_simple_filter_multichan(tau_z,n_z,t))
         
-       
         y_tf = conv_oper_multichan(inputs,Ky)
         z_tf = conv_oper_multichan(inputs,Kz)
                 
@@ -1518,9 +1517,8 @@ def bp_cnn2d_multibp(inputs,n_out,**kwargs): # BP --> 3D CNN --> 2D CNN
 
     sigma = 0.1
     
-    keras_prLayer = photoreceptor_DA_multichan(units=chan1_n)
     y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
-    y = keras_prLayer(y)
+    y = photoreceptor_DA_multichan(units=chans_bp)(y)
     y = y[:,:,0,:,:]
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1],chan1_n))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:,:]
