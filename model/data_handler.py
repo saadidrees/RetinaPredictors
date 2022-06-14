@@ -328,7 +328,7 @@ def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,
 
 def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15):
     
-    valSets = ['scotopic','photopic']   # embed this in h5 file
+    # valSets = ['scotopic','photopic']   # embed this in h5 file
     
     # Data
     t_start = 0    # of frames to skip in the begining of stim file (each frame is 16 or 17 ms)   

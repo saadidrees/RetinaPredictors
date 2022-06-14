@@ -22,7 +22,7 @@ def get_weightsDict(mdl):
     weights_dict = {}
     for i in range(len(names)):
         weight_name = names[i][:-2]        
-        weights_dict[weight_name] = np.squeeze(weights[i])
+        weights_dict[weight_name] = np.atleast_1d(np.squeeze(weights[i]))
         
     return weights_dict
 

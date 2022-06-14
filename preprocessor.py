@@ -4,7 +4,7 @@
 Created on Tue Jun 29 13:08:47 2021
 
 @author: saad
-""" 
+"""
 import sys
 from model.RiekeModel import RiekeModel, RiekeModel_tf
 from model.data_handler import load_h5Dataset, save_h5Dataset, rolling_window, unroll_data
@@ -26,7 +26,7 @@ from scipy import integrate
 import tensorflow as tf
 
 #betaSlow makes things worse
-
+ 
 def model_params_orig(timeBin=1):
 # retina 1 
     ##  cones - monkey
@@ -169,6 +169,45 @@ def model_params_trainable(timeBin = 1):
     params_rods['hillcoef'] =  5.2 #13.8  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] = 0.26 #0.22		# affinity for Ca2+
     params_rods['gamma'] =  10/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['timeStep'] =  1e-3 # freds default is 1e-3
+    params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
+
+
+    return params_cones,params_rods
+
+def model_params_prbp(timeBin = 1):
+    # Retina 2
+    # params from training pr-bp-cnns end to end
+    params_cones = {}
+    params_cones['sigma'] =  22 #22  # rhodopsin activity decay rate (1/sec) - default 22
+    params_cones['phi'] =  22     # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_cones['eta'] =  2000  # 2000	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_cones['gdark'] =  28 #28 # concentration of cGMP in darkness - default 20.5
+    params_cones['k'] =  0.01     # constant relating cGMP to current - default 0.02
+    params_cones['h'] =  3       # cooperativity for cGMP->current - default 3
+    params_cones['cdark'] =  1  # dark calcium concentration - default 1
+    params_cones['beta'] = 9 #16 # 9	  # rate constant for calcium removal in 1/sec - default 9
+    params_cones['betaSlow'] =  0	  
+    params_cones['hillcoef'] =  4 #4  	  # cooperativity for cyclase, hill coef - default 4
+    params_cones['hillaffinity'] =  0.5   # hill affinity for cyclase - default 0.5
+    params_cones['gamma'] =  -0.90/timeBin #10 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_cones['timeStep'] =  1e-3  # freds default is 1e-4
+    params_cones['darkCurrent'] =  params_cones['gdark']**params_cones['h'] * params_cones['k']/2
+ 
+    # rods - mice - Retina 1 - trainable
+    params_rods = {}
+    params_rods['sigma'] = 11.36 #7.66  # rhodopsin activity decay rate (1/sec) 
+    params_rods['phi'] =  11.32 #7.66     # phosphodiesterase activity decay rate (1/sec) 
+    params_rods['eta'] = 44.7 #1.62	  # phosphodiesterase activation rate constant (1/sec) 
+    params_rods['gdark'] = 28 # concentration of cGMP in darkness - default 20.5
+    params_rods['k'] =  0.01    # constant relating cGMP to current - default 0.02
+    params_rods['h'] =  3  # cooperativity for cGMP->current - default 3
+    params_rods['cdark'] =  1  # dark calcium concentration - default 1
+    params_rods['beta'] =  15.5 #25	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['betaSlow'] =  0	  
+    params_rods['hillcoef'] =  3.85 #13.8  	  # cooperativity for cyclase, hill coef - default 4
+    params_rods['hillaffinity'] = 0.55 #0.22		# affinity for Ca2+
+    params_rods['gamma'] =  32/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
 
@@ -506,7 +545,7 @@ def model_params_clark():
     params_rods['timeStep'] = 1e-3
     params_rods['tau_r'] = 0 #4.78
 
-
+ 
     # retina 3
     # params_rods = {}
     # params_rods['alpha'] =  1  
@@ -618,10 +657,12 @@ def model_params_clark_init():
 DEBUG_MODE = 1
 WRITE_TO_H5 = 0
 data_pers = 'kiersten'  #['saad','kiersten']
-expDate = 'retina1' #'retina1'  20180502_s3
-lightLevel = 'scotopic-1' #'photopic-10000'  # ['photopic','scotopic','mesopic-2026']
+expDate = 'monkey01' #'retina1'  20180502_s3
+lightLevel = 'scot-3' #'photopic-10000' #'photopic-10000'  # ['photopic','scotopic','mesopic-2026']
+if expDate == 'monkey01':
+    lightLevel = lightLevel+'-Rstar'
 stimName = ''  # SACC_T2
-folder = '8ms_sampShifted'  # 8ms_sampShifted
+folder = '' #'8ms_sampShifted'  # 8ms_sampShifted
 path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDate,'datasets/'+folder)
 if stimName == '':
     fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
@@ -635,7 +676,7 @@ pr_mdl_name = 'rieke'  # 'rieke' 'clark'
 pr_type = 'rods'   # ['rods','cones']
 ode_solver = 'Euler' #['hybrid','RungeKutta','Euler']
 
-timeBin = 4
+timeBin = 8
 frameTime = 8
 NORM = 1
 DOWN_SAMP = 1
@@ -649,12 +690,6 @@ if DOWN_SAMP==0:
     ROLLING_FAC = 0
 else:
     ROLLING_FAC = 2
-
-
-# if 'scotopic' in lightLevel:
-#     meanIntensity = 1
-# elif 'photopic' in lightLevel:
-#     meanIntensity = 10000
 
 
 # t_frame = .008
@@ -684,7 +719,7 @@ elif pr_type == 'rods':
 path_dataset_save = os.path.join(path_dataset)#,'filterTest')
 
 if pr_mdl_name == 'rieke':
-    dataset_name = lightLevel+'_mdl-'+pr_mdl_name+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_gd-'+str(params['gdark'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_tb-'+str(timeBin)+'_'+ode_solver+'_RF-'+str(ROLLING_FAC)
+    dataset_name = lightLevel+'_mdl-'+pr_mdl_name+'_s-'+str(params['sigma'])+'_p-'+str(params['phi'])+'_e-'+str(params['eta'])+'_k-'+str(params['k'])+'_h-'+str(params['h'])+'_b-'+str(params['beta'])+'_hc-'+str(params['hillcoef'])+'_gd-'+str(params['gdark'])+'_g-'+str(params['gamma'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_tb-'+str(timeBin)+'_'+ode_solver+'_RF-'+str(ROLLING_FAC)
 elif pr_mdl_name == 'clark':
     dataset_name = lightLevel+'_mdl-'+pr_mdl_name+'_a-'+str(params['alpha'])+pr_mdl_name+'_b-'+str(params['beta'])+'_g-'+str(params['gamma'])+'_y-'+str(params['tau_y'])+'_z-'+str(params['tau_z'])+'_r-'+str(params['tau_r'])+'_preproc-'+pr_type+'_norm-'+str(NORM)+'_rfac-'+str(ROLLING_FAC)+'_tb-'+str(timeBin)
 
@@ -703,8 +738,6 @@ else:
 
 
 frames_X_orig = data_train_orig.X[:nsamps_end]
-# %%
-
 
 # Training data
 

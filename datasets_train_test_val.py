@@ -11,21 +11,21 @@ Created on Wed Apr 21 21:34:08 2021
 import os
 import h5py
 import numpy as np
-from model.data_handler import load_data, load_data_kr, load_data_kr_allLightLevels, save_h5Dataset, check_trainVal_contamination
+from model.data_handler import load_data, load_data_kr_allLightLevels, save_h5Dataset, check_trainVal_contamination
 from collections import namedtuple
 Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
 whos_data = 'kiersten'
 lightLevel = 'allLightLevels'     # ['scotopic', 'photopic','scotopic_photopic']
-datasetsToLoad = ['scotopic','photopic']#['scotopic','photopic','scotopic_photopic']
-changeIntensities = False
+datasetsToLoad = ['photopic']#['scotopic','photopic','scotopic_photopic']
+convertToRstar = True
 
 
 if whos_data == 'saad':
     expDate = '20180502_s3'     # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3')
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad/',expDate,'datasets')
 elif whos_data == 'kiersten':
-    expDate = 'retina1'     # ('retina1', 'retina2','retina3')
+    expDate = 'retina2'     # ('retina1', 'retina2','retina3')
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/8ms_sampShifted')
     
     meanIntensities = {
@@ -34,10 +34,8 @@ elif whos_data == 'kiersten':
     }
 
 
-
 fname_dataFile = os.path.join(path_dataset,(expDate+'_dataset_CB_'+lightLevel+'.h5'))
 
-    
 
 t_frame = 8
 filt_temporal_width = 0
@@ -87,7 +85,7 @@ for d in datasetsToLoad:
     
             data_train,data_val,data_test,data_quality,dataset_rr = load_data_kr(fname_dataFile,frac_val=frac_val,frac_test=frac_test,filt_temporal_width=filt_temporal_width,idx_cells_orig=idx_cells,thresh_rr=thresh_rr)
     
-    if changeIntensities == False:
+    if convertToRstar == False:
         fname_data_train_val_test = os.path.join(path_dataset,(expDate+'_dataset_train_val_test_'+d+'.h5'))
     else:
         meanIntensity = meanIntensities[d]
@@ -118,7 +116,7 @@ for d in datasetsToLoad:
     }
 
     
-    save_h5Dataset(fname_data_train_val_test,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
+    # save_h5Dataset(fname_data_train_val_test,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=resp_orig)
     
     
 # %% Shift photopic data by 5 samples

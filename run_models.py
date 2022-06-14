@@ -23,7 +23,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
-  
+
 # %% prepare data
     
 # import needed modules
@@ -44,9 +44,6 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     import model.metrics as metrics
     import model.models  # can improve this by only importing the model that is being used
 
-    # from model.models import model_definitions, get_model_memory_usage, modelFileName, cnn_3d, cnn_2d, pr_cnn2d, prfr_cnn2d,pr_cnn2d_fixed, pr_cnn3d, prfr_cnn2d_fixed, prfr_cnn2d_noTime, prfr_cnn2d_multipr, pr_cnn2d_multipr, prfr_cnn2d_rc,\
-    #     bp_cnn2d, bp_cnn2d_multibp, bp_cnn2d_multibp3cnns, bp_cnn2d_prfrtrainablegamma, bp_cnn2d_prfrtrainablegamma_rods, bp_cnn2d_multibp_prfrtrainablegamma,\
-    #     bpfelix_cnn2d, bp_cnn2d_hc, bp_cnn2d_hc2, bp_cnn2d_hc3, bp_cnn2d_hcfr
     from model.train_model import train, chunker
     from model.load_savedModel import load
     
@@ -62,7 +59,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     config.gpu_options.per_process_gpu_memory_fraction = .9
     tf.compat.v1.Session(config=config)
     gpus = tf.config.experimental.list_physical_devices('GPU')
-    # tf.compat.v1.enable_eager_execution()
+    # tf.compat.v1.disable_eager_execution()
     if not 'FR' in mdl_name:
         tf.config.experimental.set_memory_growth(gpus[0], True)
         tf.compat.v1.disable_eager_execution()
@@ -202,6 +199,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         # create the model
         model_func = getattr(model.models,mdl_name.lower())
         mdl = model_func(x, n_cells, **dict_params)      
+        mdl.summary()
 
         # Transfer weights to new model from an existing model
         if path_existing_mdl != '' and idxStart_fixedLayers>0:     
