@@ -27,7 +27,7 @@ def model_definitions():
     models_3D = ('CNN_3D','PR_CNN3D')
     
     return (models_2D,models_3D)
-
+ 
 def get_model_memory_usage(batch_size, model):
     
     """ 
@@ -838,7 +838,7 @@ class photoreceptor_RODS_REIKE(tf.keras.layers.Layer):
        
         eta_init = tf.keras.initializers.Constant(0.2) #2000
         self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        eta_scaleFac = tf.keras.initializers.Constant(10.) 
+        eta_scaleFac = tf.keras.initializers.Constant(100.) 
         self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         beta_init = tf.keras.initializers.Constant(0.25) #9
@@ -868,18 +868,18 @@ class photoreceptor_RODS_REIKE(tf.keras.layers.Layer):
         self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         hillaffinity_init = tf.keras.initializers.Constant(0.4) # 0.5
-        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=True)
         hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         gamma_init = tf.keras.initializers.Constant(0.1)
-        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         gamma_scaleFac = tf.keras.initializers.Constant(100.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                 
         gdark_init = tf.keras.initializers.Constant(0.28)    # 28 for cones; 20 for rods 
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
-        gdark_scaleFac = tf.keras.initializers.Constant(0.28)    # 28 for cones; 20 for rods 
+        gdark_scaleFac = tf.keras.initializers.Constant(100)    # 28 for cones; 20 for rods 
         self.gdark_scaleFac = tf.Variable(name='gdark_scaleFac',initial_value=gdark_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         self.timeBin = 8 # find a way to fix this in the model  #tf.Variable(name='timeBin',initial_value=timeBin(shape=(1,self.units),dtype='float32'),trainable=False)
