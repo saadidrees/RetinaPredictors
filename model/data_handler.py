@@ -16,7 +16,7 @@ from model import utils_si
 from model.performance import model_evaluate
 import re
    
-   
+
 def rolling_window(array, window, time_axis=0):
     """
     Make an ndarray with a rolling window of the last dimension
@@ -746,7 +746,8 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
         idx_train_end = -1
     else:
         LOAD_ALL_TR = False
-        nsamps_train = int((nsamps_train*60*1000)/t_frame)
+        if nsamps_train <1000:  # i.e. if this is in time, else it is in samples
+            nsamps_train = int((nsamps_train*60*1000)/t_frame)
         idx_train_start = 1000
         idx_train_end = idx_train_start+nsamps_train
 

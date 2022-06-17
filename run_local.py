@@ -15,7 +15,7 @@ from run_models import run_model
 data_pers = 'kiersten' #'kiersten'
 expDate = 'monkey01'
 subFold = '' 
-dataset = 'scot-3-Rstar'#_mdl-rieke_s-22_p-22_e-2000_k-0.01_h-3_b-9_hc-4_gd-28_g--0.225_preproc-cones_norm-1_tb-4_RungeKutta_RF-2'#_mdl-rieke_s-250_p-40.7_e-879_k-0.01_h-3_b-110_hc-2.64_preproc-cones_norm-1_rfac-2_tb-4'#_mdl-rieke_s-22_p-22_e-2000_k-0.01_h-3_b-9_hc-4_gd-28_preproc-cones_norm-1_tb-4_Euler_RF-2'
+dataset = 'scot-0.3-3-Rstar'
 
 mdl_subFold = ''
 mdl_name = 'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
@@ -23,9 +23,9 @@ path_existing_mdl = ''#'/home/saad/data/analyses/data_kiersten/retina1/PR_BP/pho
 info = ''
 idxStart_fixedLayers=0
 idxEnd_fixedLayers=-1
-CONTINUE_TRAINING=0
+CONTINUE_TRAINING=1
 
-lr = 0.0001
+lr = 0.01
 lr_fac = 1  # how much to divide the learning rate when training is resumed
 use_lrscheduler=1
 USE_CHUNKER=1

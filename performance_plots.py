@@ -29,6 +29,7 @@ from model import metrics
 from model import featureMaps
 from model.models import modelFileName
 from pyret.filtertools import sta, decompose
+import seaborn
 
 import tensorflow as tf
 gpu_devices = tf.config.experimental.list_physical_devices("GPU")
@@ -41,7 +42,7 @@ from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 expDates = ('monkey01',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
 mdl_subFold = ''
-lightLevel_1 = 'scot-3' 
+lightLevel_1 = 'scot-3-Rstar' 
 models_all = ('CNN_2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
 
 writeToCSV = False
@@ -58,8 +59,11 @@ cols_lightLevels = {
     'photopic': 'r',
     'scotopic': 'b',
     'scot-0.3':'b',
+    'scot-0.3-R':'b',
     'scot-3': 'r',
-    'scot-30':'g'
+    'scot-3-R': 'r',
+    'scot-30':'g',
+    'scot-30-':'g'
     }
 
 
@@ -304,20 +308,20 @@ select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 val_dataset_1 = lightLevel_1  #lightLevel_1 #      # ['scotopic','photopic']
 correctMedian = False
 
-select_LR=0.001
+select_LR=0.01
 select_U = 0#0.15
 select_P = 0#180
 select_T = 120#120
 select_BN = 1
 select_MP = 1
 # select_TR = 1
-select_C1_n = 20#1#2#13 #13 #20
+select_C1_n = 8#1#2#13 #13 #20
 select_C1_s = 9
 select_C1_3d = 0#50#25
-select_C2_n = 24#40#26 #26 #24
+select_C2_n = 16#40#26 #26 #24
 select_C2_s = 7#2#2
 select_C2_3d = 0#10#5
-select_C3_n = 22 #36 #24 #22
+select_C3_n = 18 #36 #24 #22
 select_C3_s = 5#1#1
 select_C3_3d = 0#62#32
 
@@ -540,15 +544,16 @@ _ = gc.collect()
 transferModel = False
 if transferModel == True:
     mdl_select_d2 = 'CNN_2D'
-    subFold_d2 = '8ms_resamp'
+    subFold_d2 = subFold
     idx_CNN_start = 4
 
 else:
     mdl_select_d2 = mdl_select
     subFold_d2 = subFold
-    idx_currMdl_start = 0
+    idx_currMdl_start = 0#4
 
-val_dataset_2 = 'scot-30'
+# val_dataset_2 = 'scot-30-Rstar_mdl-rieke_s-25.8898_p-21.1589_e-76.97_k-0.01_h-3_b-47.38_hc-4_gd-28_g-14.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
+val_dataset_2 = 'scot-0.3-Rstar'#-Rstar_mdl-rieke_s-25.8898_p-21.1589_e-76.97_k-0.01_h-3_b-47.38_hc-4_gd-28_g-1048.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
 correctMedian = False
 samps_shift_2 = 0#samps_shift
 
@@ -587,13 +592,13 @@ if transferModel == True:
     # y = Reshape((x.shape[1],x.shape[-2]*x.shape[-1]),name='start')(x)
     y = x 
 
-    for layer in mdl.layers[0:4]:
+    for layer in mdl.layers[idx_CNN_start:]:
         y = layer(y)
         
-    y = y[:,x.shape[1]-filt_temporal_width:,:,:]
-    y = model.models.Normalize_PRDA_GF(units=1)(y)
-    for layer in mdl.layers[6:]:
-        y = layer(y)
+    # y = y[:,x.shape[1]-filt_temporal_width:,:,:]
+    # y = model.models.Normalize_PRDA_GF(units=1)(y)
+    # for layer in mdl.layers[6:]:
+    #     y = layer(y)
 
     mdl_d2 = Model(x, y, name='CNN_2D')
 else:
@@ -605,14 +610,14 @@ if idx_currMdl_start > 0:
     n_cells = data_val.y.shape[1]
     y = x 
 
-    y = Reshape((x.shape[1],x.shape[-2]*x.shape[-1]),name='start')(x)
+    # y = Reshape((x.shape[1],x.shape[-2]*x.shape[-1]),name='start')(x)
     # y = y[:,:,None,:,None]
 
     for layer in mdl.layers[idx_currMdl_start:]:
         if layer.name=='tf.__operators__.getitem':
-            y = y[:,:,0,:,:]
-        elif layer.name=='tf.__operators__.getitem_1':
-            y = y[:,x.shape[1]-filt_temporal_width:,:,:,:]
+            y = y[:,x.shape[1]-filt_temporal_width:,:,:]
+        # elif layer.name=='tf.__operators__.getitem_1':
+        #     y = y[:,x.shape[1]-filt_temporal_width:,:,:,:]
         else:
             y = layer(y)
         
@@ -622,7 +627,7 @@ else:
 
 
 obs_rate = data_val.y
-pred_rate = mdl_d2.predict(data_val.X)
+pred_rate = mdl_d2.predict(data_val.X*7)  # /1.4 for 0.3Rstar
 
 if correctMedian==True:
     fname_data_train_val_test_d1 = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
@@ -687,7 +692,7 @@ rrCorr_d2_ci = 1.96*(rrCorr_d2_stdUnits/len(idx_d2_valid)**.5)
 # idx_units_sorted = np.argsort(predCorr_d2_allUnits[idx_d2_valid])
 idx_units_sorted = np.argsort(fev_d2_allUnits[idx_d2_valid])
 idx_units_sorted = idx_d2_valid[idx_units_sorted]
-idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1],idx_units_sorted[0]]
+# idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[1],idx_units_sorted[0]]
 # idx_unitsToPred = [26,3,16,32]
 
 # %
@@ -711,6 +716,7 @@ fig.suptitle('Training: '+lightLevel_1+' | Prediction: '+ val_dataset_2,fontsize
 for i in range(len(idx_unitsToPred)):
     l_base, = axs[i].plot(t_axis[t_start+samps_shift_2:t_end],obs_rate[t_start:t_end-samps_shift_2,idx_unitsToPred[i]],linewidth=4,color='darkgrey')
     l_base.set_label('Actual')
+    
     l, = axs[i].plot(t_axis[t_start+samps_shift_2:t_end],pred_rate[t_start+samps_shift_2:t_end,idx_unitsToPred[i]],cols_lightLevels[val_dataset_2[:8]],linewidth=lineWidth_mdl[0])
     l.set_label('Predicted: FEV = %.02f, Corr = %0.2f' %(fev_d2_allUnits[idx_unitsToPred[i]],predCorr_d2_allUnits[idx_unitsToPred[i]]))
     
@@ -723,58 +729,40 @@ for i in range(len(idx_unitsToPred)):
 
 
 # %Bar plots of photopic and scotopic light levels
+font_size_ticks = 32
+font_size_labels = 32
 
-fevs_d1 = [fev_d1_medianUnits,0]
-fevs_d2 = [fev_d2_medianUnits,0]
-cis_d1 = [fev_d1_ci,0]
-cis_d2 = [fev_d2_ci,0]
-fig,axs = plt.subplots(2,1,figsize=(5,10))
-fig.suptitle(select_exp+'\nTraining: '+lightLevel_1,fontsize=16)
-font_size_ticks = 16
-font_size_labels = 16
 
+mdls_order = [val_dataset_1[:8],val_dataset_2[:8]]
+meds_d1 = np.vstack((fev_d1_medianUnits,fev_d2_medianUnits))*100
+idx_cells_notvalid = np.union1d(np.setdiff1d(idx_allUnits,idx_d1_valid),np.setdiff1d(idx_allUnits,idx_d2_valid))
+idx_cells_valid = np.setdiff1d(idx_allUnits,idx_cells_notvalid)
+fev_stack = np.vstack((fev_d1_allUnits[idx_cells_valid],fev_d2_allUnits[idx_cells_valid]))*100
+# fev_stack = np.vstack((fev_d1_allUnits,fev_d2_allUnits))*100
+
+fev_stack = fev_stack.T
+
+
+figure,axs = plt.subplots(1,1,figsize=(20,10))
+axs = np.ravel(axs)
+figure.suptitle('')
+
+# col_scheme = ('blue','red')
 col_scheme = (cols_lightLevels[val_dataset_1[:8]],cols_lightLevels[val_dataset_2[:8]])
-# ax.yaxis.grid(True)
-xpoints = np.atleast_1d((0,1))
-xlabel_fev = [select_mdl,'']
-axs[0].bar(xpoints-.2,fevs_d1,yerr=cis_d1,align='center',capsize=6,alpha=.7,color=col_scheme[0],width=0.4,label=val_dataset_1[:8])
-axs[0].bar(xpoints+.2,fevs_d2,yerr=cis_d2,align='center',capsize=6,alpha=.7,color=col_scheme[1],width=0.4,label=val_dataset_2[:8])
-axs[0].plot((-0.5,len(xlabel_fev)-0.5),(np.nanmax(fevs_d1),np.nanmax(fevs_d1)),color='green')
-axs[0].set_xticks(xpoints)#(2*np.arange(0,fev_d1_medianUnits_allMdls.shape[0]))
-axs[0].set_xticklabels(xlabel_fev)
-
-axs[0].set_ylabel('FEV',fontsize=font_size_ticks)
-axs[0].set_title('',fontsize=font_size_ticks)
-axs[0].set_yticks(np.arange(-1,1.1,.1))
-axs[0].set_ylim((0,1.1))
-# axs[0].text(.75,.45,'N = %d RGCs' %fev_allUnits.shape[1],fontsize=font_size_ticks)
-axs[0].tick_params(axis='both',labelsize=16)
-axs[0].legend(loc='best',fontsize=font_size_labels)
-
-
-fevs_d1 = [predCorr_d1_medianUnits,rrCorr_d1_medianUnits]
-fevs_d2 = [predCorr_d2_medianUnits,rrCorr_d2_medianUnits]
-cis_d1 = [predCorr_d1_ci,rrCorr_d1_ci]
-cis_d2 = [predCorr_d2_ci,rrCorr_d2_ci]
-
 
 # ax.yaxis.grid(True)
-xpoints = np.atleast_1d((0,1))
-xlabel_corr = [select_mdl,'RetinaReliab']
+seaborn.violinplot(data=fev_stack,ax=axs[0],palette=col_scheme)
 
-axs[1].bar(xpoints-.2,fevs_d1,yerr=cis_d1,align='center',capsize=6,alpha=.7,color=col_scheme[0],width=0.4,label=val_dataset_1[:8])
-axs[1].bar(xpoints+.2,fevs_d2,yerr=cis_d2,align='center',capsize=6,alpha=.7,color=col_scheme[1],width=0.4,label=val_dataset_2[:8])
-axs[1].plot((-0.5,len(xlabel_fev)-0.5),(np.nanmax(predCorr_d1_medianUnits),np.nanmax(predCorr_d1_medianUnits)),color='green')
-axs[1].set_xticks(xpoints)#(2*np.arange(0,fev_d1_medianUnits_allMdls.shape[0]))
-axs[1].set_xticklabels(xlabel_corr)
+axs[0].set_ylabel('FEV (%)',fontsize=font_size_ticks)
+axs[0].set_title('Trained at '+val_dataset_1[:8],fontsize=font_size_labels)
+axs[0].set_yticks(np.arange(0,150,10))
+axs[0].set_ylim((0,150))
+axs[0].set_xticklabels(mdls_order)
+for i in range(len(mdls_order)):
+    axs[0].text(i+.2,120,'med\n%0.2f%%' %meds_d1[i],fontsize=font_size_ticks,color=col_scheme[0])
+axs[0].text(-0.4,100,'N = %d RGCs' %fev_stack.shape[0],fontsize=font_size_ticks)
+axs[0].tick_params(axis='both',labelsize=font_size_labels)
 
-axs[1].set_ylabel('Correlation Coefficient',fontsize=font_size_ticks)
-axs[1].set_title('',fontsize=font_size_ticks)
-axs[1].set_yticks(np.arange(-0.6,1.1,.2))
-axs[1].set_ylim((0,1.1))
-# axs[0].text(.75,.45,'N = %d RGCs' %fev_allUnits.shape[1],fontsize=font_size_ticks)
-axs[1].tick_params(axis='both',labelsize=16)
-axs[1].legend(loc='best',fontsize=font_size_labels)
 
 # %% Sustained, Transient split
 unames_valid = perf_allExps[select_exp][select_mdl][paramFileName]['data_quality']['uname_selectedUnits'][idx_d2_valid]

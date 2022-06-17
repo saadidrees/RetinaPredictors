@@ -10,13 +10,13 @@ import csv
 import os
 
 APPEND_TO_EXISTING = 0
-expDate = 'retina1'
-samps_shift = 4
+expDate = 'retina3'
+samps_shift = 0
 lightLevel = 'scotopic'
 pr_type = 'rods'
 pr_mdl_name = 'clark'
-path_mdl = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms_clark/photopic-10000_mdl-clark_b-0.36_g-0.448_y-4.48_z-166_preproc-added_norm-1_rfac-2/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01/'
-trainingDataset = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms_clark/datasets/'+expDate+'_dataset_train_val_test_photopic-10000_mdl-clark_b-0.36_g-0.448_y-4.48_z-166_preproc-added_norm-1_rfac-2.h5'
+path_mdl = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms_clark/photopic-10000_mdl-clark_b-0.36_g-0.448_y-4.48_z-166_r-0_preproc-cones_norm-1_rfac-2/CNN_2D/U-0.00_T-120_C1-13-03_C2-26-02_C3-24-01_BN-1_MP-0_TR-01/'
+trainingDataset = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms_clark/datasets/'+expDate+'_dataset_train_val_test_photopic-10000_mdl-clark_b-0.36_g-0.448_y-4.48_z-166_r-0_preproc-cones_norm-1_rfac-2.h5'
 testingDataset = '/home/sidrees/scratch/RetinaPredictors/data/'+expDate+'/8ms/datasets/'+expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
 mdl_name = 'CNN_2D'
 
@@ -55,9 +55,9 @@ if pr_mdl_name=='rieke':
 elif pr_mdl_name=='clark':
     c_beta = np.atleast_1d(0.36) #np.arange(0.36,0.4,0.1)
     c_gamma = np.atleast_1d(0.448)
-    c_tau_y = np.arange(10,40,2)
-    c_n_y = np.atleast_1d(4.33)
-    c_tau_z = np.arange(100,500,5)
+    c_tau_y = np.arange(1,35,1)
+    c_n_y = np.arange(0.5,8,0.1) #np.atleast_1d(4.33)
+    c_tau_z = np.atleast_1d(166)
     c_n_z = np.atleast_1d(1)
 
     
