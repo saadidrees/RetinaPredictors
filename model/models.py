@@ -873,7 +873,7 @@ class photoreceptor_RODS_REIKE(tf.keras.layers.Layer):
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         gamma_init = tf.keras.initializers.Constant(0.1)
-        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
         gamma_scaleFac = tf.keras.initializers.Constant(100.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
                 
@@ -937,8 +937,8 @@ def prfr_cnn2d_rods(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=1
     y = photoreceptor_RODS_REIKE(units=1)(y)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
-    y = Normalize_PRFR_GF(units=1)(y)
-    # y = Normalize(units=1)(y)
+    # y = Normalize_PRFR_GF(units=1)(y)
+    y = Normalize(units=1)(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
