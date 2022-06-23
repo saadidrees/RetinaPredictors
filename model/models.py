@@ -1022,7 +1022,7 @@ def prfr_cnn2d_rods(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=1
     # y = Normalize_PRFR_MEAN(units=1)(y)
     # y = Normalize_PRFR_GF(units=1)(y)
     # y = Normalize(units=1)(y)
-    y = LayerNormalization(axis=1)(y)
+    y = LayerNormalization(axis=[1,2,3])(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
