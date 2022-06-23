@@ -238,7 +238,7 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
     # first layer  
     y = inputs
     if BatchNorm is True:
-        y = LayerNormalization(axis=1)(y)
+        y = LayerNormalization(axis=[1,2,3])(y)
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     
     if MaxPool is True:
