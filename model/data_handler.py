@@ -15,7 +15,7 @@ from collections import namedtuple
 from model import utils_si
 from model.performance import model_evaluate
 import re
-   
+
 
 def rolling_window(array, window, time_axis=0):
     """
@@ -326,7 +326,7 @@ def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,
         return data_train,data_val,data_test,data_quality,dataset_rr
 
 
-def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15):
+def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0,NORM_RESP=1):
     
     # valSets = ['scotopic','photopic']   # embed this in h5 file
     
@@ -418,12 +418,28 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
             temp[np.isnan(temp)] = 0
             resp_norm = temp
             resp_orig = resp
-
-            
-        datasets[s] = Exptdata(stim, resp_norm)
+        
+        resp_orig[np.isnan(resp_orig)] = 0
+        if NORM_RESP==1:
+            datasets[s] = Exptdata(stim, resp_norm)
+        else:
+            datasets[s] = Exptdata(stim, resp_orig)
         resp_non_norm[s] = resp_orig
         
     f.close()
+    
+    if N_split>0:
+        idx_half = int(np.floor(datasets['train'].X.shape[0])/2)
+        N_samps = int(N_split*idx_half)
+        
+        X = datasets['train'].X[:N_samps]
+        X = np.concatenate((X,datasets['train'].X[idx_half+100:idx_half+100+N_samps]),axis=0)
+        
+        y = datasets['train'].y[:N_samps]
+        y = np.concatenate((y,datasets['train'].y[idx_half+100:idx_half+100+N_samps]),axis=0)
+        
+        datasets['train'] = Exptdata(X,y)
+
     
     
     del resp
@@ -748,8 +764,9 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
         LOAD_ALL_TR = False
         if nsamps_train <1000:  # i.e. if this is in time, else it is in samples
             nsamps_train = int((nsamps_train*60*1000)/t_frame)
-        idx_train_start = 1000
+        idx_train_start = 0
         idx_train_end = idx_train_start+nsamps_train
+        
 
     
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
@@ -781,8 +798,17 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
                 data_train = Exptdata(X,y)
             
         else:   # if there is only one dataset
-            X = np.array(f['data_train']['X'][idx_train_start:idx_train_end],dtype='float32')
-            y = np.array(f['data_train']['y'][idx_train_start:idx_train_end],dtype='float32')
+            if idx_train_end!=-1:
+                bool_idx = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                bool_idx[:int(nsamps_train/2)] = True
+                bool_idx[-int(nsamps_train/2):] = True
+                
+            else:
+                bool_idx = np.ones(f['data_train']['X'].shape[0],dtype='bool')
+                
+            int_idx = np.where(bool_idx)
+            X = np.array(f['data_train']['X'][int_idx],dtype='float32')
+            y = np.array(f['data_train']['y'][int_idx],dtype='float32')
             data_train = Exptdata(X,y)
 
     else:

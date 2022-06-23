@@ -75,11 +75,11 @@ def fraction_of_explainable_variance_explained(obs_rate, est_rate,obs_noise):
 
 
 def correlation_coefficient_distribution(obs_rate,est_rate):
-    x_mu = obs_rate - np.mean(obs_rate, axis=0)
-    x_std = np.std(obs_rate, axis=0)
-    y_mu = est_rate - np.mean(est_rate, axis=0)
-    y_std = np.std(est_rate, axis=0)
-    cc_allUnits = np.mean(x_mu * y_mu,axis=0) / (x_std * y_std)
+    x_mu = obs_rate - np.nanmean(obs_rate, axis=0)
+    x_std = np.nanstd(obs_rate, axis=0)
+    y_mu = est_rate - np.nanmean(est_rate, axis=0)
+    y_std = np.nanstd(est_rate, axis=0)
+    cc_allUnits = np.nanmean(x_mu * y_mu,axis=0) / (x_std * y_std)
     return cc_allUnits
 
 

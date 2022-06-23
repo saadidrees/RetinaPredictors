@@ -220,6 +220,63 @@ def cnn_2d(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, c
     mdl_name = 'CNN_2D'
     return Model(inputs, outputs, name=mdl_name)
 
+def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+    
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = bool(kwargs['MaxPool'])
+
+    
+    sigma = 0.1
+    filt_temporal_width=inputs.shape[1]
+
+    # first layer  
+    y = inputs
+    if BatchNorm is True:
+        y = Normalize(units=1)(y)
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    
+    if MaxPool is True:
+        y = MaxPool2D(2,data_format='channels_first')(y)
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+
+
+    # second layer
+    if chan2_n>0:
+        if BatchNorm is True: 
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+            
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)                  
+
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    # Third layer
+    if chan3_n>0:
+        if BatchNorm is True: 
+            n1 = int(y.shape[-1])
+            n2 = int(y.shape[-2])
+            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)       
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+        
+        
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=-1)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    outputs = Activation('softplus')(y)
+
+    mdl_name = 'CNN_2D_NORM'
+    return Model(inputs, outputs, name=mdl_name)
+
 def cnn_3d(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, filt1_3rdDim=1, chan2_n=25, filt2_size=13, filt2_3rdDim=1, chan3_n=25, filt3_size=13, filt3_3rdDim=1, BatchNorm=True,MaxPool=True):
     
     chan1_n = kwargs['chan1_n']
@@ -393,6 +450,24 @@ class Normalize_PRFR_GF(tf.keras.layers.Layer):
         R_mean =  0.43907212331830137 #tf.math.reduce_mean(R_norm)       
         R_norm = R_norm - R_mean
         return R_norm
+    
+class Normalize_PRFR_MEAN(tf.keras.layers.Layer):
+    def __init__(self,units=1):
+        super(Normalize_PRFR_MEAN,self).__init__()
+        self.units = units
+        
+    def get_config(self):
+         config = super().get_config()
+         config.update({
+             "units": self.units,
+         })
+         return config   
+             
+    def call(self,inputs):
+        R_mean =  -110 #tf.math.reduce_mean(R_norm)       
+        R_norm = inputs - R_mean
+        return R_norm
+
 
 class Normalize_multichan(tf.keras.layers.Layer):
     """
@@ -826,12 +901,12 @@ class photoreceptor_RODS_REIKE(tf.keras.layers.Layer):
         return config
 
     def build(self,input_shape):
-        sigma_init = tf.keras.initializers.Constant(0.766) # 22
+        sigma_init = tf.keras.initializers.Constant(1.0) # 22
         self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         sigma_scaleFac = tf.keras.initializers.Constant(10.) 
         self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        phi_init = tf.keras.initializers.Constant(0.766) #22
+        phi_init = tf.keras.initializers.Constant(1.0) #22
         self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=True)
         phi_scaleFac = tf.keras.initializers.Constant(10.) 
         self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
@@ -841,7 +916,7 @@ class photoreceptor_RODS_REIKE(tf.keras.layers.Layer):
         eta_scaleFac = tf.keras.initializers.Constant(100.) 
         self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        beta_init = tf.keras.initializers.Constant(0.25) #9
+        beta_init = tf.keras.initializers.Constant(0.15) #9
         self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
         beta_scaleFac = tf.keras.initializers.Constant(100.) 
         self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
@@ -862,22 +937,28 @@ class photoreceptor_RODS_REIKE(tf.keras.layers.Layer):
         betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillcoef_init = tf.keras.initializers.Constant(0.4) #tf.keras.initializers.Constant(1.) # 4
+        hillcoef_init = tf.keras.initializers.Constant(0.52) #tf.keras.initializers.Constant(1.) # 4
         self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype='float32'),trainable=False)
         hillcoef_scaleFac = tf.keras.initializers.Constant(10.) 
         self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        hillaffinity_init = tf.keras.initializers.Constant(0.4) # 0.5
+        hillaffinity_init = tf.keras.initializers.Constant(0.26) # 0.5
         self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype='float32'),trainable=False)
         hillaffinity_scaleFac = tf.keras.initializers.Constant(1.) 
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        gamma_init = tf.keras.initializers.Constant(0.1)
+        # gamma_range = (0.01,1)
+        # gamma_init = tf.keras.initializers.Constant(0.1)
+        # self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True,constraint=lambda x: tf.clip_by_value(x,gamma_range[0],gamma_range[1]))
+        # gamma_scaleFac = tf.keras.initializers.Constant(1000.) 
+        # self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+                
+        gamma_init = tf.keras.initializers.Constant(1)
         self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
         gamma_scaleFac = tf.keras.initializers.Constant(100.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
-                
-        gdark_init = tf.keras.initializers.Constant(0.28)    # 28 for cones; 20 for rods 
+
+        gdark_init = tf.keras.initializers.Constant(0.20)    # 28 for cones; 20 for rods 
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         gdark_scaleFac = tf.keras.initializers.Constant(100)    # 28 for cones; 20 for rods 
         self.gdark_scaleFac = tf.Variable(name='gdark_scaleFac',initial_value=gdark_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
@@ -937,8 +1018,10 @@ def prfr_cnn2d_rods(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=1
     y = photoreceptor_RODS_REIKE(units=1)(y)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    
+    y = Normalize_PRFR_MEAN(units=1)(y)
     # y = Normalize_PRFR_GF(units=1)(y)
-    y = Normalize(units=1)(y)
+    # y = Normalize(units=1)(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)

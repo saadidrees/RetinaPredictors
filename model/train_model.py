@@ -44,12 +44,12 @@ class CustomCallback(keras.callbacks.Callback):
         
 
 def lr_scheduler(epoch,lr):
-    arr_scheduler = np.array([[3,10],
-                          [15,10],
-                          [30,10],
-                          [40,10],
-                          [80,10],
-                          [180,10]])
+    arr_scheduler = np.array([[3,1],
+                          [10,10],
+                          [15,1],
+                          [20,10],
+                          [25,1],
+                          [50,10]])
 
 
     idx = np.where(arr_scheduler[:,0]==epoch)[0]

@@ -26,7 +26,7 @@ from scipy import integrate
 import tensorflow as tf
 
 #betaSlow makes things worse
- 
+
 def model_params_orig(timeBin=1):
 # retina 1 
     ##  cones - monkey
@@ -173,18 +173,18 @@ def model_params_monkey(timeBin=1):
     
     ## rods - monkey - 3 rstar
     params_rods = {}
-    params_rods['sigma'] = 25.8898  # rhodopsin activity decay rate (1/sec) - default 22
-    params_rods['phi'] =  21.1589     # phosphodiesterase activity decay rate (1/sec) - default 22
-    params_rods['eta'] = 76.97	  # phosphodiesterase activation rate constant (1/sec) - default 2000
-    params_rods['gdark'] = 28 # 13.4 # concentration of cGMP in darkness - default 20.5
+    params_rods['sigma'] = 10  # rhodopsin activity decay rate (1/sec) - default 22
+    params_rods['phi'] =  10     # phosphodiesterase activity decay rate (1/sec) - default 22
+    params_rods['eta'] = 20	  # phosphodiesterase activation rate constant (1/sec) - default 2000
+    params_rods['gdark'] = 20 # 13.4 # concentration of cGMP in darkness - default 20.5
     params_rods['k'] =  0.01 #0.01     # constant relating cGMP to current - default 0.02
     params_rods['h'] =  3       # cooperativity for cGMP->current - default 3
     params_rods['cdark'] =  1#1  # dark calcium concentration - default 1
-    params_rods['beta'] = 47.38	  # rate constant for calcium removal in 1/sec - default 9
+    params_rods['beta'] = 15	  # rate constant for calcium removal in 1/sec - default 9
     params_rods['betaSlow'] =  0	  
-    params_rods['hillcoef'] =  4  	  # cooperativity for cyclase, hill coef - default 4
-    params_rods['hillaffinity'] =  0.40		# affinity for Ca2+
-    params_rods['gamma'] =  143/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['hillcoef'] =  5.2  	  # cooperativity for cyclase, hill coef - default 4
+    params_rods['hillaffinity'] =  0.26		# affinity for Ca2+
+    params_rods['gamma'] =  100/timeBin #143/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
     
@@ -729,11 +729,11 @@ def model_params_clark_init():
         
 #%% Single pr type
 
-DEBUG_MODE = 0
-WRITE_TO_H5 = 1
+DEBUG_MODE = 1
+WRITE_TO_H5 = 0
 data_pers = 'kiersten'  #['saad','kiersten']
-expDate = 'monkey01' #'retina1'  20180502_s3
-lightLevel = 'scot-3' #'photopic-10000' #'photopic-10000'  # ['photopic','scotopic','mesopic-2026']
+expDate = 'monkey01' #'retina1'  20180502_as3
+lightLevel = 'scot-30' #'photopic-10000' #'photopic-10000'  # ['photopic','scotopic','mesopic-2026']
 if expDate == 'monkey01':
     lightLevel = lightLevel+'-Rstar'
 stimName = ''  # SACC_T2
@@ -753,7 +753,7 @@ ode_solver = 'Euler' #['hybrid','RungeKutta','Euler']
 
 timeBin = 8
 frameTime = 8
-NORM = 0
+NORM = 1
 NORM_FIXED = 0
 DOWN_SAMP = 1
 ROLLING_FAC = 2
@@ -805,7 +805,7 @@ fname_dataset_save = expDate+'_dataset_train_val_test_'+dataset_name+'.h5'
 fname_dataset_save = os.path.join(path_dataset_save,fname_dataset_save)
 
 if DEBUG_MODE==1:
-    nsamps_end = 5000  #10000
+    nsamps_end = 5000 #10000
     data_train_orig,data_val_orig,data_test,data_quality,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test,nsamps_val=nsamps_end*8/1000/60,nsamps_train=nsamps_end*8/1000/60)
 
 else:
@@ -821,9 +821,9 @@ stim_train,resp_train = run_model(pr_mdl_name,data_train_orig.X[:nsamps_end],dat
 
 if NORM==1:
     if NORM_FIXED==1:
-        value_min = -113.211676833235 #tf.math.reduce_min(inputs)
-        value_max = -81.1005869186533 #tf.math.reduce_max(inputs)
-        stim_train_med =  0.43907212331830137 #tf.math.reduce_mean(R_norm)       
+        value_min = -40 #-113.211676833235 #tf.math.reduce_min(inputs)
+        value_max = -28 #-81.1005869186533 #tf.math.reduce_max(inputs)
+        stim_train_med = 0.57 # 0.43907212331830137 #tf.math.reduce_mean(R_norm)       
         
         stim_train_norm = (stim_train - value_min)/(value_max-value_min)
         stim_train_norm = stim_train_norm - stim_train_med
@@ -847,7 +847,6 @@ n_discard_val = 50
 stim_val,resp_val = run_model(pr_mdl_name,data_val_orig.X,data_val_orig.y,params,meanIntensity,upSampFac,downSampFac=downSampFac,n_discard=n_discard_val,NORM=0,DOWN_SAMP=DOWN_SAMP,ROLLING_FAC=ROLLING_FAC,runOnGPU=False,ode_solver=ode_solver)
 if NORM==1:
     if NORM_FIXED!=1:
-        
         value_min = np.min(stim_val)
         value_max = np.max(stim_val)
 
