@@ -21,7 +21,7 @@ def model_definitions():
         How to arrange the datasets depends on which model is being used
     """
     
-    models_2D = ('CNN_2D','PRFR_CNN2D','PR_CNN2D','PRFR_CNN2D_RODS','PRFR_CNN2D_RODSTRGAMMA',
+    models_2D = ('CNN_2D','CNN_2D_NORM','PRFR_CNN2D','PR_CNN2D','PRFR_CNN2D_RODS','PRFR_CNN2D_RODSTRGAMMA',
                  'BP_CNN2D_MULTIBP','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA_RODS')
     
     models_3D = ('CNN_3D','PR_CNN3D')
@@ -238,7 +238,7 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
     # first layer  
     y = inputs
     if BatchNorm is True:
-        y = Normalize(units=1)(y)
+        y = LayerNormalization(axis=1)(y)
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     
     if MaxPool is True:
