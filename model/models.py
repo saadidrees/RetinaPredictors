@@ -9,7 +9,7 @@ Created on Tue Mar 23 20:42:39 2021
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras import Model,regularizers
-from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Activation, Flatten, Reshape,MaxPool3D, MaxPool2D, Permute, BatchNormalization, GaussianNoise
+from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Activation, Flatten, Reshape,MaxPool3D, MaxPool2D, Permute, BatchNormalization, GaussianNoise,LayerNormalization
 from tensorflow.keras.regularizers import l1, l2
 import numpy as np
 import math
@@ -1019,9 +1019,10 @@ def prfr_cnn2d_rods(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=1
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
     
-    y = Normalize_PRFR_MEAN(units=1)(y)
+    # y = Normalize_PRFR_MEAN(units=1)(y)
     # y = Normalize_PRFR_GF(units=1)(y)
     # y = Normalize(units=1)(y)
+    y = LayerNormalization(axis=1)(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
