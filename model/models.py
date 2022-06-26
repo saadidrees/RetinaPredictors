@@ -237,8 +237,7 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
 
     # first layer  
     y = inputs
-    if BatchNorm is True:
-        y = LayerNormalization(axis=-1)(y)
+    y = LayerNormalization(axis=[1,2,3])(y)
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     
     if MaxPool is True:
@@ -451,20 +450,22 @@ class Normalize_PRFR_GF(tf.keras.layers.Layer):
         R_norm = R_norm - R_mean
         return R_norm
     
-class Normalize_PRFR_MEAN(tf.keras.layers.Layer):
-    def __init__(self,units=1):
-        super(Normalize_PRFR_MEAN,self).__init__()
-        self.units = units
+class Normalize_MEAN(tf.keras.layers.Layer):
+    def __init__(self,mean_val=0):
+        super(Normalize_MEAN,self).__init__()
+        self.mean_val = mean_val
         
     def get_config(self):
          config = super().get_config()
          config.update({
-             "units": self.units,
+             "mean_val": self.mean_val,
          })
          return config   
              
     def call(self,inputs):
-        R_mean =  -110 #tf.math.reduce_mean(R_norm)       
+        R_mean =  self.mean_val #tf.math.reduce_mean(R_norm)       
+        if R_mean==0:
+            R_mean = tf.math.reduce_mean(inputs)       
         R_norm = inputs - R_mean
         return R_norm
 
@@ -1398,6 +1399,7 @@ def bp_cnn2d_multibp(inputs,n_out,**kwargs): # BP --> 3D CNN --> 2D CNN
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:,:]
     
     y = Normalize(units=1)(y)
+    y = LayerNormalization(units=1)(y)
     y = Permute((4,2,3,1))(y)   # Channels first
     
     # CNN - first layer
