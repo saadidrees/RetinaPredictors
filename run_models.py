@@ -15,11 +15,12 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                             path_existing_mdl='',idxStart_fixedLayers=0,idxEnd_fixedLayers=-1,
                             saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
+                            chans_bp=1,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
                             pr_temporal_width = 180,
-                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,
+                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,idx_unitsToTake=[0],
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
@@ -29,6 +30,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 # import needed modules
     import numpy as np
     import os
+    import time
     import math
     import csv
     import h5py
@@ -79,6 +81,9 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     if chan3_n == 0:
         filt3_size = 0
         filt3_3rdDim = 0 
+    
+    if 'BP' not in mdl_name:
+        chans_bp=0
 
     # path to save results to - PARAMETERIZE THIS
     if runOnCluster==1:
@@ -95,13 +100,17 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     # load_h5dataset is a function to load training and validation data from h5 dataset. We can extract all data or a subset using the nsamps arguments.
     # data_train, val and test are named tuples. data_train.X contains the stimulus with dimensions [samples,y pixels, x pixels]
     # and data_train.y contains the spikerate normalized by median [samples,numOfCells]
+    if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
+        trainingSamps_dur = 4
     data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,LOAD_ALL_TR=True)
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
     
     
 # Arrange data according to the model
-    idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
-    idx_unitsToTake
+    if len(idx_unitsToTake)<2:      # if units are not provided take all
+        idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+    
+    print(idx_unitsToTake)
     
     # Data will be rolled so that each sample has a temporal width. Like N frames of movie in one sample. The duration of each frame is in t_frame
     # if the model has a photoreceptor layer, then the PR layer has a termporal width of pr_temporal_width, which before convs will be chopped off to temporal width
@@ -126,9 +135,9 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     # prepare data according to model. Roll and adjust dimensions according to 2D or 3D model
     if mdl_name in modelNames_2D:
-        data_train = prepare_data_cnn2d(data_train,temporal_width_prepData,np.arange(len(idx_unitsToTake)))     # [samples,temporal_width,rows,columns]
-        data_test = prepare_data_cnn2d(data_test,temporal_width_prepData,np.arange(len(idx_unitsToTake)))
-        data_val = prepare_data_cnn2d(data_val,temporal_width_prepData,np.arange(len(idx_unitsToTake)))   
+        data_train = prepare_data_cnn2d(data_train,temporal_width_prepData,idx_unitsToTake)     # [samples,temporal_width,rows,columns]
+        data_test = prepare_data_cnn2d(data_test,temporal_width_prepData,idx_unitsToTake)
+        data_val = prepare_data_cnn2d(data_val,temporal_width_prepData,idx_unitsToTake)   
         
         filt1_3rdDim=0
         filt2_3rdDim=0
@@ -136,9 +145,9 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
         
     elif mdl_name in modelNames_3D:
-        data_train = prepare_data_cnn3d(data_train,temporal_width_prepData,np.arange(len(idx_unitsToTake)))
-        data_test = prepare_data_cnn3d(data_test,temporal_width_prepData,np.arange(len(idx_unitsToTake)))
-        data_val = prepare_data_cnn3d(data_val,temporal_width_prepData,np.arange(len(idx_unitsToTake)))
+        data_train = prepare_data_cnn3d(data_train,temporal_width_prepData,idx_unitsToTake)
+        data_test = prepare_data_cnn3d(data_test,temporal_width_prepData,idx_unitsToTake)
+        data_val = prepare_data_cnn3d(data_val,temporal_width_prepData,idx_unitsToTake)
 
     else:
         raise ValueError('model not found')
@@ -169,11 +178,11 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
      3. Build a new model but transfer some or all weights (In this case the weight transferring layers should be similar)
     """
     
-    fname_model,dict_params = model.models.modelFileName(U=thresh_rr,P=pr_temporal_width,T=temporal_width,
+    fname_model,dict_params = model.models.modelFileName(U=len(idx_unitsToTake),P=pr_temporal_width,T=temporal_width,CB_n=chans_bp,
                                                         C1_n=chan1_n,C1_s=filt1_size,C1_3d=filt1_3rdDim,
                                                         C2_n=chan2_n,C2_s=filt2_size,C2_3d=filt2_3rdDim,
                                                         C3_n=chan3_n,C3_s=filt3_size,C3_3d=filt3_3rdDim,
-                                                        BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial)
+                                                        BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial,TRSAMPS=trainingSamps_dur)
     dict_params['filt_temporal_width'] = temporal_width
     
     # filt_temporal_width = dict_params['filt_temporal_width']; chan1_n = dict_params['chan1_n']; filt1_size = dict_params['filt1_size']; chan2_n = dict_params['chan2_n']; filt2_size = dict_params['filt2_size']
@@ -195,11 +204,18 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     if (initial_epoch>0 and initial_epoch < nb_epochs) or nb_epochs==0:     # Load existing model if true
         mdl = load(os.path.join(path_model_save,fname_model))
+        # fname_history = os.path.join(path_model_save,'history_'+mdl_name+'.h5')
+        # f = h5py.File(fname_history,'r')
+        # mdl_history = {}
+        # for key in f.keys():
+        #     mdl_history[key] = np.array(f[key])
+        # f.close()
+        
     else:
         # create the model
         model_func = getattr(model.models,mdl_name.lower())
         mdl = model_func(x, n_cells, **dict_params)      
-        mdl.summary()
+        # mdl.summary()
 
         # Transfer weights to new model from an existing model
         if path_existing_mdl != '' and idxStart_fixedLayers>0:     
@@ -231,7 +247,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         
 
     # %% Train model
-    
+    t_elapsed = 0
+    t = time.time()
     gbytes_usage = model.models.get_model_memory_usage(bz, mdl)  # for PRFR layer models, this is not a good estimate.
     print('Memory required = %0.2f GB' %gbytes_usage)
     # continue a halted training: load existing model checkpoint and initial_epoch value to pass on for continuing the training
@@ -243,6 +260,9 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                             USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=use_lrscheduler,lr_fac=lr_fac)  
         mdl_history = mdl_history.history
         _ = gc.collect()
+        
+    t_elapsed = time.time()-t
+    print('time elapsed: '+str(t_elapsed)+' seconds')
     
     # %% Model Evaluation
     nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
@@ -376,6 +396,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         'idx_bestEpoch': idx_bestEpoch,
         
         'val_loss_allEpochs': val_loss_allEpochs,
+        't_elapsed': t_elapsed,
         # 'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
         }
         
@@ -384,7 +405,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
        'mdl_name': mdl.name,
        'existing_mdl': np.array(path_existing_mdl,dtype='bytes'),
        'path_model_save': path_model_save,
-       'uname_selectedUnits': np.array(data_quality['uname_selectedUnits'],dtype='bytes'),#[idx_unitsToTake],dtype='bytes'),
+       'uname_selectedUnits': np.array(data_quality['uname_selectedUnits'][idx_unitsToTake],dtype='bytes'),#[idx_unitsToTake],dtype='bytes'),
        'idx_unitsToTake': idx_unitsToTake,
        'thresh_rr': thresh_rr,
        'trial_num': c_trial,
@@ -442,8 +463,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','expDate','dataset','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median']
-        csv_data = [mdl_name,expDate,name_dataset,thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits]
+        csv_header = ['mdl_name','expDate','dataset','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed']
+        csv_data = [mdl_name,expDate,name_dataset,thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur,t_elapsed]
         
         fname_csv_file = 'performance_'+expDate+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
