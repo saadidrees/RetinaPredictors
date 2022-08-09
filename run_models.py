@@ -100,8 +100,9 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     # load_h5dataset is a function to load training and validation data from h5 dataset. We can extract all data or a subset using the nsamps arguments.
     # data_train, val and test are named tuples. data_train.X contains the stimulus with dimensions [samples,y pixels, x pixels]
     # and data_train.y contains the spikerate normalized by median [samples,numOfCells]
-    if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
-        trainingSamps_dur = 4
+    
+    # if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
+    #     trainingSamps_dur = 4
     data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,LOAD_ALL_TR=True)
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
     
@@ -396,7 +397,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         'idx_bestEpoch': idx_bestEpoch,
         
         'val_loss_allEpochs': val_loss_allEpochs,
-        't_elapsed': t_elapsed,
+        't_elapsed': np.array(t_elapsed),
         # 'val_dataset_name': dataset_rr['stim_0']['dataset_name'],
         }
         
