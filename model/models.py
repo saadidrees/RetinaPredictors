@@ -1292,50 +1292,101 @@ def bp_cnn2d_multibp(inputs,n_out,**kwargs): # BP --> 3D CNN --> 2D CNN
 
 
 class bipolar(tf.keras.layers.Layer):
-    def __init__(self,units=1):
+    def __init__(self,units=1,kernel_regularizer=None):
         super(bipolar,self).__init__()
         self.units = units
+        self.kernel_regularizer = regularizers.get(kernel_regularizer)
             
     def build(self,input_shape):
-        alpha_init = tf.keras.initializers.Constant(0.5) #tf.keras.initializers.Constant(16.2) #tf.keras.initializers.Constant(1.) #tf.random_normal_initializer(mean=1)
-        self.alpha = tf.Variable(name='alpha',initial_value=alpha_init(shape=(1,self.units),dtype='float32'),trainable=True)
         
-        beta_init = tf.keras.initializers.Constant(0.5) #tf.keras.initializers.Constant(-13.46) #tf.keras.initializers.Constant(0.36) #tf.random_normal_initializer(mean=0.36)
-        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        alpha_range = (0.01,1)
+        alpha_init = tf.keras.initializers.Constant(0.05) 
+        self.alpha = self.add_weight(name='alpha',initializer=alpha_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,alpha_range[0],alpha_range[1]))
+        alpha_mulFac = tf.keras.initializers.Constant(10.) 
+        self.alpha_mulFac = self.add_weight(name='alpha_mulFac',initializer=alpha_mulFac,shape=[1,self.units],trainable=False)
         
-        gamma_init = tf.keras.initializers.Constant(0.5) #tf.keras.initializers.Constant(16.49) #tf.keras.initializers.Constant(0.448) #tf.random_normal_initializer(mean=0.448)
-        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        # self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        beta_range = (0.001,0.1)
+        beta_init = tf.keras.initializers.Constant(0.05)# 
+        self.beta = self.add_weight(name='beta',initializer=beta_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,beta_range[0],beta_range[1]))
+        beta_mulFac = tf.keras.initializers.Constant(10.) 
+        self.beta_mulFac = self.add_weight(name='beta_mulFac',initializer=beta_mulFac,shape=[1,self.units],trainable=False)
         
-        tauY_init = tf.keras.initializers.Constant(.3) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
-        self.tauY = tf.Variable(name='tauY',initial_value=tauY_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        gamma_range = (0.01,0.1)
+        gamma_init = tf.keras.initializers.Constant(0.05)# 
+        self.gamma = self.add_weight(name='gamma',initializer=gamma_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,gamma_range[0],gamma_range[1]))
+        gamma_mulFac = tf.keras.initializers.Constant(10.) 
+        self.gamma_mulFac = self.add_weight(name='gamma_mulFac',initializer=gamma_mulFac,shape=[1,self.units],trainable=False)
+        
+        kappa_range = (0.00,0.01)
+        kappa_init = tf.keras.initializers.RandomUniform(minval=kappa_range[0],maxval=kappa_range[1]) #tf.keras.initializers.Constant(0.0159) 
+        self.kappa = self.add_weight(name='kappa',initializer=kappa_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,kappa_range[0],kappa_range[1]))
+        kappa_mulFac = tf.keras.initializers.Constant(1000.) 
+        self.kappa_mulFac = self.add_weight(name='kappa_mulFac',initializer=kappa_mulFac,shape=[1,self.units],trainable=False)
+
+        tauY_range = (0.01,1.)
+        tauY_init = tf.keras.initializers.Constant(0.3)# 
+        self.tauY = self.add_weight(name='tauY',initializer=tauY_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,tauY_range[0],tauY_range[1]))
         tauY_mulFac = tf.keras.initializers.Constant(100.) #tf.keras.initializers.Constant(10.) 
         self.tauY_mulFac = tf.Variable(name='tauY_mulFac',initial_value=tauY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
-
-        tauZ_init = tf.keras.initializers.Constant(.8) #tf.keras.initializers.Constant(0.008) #tf.keras.initializers.Constant(166) #tf.random_normal_initializer(mean=166) #tf.random_uniform_initializer(minval=100)
-        self.tauZ = tf.Variable(name='tauZ',initial_value=tauZ_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        tauZ_mulFac = tf.keras.initializers.Constant(100.) #tf.keras.initializers.Constant(10.) 
-        self.tauZ_mulFac = tf.Variable(name='tauZ_mulFac',initial_value=tauZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        
-        
-        nY_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.439) #tf.keras.initializers.Constant(4.33) #tf.random_normal_initializer(mean=4.33) #tf.random_uniform_initializer(minval=1)
-        self.nY = tf.Variable(name='nY',initial_value=nY_init(shape=(1,self.units),dtype='float32'),trainable=True)   
-        nY_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
+ 
+        nY_range = (1e-5,0.5)
+        nY_init = tf.keras.initializers.Constant(0.1)# 
+        self.nY = self.add_weight(name='nY',initializer=nY_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,nY_range[0],nY_range[1]))
+        nY_mulFac = tf.keras.initializers.Constant(10.) 
         self.nY_mulFac = tf.Variable(name='nY_mulFac',initial_value=nY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
-        
-        nZ_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.29) #tf.keras.initializers.Constant(1) #tf.random_uniform_initializer(minval=1)
-        self.nZ = tf.Variable(name='nZ',initial_value=nZ_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        nZ_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
+
+        tauZ_range = (0.3,10.)
+        tauZ_init = tf.keras.initializers.Constant(0.8)# 
+        self.tauZ = self.add_weight(name='tauZ',initializer=tauZ_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,tauZ_range[0],tauZ_range[1]))
+        tauZ_mulFac = tf.keras.initializers.Constant(100.) 
+        self.tauZ_mulFac = tf.Variable(name='tauZ_mulFac',initial_value=tauZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+                
+        nZ_range = (1e-5,1.)
+        nZ_init = tf.keras.initializers.Constant(0.1) #tf.keras.initializers.RandomUniform(minval=nZ_range[0],maxval=nZ_range[1])  #tf.keras.initializers.Constant(0.01)# 
+        self.nZ = self.add_weight(name='nZ',initializer=nZ_init,shape=[1,self.units],trainable=False,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,nZ_range[0],nZ_range[1]))
+        nZ_mulFac = tf.keras.initializers.Constant(10.) 
         self.nZ_mulFac = tf.Variable(name='nZ_mulFac',initial_value=nZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        # alpha_init = tf.keras.initializers.Constant(0.5) #tf.keras.initializers.Constant(16.2) #tf.keras.initializers.Constant(1.) #tf.random_normal_initializer(mean=1)
+        # self.alpha = tf.Variable(name='alpha',initial_value=alpha_init(shape=(1,self.units),dtype='float32'),trainable=True)
+
+        # beta_init = tf.keras.initializers.Constant(0.5) #tf.keras.initializers.Constant(-13.46) #tf.keras.initializers.Constant(0.36) #tf.random_normal_initializer(mean=0.36)
+        # self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+
+        # gamma_init = tf.keras.initializers.Constant(0.5) #tf.keras.initializers.Constant(16.49) #tf.keras.initializers.Constant(0.448) #tf.random_normal_initializer(mean=0.448)
+        # self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+
+        
+        # tauY_init = tf.keras.initializers.Constant(.3) #tf.keras.initializers.Constant(0.928) #tf.keras.initializers.Constant(10.) #tf.random_normal_initializer(mean=2) #tf.random_uniform_initializer(minval=1)
+        # self.tauY = tf.Variable(name='tauY',initial_value=tauY_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        # tauY_mulFac = tf.keras.initializers.Constant(100.) #tf.keras.initializers.Constant(10.) 
+        # self.tauY_mulFac = tf.Variable(name='tauY_mulFac',initial_value=tauY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+
+        # tauZ_init = tf.keras.initializers.Constant(.8) #tf.keras.initializers.Constant(0.008) #tf.keras.initializers.Constant(166) #tf.random_normal_initializer(mean=166) #tf.random_uniform_initializer(minval=100)
+        # self.tauZ = tf.Variable(name='tauZ',initial_value=tauZ_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        # tauZ_mulFac = tf.keras.initializers.Constant(100.) #tf.keras.initializers.Constant(10.) 
+        # self.tauZ_mulFac = tf.Variable(name='tauZ_mulFac',initial_value=tauZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        
+        # nY_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(1.439) #tf.keras.initializers.Constant(4.33) #tf.random_normal_initializer(mean=4.33) #tf.random_uniform_initializer(minval=1)
+        # self.nY = tf.Variable(name='nY',initial_value=nY_init(shape=(1,self.units),dtype='float32'),trainable=True)   
+        # nY_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
+        # self.nY_mulFac = tf.Variable(name='nY_mulFac',initial_value=nY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        
+        # nZ_init = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(0.29) #tf.keras.initializers.Constant(1) #tf.random_uniform_initializer(minval=1)
+        # self.nZ = tf.Variable(name='nZ',initial_value=nZ_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        # nZ_mulFac = tf.keras.initializers.Constant(1.) #tf.keras.initializers.Constant(10.) 
+        # self.nZ_mulFac = tf.Variable(name='nZ_mulFac',initial_value=nZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
     
     def call(self,inputs):
        
         timeBin = 8
-        alpha =  self.alpha / timeBin
-        beta = self.beta / timeBin
-        # beta = tf.sigmoid(float(self.beta / timeBin))
-        gamma =  self.gamma
-        # gamma =  tf.sigmoid(float(self.gamma))
+        
+        alpha =  self.alpha*self.alpha_mulFac
+        beta = self.beta*self.beta_mulFac
+        gamma =  self.gamma*self.gamma_mulFac
+        kappa = self.kappa*self.kappa_mulFac
+
         tau_y =  (self.tauY_mulFac*self.tauY) / timeBin
         tau_z =  (self.tauZ_mulFac*self.tauZ) / timeBin
         n_y =  (self.nY_mulFac*self.nY)
@@ -1349,7 +1400,8 @@ class bipolar(tf.keras.layers.Layer):
         y_tf = conv_oper(inputs,Ky)
         z_tf = conv_oper(inputs,Kz)
 
-        outputs = (alpha*y_tf)/(1+(beta*z_tf))
+        # outputs = (alpha*y_tf)/(1+(beta*z_tf))
+        outputs = (alpha*y_tf)/(kappa+1e-6+(beta*z_tf))
         
         return outputs
 
@@ -1373,11 +1425,11 @@ def bp_cnn2d(inputs,n_out,**kwargs): # BP --> 2D CNN --> 2D CNN
     y = inputs
     
     # add layer normalization for photoreceptor inputs
-    y = LayerNormalization(axis=[1,2,3])(y)
+    y = LayerNormalization()(y)
     
     
     y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(y)
-    y = bipolar(units=1)(y)
+    y = bipolar(units=1,kernel_regularizer=l2(1e-4))(y)
     y = y[:,:,0,:]
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
@@ -1446,22 +1498,22 @@ class photoreceptor_REIKE_RODS_fixed(tf.keras.layers.Layer):
 
     def build(self,input_shape):
         sigma_init = tf.keras.initializers.Constant(0.707) #1
-        self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype='float32'),trainable=False)
         sigma_scaleFac = tf.keras.initializers.Constant(10.) 
         self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         phi_init = tf.keras.initializers.Constant(0.707) #1
-        self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype='float32'),trainable=False)
         phi_scaleFac = tf.keras.initializers.Constant(10.) 
         self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
        
         eta_init = tf.keras.initializers.Constant(0.0253) #0.2
-        self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype='float32'),trainable=False)
         eta_scaleFac = tf.keras.initializers.Constant(100.) 
         self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         beta_init = tf.keras.initializers.Constant(0.25) #0.15
-        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype='float32'),trainable=False)
         beta_scaleFac = tf.keras.initializers.Constant(100.) 
         self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
@@ -1492,7 +1544,7 @@ class photoreceptor_REIKE_RODS_fixed(tf.keras.layers.Layer):
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
         gamma_init = tf.keras.initializers.Constant(1)
-        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype='float32'),trainable=True)
         gamma_scaleFac = tf.keras.initializers.Constant(100.) 
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
