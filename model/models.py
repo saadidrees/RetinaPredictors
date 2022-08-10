@@ -1435,6 +1435,7 @@ def bp_cnn2d(inputs,n_out,**kwargs): # BP --> 2D CNN --> 2D CNN
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
     
     y = LayerNormalization()(y)
+    # y = BatchNormalization()(y)
     # y = Permute((4,2,3,1))(y)   # Channels first
     
     # CNN - first layer
