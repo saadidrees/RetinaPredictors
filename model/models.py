@@ -1335,7 +1335,7 @@ class bipolar(tf.keras.layers.Layer):
         nY_mulFac = tf.keras.initializers.Constant(10.) 
         self.nY_mulFac = tf.Variable(name='nY_mulFac',initial_value=nY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
-        tauZ_range = (0.3,10.)
+        tauZ_range = (0.01,10.)
         tauZ_init = tf.keras.initializers.Constant(0.8)# 
         self.tauZ = self.add_weight(name='tauZ',initializer=tauZ_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,tauZ_range[0],tauZ_range[1]))
         tauZ_mulFac = tf.keras.initializers.Constant(100.) 
@@ -1429,7 +1429,7 @@ def bp_cnn2d(inputs,n_out,**kwargs): # BP --> 2D CNN --> 2D CNN
     
     
     y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(y)
-    y = bipolar(units=1,kernel_regularizer=l2(1e-4))(y)
+    y = bipolar(units=1)(y)
     y = y[:,:,0,:]
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
