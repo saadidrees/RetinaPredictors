@@ -28,7 +28,7 @@ def model_definitions():
     models_3D = ('CNN_3D','PR_CNN3D')
     
     return (models_2D,models_3D)
- 
+
 def get_model_memory_usage(batch_size, model):
     
     """ 
@@ -1336,7 +1336,7 @@ class bipolar(tf.keras.layers.Layer):
         self.nY_mulFac = tf.Variable(name='nY_mulFac',initial_value=nY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
         tauZ_range = (0.01,10.)
-        tauZ_init = tf.keras.initializers.Constant(0.5)# 0.8
+        tauZ_init = tf.keras.initializers.Constant(0.8)# 0.8
         self.tauZ = self.add_weight(name='tauZ',initializer=tauZ_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,tauZ_range[0],tauZ_range[1]))
         tauZ_mulFac = tf.keras.initializers.Constant(100.) 
         self.tauZ_mulFac = tf.Variable(name='tauZ_mulFac',initial_value=tauZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
