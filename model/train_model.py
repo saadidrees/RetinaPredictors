@@ -44,7 +44,7 @@ class CustomCallback(keras.callbacks.Callback):
         
 
 def lr_scheduler(epoch,lr):
-    arr_scheduler = np.array([[3,1],
+    arr_scheduler = np.array([[3,10],
                           [10,10],
                           [15,1],
                           [20,10],
@@ -123,4 +123,3 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
     
         
     return mdl_history
-
