@@ -1305,7 +1305,7 @@ class bipolar(tf.keras.layers.Layer):
         alpha_mulFac = tf.keras.initializers.Constant(10.) 
         self.alpha_mulFac = self.add_weight(name='alpha_mulFac',initializer=alpha_mulFac,shape=[1,self.units],trainable=False)
         
-        beta_range = (0.001,0.1)
+        beta_range = (0.00,0.1)
         beta_init = tf.keras.initializers.Constant(0.05)# 
         self.beta = self.add_weight(name='beta',initializer=beta_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,beta_range[0],beta_range[1]))
         beta_mulFac = tf.keras.initializers.Constant(10.) 
@@ -1336,7 +1336,7 @@ class bipolar(tf.keras.layers.Layer):
         self.nY_mulFac = tf.Variable(name='nY_mulFac',initial_value=nY_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
         tauZ_range = (0.01,10.)
-        tauZ_init = tf.keras.initializers.Constant(0.8)# 0.8
+        tauZ_init = tf.keras.initializers.Constant(0.8)# 0.5
         self.tauZ = self.add_weight(name='tauZ',initializer=tauZ_init,shape=[1,self.units],trainable=True,regularizer=self.kernel_regularizer,constraint=lambda x: tf.clip_by_value(x,tauZ_range[0],tauZ_range[1]))
         tauZ_mulFac = tf.keras.initializers.Constant(100.) 
         self.tauZ_mulFac = tf.Variable(name='tauZ_mulFac',initial_value=tauZ_mulFac(shape=(1,self.units),dtype='float32'),trainable=False)
@@ -1382,8 +1382,8 @@ class bipolar(tf.keras.layers.Layer):
        
         timeBin = 8
         
-        alpha =  self.alpha*self.alpha_mulFac
-        beta = self.beta*self.beta_mulFac
+        alpha =  self.alpha*self.alpha_mulFac / timeBin
+        beta = self.beta*self.beta_mulFac / timeBin
         gamma =  self.gamma*self.gamma_mulFac
         kappa = self.kappa*self.kappa_mulFac
 
