@@ -15,6 +15,8 @@ from collections import namedtuple
 from model import utils_si
 from model.performance import model_evaluate
 import re
+import json
+
 
 
 def rolling_window(array, window, time_axis=0):
@@ -1000,3 +1002,16 @@ def get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened)
             print('progresss: '+str(rgb*100)+'%')
             
     return idx_discard
+
+# %% Write params and hyper params to text file
+def dictToTxt(params_txt,fname_paramsTxt,f_mode='a'):
+    fo = open(fname_paramsTxt,f_mode)
+
+    if params_txt.__class__.__name__ == 'Functional':
+        params_txt.summary(print_fn=lambda x: fo.write(x+'\n'))
+    else:
+        for k, v in params_txt.items():
+            fo.write(str(k) + ' = '+ str(v) + '\n')
+    
+    fo.close()
+
