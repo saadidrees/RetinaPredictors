@@ -38,12 +38,13 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     import glob
     import importlib
 
+
     import tensorflow as tf
 
     from tensorflow.keras.layers import Input
     
     from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, dictToTxt
-    from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
+    from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer
     import model.metrics as metrics
     import model.models  # can improve this by only importing the model that is being used
 
@@ -266,6 +267,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     mdl.summary()
     
+    # %% Log all params and hyperparams
+    
     
     params_txt = dict(expDate=expDate,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test,
                       path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,nb_epochs=nb_epochs,bz_ms=bz_ms,runOnCluster=runOnCluster,USE_CHUNKER=USE_CHUNKER,
@@ -287,6 +290,19 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     dictToTxt(params_txt,fname_paramsTxt,f_mode='a')
     dictToTxt(mdl,fname_paramsTxt,f_mode='a')
     
+    # check if any layer has a custom layer so include its initial parameters
+    weights_dict = get_weightsDict(mdl)
+    init_weights_dict = {}
+    for layer in mdl.layers[1:]:
+        layer_name = model.models.get_layerFullNameStr(layer)
+        if layer_name[1:6]!='keras':
+            init_weights_layer = get_weightsOfLayer(weights_dict,layer.name)
+            for key in init_weights_layer.keys():
+                key_name = layer.name+'/'+key
+                init_weights_dict[key_name] = init_weights_layer[key]
+    
+    
+    dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
 
 
     # %% Train model

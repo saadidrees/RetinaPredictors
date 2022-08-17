@@ -13,6 +13,9 @@ from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Activation, Flatten, 
 from tensorflow.keras.regularizers import l1, l2
 import numpy as np
 import math
+from io import StringIO
+import sys
+
 
 
 # ----- HELPER FUNCS---- #
@@ -169,6 +172,15 @@ def modelFileName(U=0,P=0,T=0,CB_n=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0
     
     
     return fname_model,dict_params
+
+def get_layerFullNameStr(layer):
+    tmp = sys.stdout
+    layer_name = StringIO()
+    sys.stdout = layer_name
+    print(layer)
+    sys.stdout = tmp
+    layer_name = layer_name.getvalue()
+    return layer_name
 
 # %% Standard models
 def cnn_2d(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
