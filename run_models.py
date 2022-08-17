@@ -20,12 +20,13 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
                             pr_temporal_width = 180,
-                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,idx_unitsToTake=[0],
+                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 # %% prepare data
+
     
 # import needed modules
     import numpy as np
@@ -41,7 +42,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     from tensorflow.keras.layers import Input
     
-    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
+    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, dictToTxt
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new
     import model.metrics as metrics
     import model.models  # can improve this by only importing the model that is being used
@@ -95,22 +96,38 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     if not os.path.exists(path_save_performance):
         os.makedirs(path_save_performance)
           
-    
 # load train val and test datasets from saved h5 file
     # load_h5dataset is a function to load training and validation data from h5 dataset. We can extract all data or a subset using the nsamps arguments.
     # data_train, val and test are named tuples. data_train.X contains the stimulus with dimensions [samples,y pixels, x pixels]
     # and data_train.y contains the spikerate normalized by median [samples,numOfCells]
-    
-    # if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
-    #     trainingSamps_dur = 4
+    trainingSamps_dur_orig = trainingSamps_dur
+    if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
+        trainingSamps_dur = 4
     data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,LOAD_ALL_TR=True)
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
     
     
 # Arrange data according to the model
-    if len(idx_unitsToTake)<2:      # if units are not provided take all
-        idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
-    
+    # for monkey01 experiments. Need to find a BETTER way to do this
+    idx_unitsToTake = np.atleast_1d(idx_unitsToTake)
+    if idx_unitsToTake.shape[0]==1:
+        if idx_unitsToTake[0]==0:      # if units are not provided take all
+            idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+        elif idx_unitsToTake[0]==31:
+            idx_units_retrain = np.array([27,28,29,34,35,36])
+            idx_units_train = np.setdiff1d(np.arange(0,37),idx_units_retrain)
+            idx_unitsToTake = idx_units_train
+        elif idx_unitsToTake[0]==6:
+            idx_unitsToTake = np.array([27,28,29,34,35,36])
+            
+        elif idx_unitsToTake[0]==24:
+            idx_units_ON = np.arange(0,30)
+            idx_units_ON_retrain = np.array([24,25,26,27,28,29])
+            idx_units_ON_train = np.setdiff1d(idx_units_ON,idx_units_ON_retrain)
+        elif idx_unitsToTake[0]==5:
+            idx_unitsToTake = np.array([24,25,26,27,28])
+
+
     print(idx_unitsToTake)
     
     # Data will be rolled so that each sample has a temporal width. Like N frames of movie in one sample. The duration of each frame is in t_frame
@@ -183,7 +200,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                                                         C1_n=chan1_n,C1_s=filt1_size,C1_3d=filt1_3rdDim,
                                                         C2_n=chan2_n,C2_s=filt2_size,C2_3d=filt2_3rdDim,
                                                         C3_n=chan3_n,C3_s=filt3_size,C3_3d=filt3_3rdDim,
-                                                        BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial,TRSAMPS=trainingSamps_dur)
+                                                        BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial,TRSAMPS=trainingSamps_dur_orig)
     dict_params['filt_temporal_width'] = temporal_width
     
     # filt_temporal_width = dict_params['filt_temporal_width']; chan1_n = dict_params['chan1_n']; filt1_size = dict_params['filt1_size']; chan2_n = dict_params['chan2_n']; filt2_size = dict_params['filt2_size']
@@ -205,6 +222,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     if (initial_epoch>0 and initial_epoch < nb_epochs) or nb_epochs==0:     # Load existing model if true
         mdl = load(os.path.join(path_model_save,fname_model))
+        fname_latestWeights = os.path.join(path_model_save,'weights_'+fname_model+'_epoch-%03d' % initial_epoch)
+        mdl.load_weights(fname_latestWeights)
         # fname_history = os.path.join(path_model_save,'history_'+mdl_name+'.h5')
         # f = h5py.File(fname_history,'r')
         # mdl_history = {}
@@ -227,6 +246,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
             fname_performance_existing = os.path.join(path_existing_mdl,'performance',expDate+'_'+fname_model_existing+'.h5')
             f = h5py.File(fname_performance_existing,'r')
             idx_bestEpoch_existing = np.array(f['model_performance']['idx_bestEpoch'])
+            f.close()
             fname_bestWeight = 'weights_'+fname_model_existing+'_epoch-%03d' % (idx_bestEpoch_existing+1)
             mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight))     # would need to add .h5 in the end for backwards compatibility
 
@@ -245,7 +265,29 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     fname_excel = 'performance_'+fname_model+'.csv'
     
     mdl.summary()
+    
+    
+    params_txt = dict(expDate=expDate,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test,
+                      path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,nb_epochs=nb_epochs,bz_ms=bz_ms,runOnCluster=runOnCluster,USE_CHUNKER=USE_CHUNKER,
+                      trainingSamps_dur=trainingSamps_dur_orig,validationSamps_dur=validationSamps_dur,CONTINUE_TRAINING=CONTINUE_TRAINING,idxStart_fixedLayers=idxStart_fixedLayers,
+                      info=info,lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,idx_unitsToTake=idx_unitsToTake,initial_epoch=initial_epoch)
+    for key in dict_params.keys():
+        params_txt[key] = dict_params[key]
+    
+    
+    fname_paramsTxt = os.path.join(path_model_save,'model_params.txt')
+    if os.path.exists(fname_paramsTxt):
+        f_mode = 'a'
+        fo = open(fname_paramsTxt,f_mode)
+        fo.write('\n\n\n\n\n\n')
+        fo.close()
+    else:
+        f_mode = 'w'
         
+    dictToTxt(params_txt,fname_paramsTxt,f_mode='a')
+    dictToTxt(mdl,fname_paramsTxt,f_mode='a')
+    
+
 
     # %% Train model
     t_elapsed = 0
@@ -288,7 +330,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     rrCorr_allUnits_allEpochs[:] = np.nan
     
     try:    # for compatibility with greg's dataset
-        obs_rate_allStimTrials = dataset_rr['stim_0']['val']
+        obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake]
         obs_noise = None
         num_iters = 10
     except:
@@ -464,8 +506,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','expDate','dataset','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed']
-        csv_data = [mdl_name,expDate,name_dataset,thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur,t_elapsed]
+        csv_header = ['mdl_name','fname_mdl','expDate','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed']
+        csv_data = [mdl_name,fname_model,expDate,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed]
         
         fname_csv_file = 'performance_'+expDate+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
