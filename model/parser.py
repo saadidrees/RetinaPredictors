@@ -44,6 +44,7 @@ def parser_run_model():
     parser.add_argument('--lr',type=str2int,default=0.01)
     parser.add_argument('--lr_fac',type=str2int,default=1)
     parser.add_argument('--use_lrscheduler',type=str2int,default=1)
+    parser.add_argument('--idx_unitsToTake',type=int,default=0)
     
 
     args = parser.parse_args()
