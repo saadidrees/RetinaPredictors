@@ -45,6 +45,8 @@ TRSAMPS_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f24) )
 lr_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f25) )
 lr_scheduler_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f26) )
 idx_unitsToTake_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f27) )
+idxStart_fixedLayers_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f28) )
+idxEnd_fixedLayers_all=( $(tail -n +2 $PARAMS_FILE | cut -d ',' -f29) )
 
 
 numParams=${#expDate_all[@]}
@@ -89,7 +91,8 @@ do
  lr=${lr_all[i]}
  typeset -i lr_scheduler=${lr_scheduler_all[i]}
  typeset -i idx_unitsToTake=${idx_unitsToTake_all[i]}
-
+ typeset -i idxStart_fixedLayers=${idxStart_fixedLayers_all[i]}
+ typeset -i idxEnd_fixedLayers=${idxEnd_fixedLayers_all[i]}
  
 
  echo "expDate: $expDate"
@@ -119,6 +122,8 @@ do
  echo "TRSAMPS: $TRSAMPS" 
  echo "Learning rate: $lr"
  echo "Learning rate scheduler: $lr_scheduler"
+ echo "idxStart_fixedLayers: $idxStart_fixedLayers"
+ echo "idxEnd_fixedLayers: $idxEnd_fixedLayers"
  
  for ((t=1; t<$num_trials+1; t++));
  do
@@ -130,7 +135,7 @@ do
  
 #  echo "JOB ID: $A\n\nexpDate: $expDate\nthresh_rr: $thresh_rr\ntemporal_width: $temporal_width\nbz_ms: $bz_ms\nnb_epochs: $nb_epochs\nchan1_n: $chan1_n\nfilt1_size: $filt1_size\nfilt1_3rdDim: $filt1_3rdDim\nfilt1_3rdDim: $filt1_3rdDim\nchan2_n: $chan2_n\nfilt2_size: $filt2_size\nfilt2_3rdDim: $filt2_3rdDim\nchan3_n: $chan3_n\nfilt3_size: $filt3_size\nfilt3_3rdDim: $filt3_3rdDim\nBatchNorm=$BatchNorm\nMaxPool=$MaxPool\nc_trial: $c_trial" > $LOG_DIR/$JOB_ID-out.txt
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\t%d\t' $JOB_ID $expDate $mdl_name $path_model_save_base $fname_data_train_val_test $path_existing_mdl $thresh_rr $temporal_width $pr_temporal_width $bz_ms $nb_epochs $chan1_n $filt1_size $filt1_3rdDim $chan2_n $filt2_size $filt2_3rdDim $chan3_n $filt3_size $filt3_3rdDim $BatchNorm $MaxPool $c_trial $use_chunker $TRSAMPS $lr $lr_scheduler $idx_unitsToTake | paste -sd '\t' >> job_list.csv
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\t%d\t%d\t%d\t' $JOB_ID $expDate $mdl_name $path_model_save_base $fname_data_train_val_test $path_existing_mdl $thresh_rr $temporal_width $pr_temporal_width $bz_ms $nb_epochs $chan1_n $filt1_size $filt1_3rdDim $chan2_n $filt2_size $filt2_3rdDim $chan3_n $filt3_size $filt3_3rdDim $BatchNorm $MaxPool $c_trial $use_chunker $TRSAMPS $lr $lr_scheduler $idx_unitsToTake $idxStart_fixedLayers $idxEnd_fixedLayers | paste -sd '\t' >> job_list.csv
  
  done
  
