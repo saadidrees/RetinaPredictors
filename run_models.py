@@ -272,7 +272,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     params_txt = dict(expDate=expDate,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test,
                       path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,nb_epochs=nb_epochs,bz_ms=bz_ms,runOnCluster=runOnCluster,USE_CHUNKER=USE_CHUNKER,
-                      trainingSamps_dur=trainingSamps_dur_orig,validationSamps_dur=validationSamps_dur,CONTINUE_TRAINING=CONTINUE_TRAINING,idxStart_fixedLayers=idxStart_fixedLayers,
+                      trainingSamps_dur=trainingSamps_dur_orig,validationSamps_dur=validationSamps_dur,CONTINUE_TRAINING=CONTINUE_TRAINING,
+                      idxStart_fixedLayers=idxStart_fixedLayers,idxEnd_fixedLayers=idxEnd_fixedLayers,
                       info=info,lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,idx_unitsToTake=idx_unitsToTake,initial_epoch=initial_epoch)
     for key in dict_params.keys():
         params_txt[key] = dict_params[key]
