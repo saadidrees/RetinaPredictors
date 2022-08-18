@@ -40,6 +40,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
 
     import tensorflow as tf
+    print(tf.__version__)
 
     from tensorflow.keras.layers import Input
     
