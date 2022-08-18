@@ -241,6 +241,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         # Transfer weights to new model from an existing model
         if path_existing_mdl != '' and idxStart_fixedLayers>0:     
             fname_model_existing = os.path.basename(path_existing_mdl)
+            print(os.path.join(path_existing_mdl,fname_model_existing))
             mdl_existing = load(os.path.join(path_existing_mdl,fname_model_existing))
             
             # load the best weights of the existing model
