@@ -531,8 +531,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','fname_mdl','expDate','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed']
-        csv_data = [mdl_name,fname_model,expDate,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed]
+        csv_header = ['mdl_name','fname_mdl','expDate','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed']
+        csv_data = [mdl_name,fname_model,expDate,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed]
         
         fname_csv_file = 'performance_'+expDate+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
