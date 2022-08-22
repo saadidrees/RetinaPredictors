@@ -299,7 +299,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     dictToTxt(params_txt,fname_paramsTxt,f_mode='a')
     dictToTxt(mdl,fname_paramsTxt,f_mode='a')
     
-    check if any layer has a custom layer so include its initial parameters
+    # check if any layer has a custom layer so include its initial parameters
     weights_dict = get_weightsDict(mdl)
     init_weights_dict = {}
     for layer in mdl.layers[1:]:
