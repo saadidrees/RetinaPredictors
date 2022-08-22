@@ -300,18 +300,18 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     dictToTxt(mdl,fname_paramsTxt,f_mode='a')
     
     # check if any layer has a custom layer so include its initial parameters
-    weights_dict = get_weightsDict(mdl)
-    init_weights_dict = {}
-    for layer in mdl.layers[1:]:
-        layer_name = model.models.get_layerFullNameStr(layer)
-        if layer_name[1:6]!='keras':
-            init_weights_layer = get_weightsOfLayer(weights_dict,layer.name)
-            for key in init_weights_layer.keys():
-                key_name = layer.name+'/'+key
-                init_weights_dict[key_name] = init_weights_layer[key]
+    # weights_dict = get_weightsDict(mdl)
+    # init_weights_dict = {}
+    # for layer in mdl.layers[1:]:
+    #     layer_name = model.models.get_layerFullNameStr(layer)
+    #     if layer_name[1:6]!='keras':
+    #         init_weights_layer = get_weightsOfLayer(weights_dict,layer.name)
+    #         for key in init_weights_layer.keys():
+    #             key_name = layer.name+'/'+key
+    #             init_weights_dict[key_name] = init_weights_layer[key]
     
     
-    dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
+    # dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
 
 
     # %% Train model
