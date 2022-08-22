@@ -5,7 +5,7 @@ Created on Wed Mar 24 10:11:24 2021
 
 @author: saad
 """
- 
+
 import numpy as np
 import os
 import h5py
@@ -1003,15 +1003,4 @@ def get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened)
             
     return idx_discard
 
-# %% Write params and hyper params to text file
-def dictToTxt(params_txt,fname_paramsTxt,f_mode='a'):
-    fo = open(fname_paramsTxt,f_mode)
-
-    if params_txt.__class__.__name__ == 'Functional':
-        params_txt.summary(print_fn=lambda x: fo.write(x+'\n'))
-    else:
-        for k, v in params_txt.items():
-            fo.write(str(k) + ' = '+ str(v) + '\n')
-    
-    fo.close()
 
