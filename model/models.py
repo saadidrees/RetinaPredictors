@@ -156,7 +156,8 @@ def modelFileName(U=0,P=0,T=0,CB_n=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0
     dict_params['MaxPool'] = int(MP)
     
     if LR>0:
-        LR = '%0.4f'%LR
+        # LR = '%0.4f'%LR
+        LR = str(LR)
         fname = parse_param('LR',LR,fname)    
         
         
