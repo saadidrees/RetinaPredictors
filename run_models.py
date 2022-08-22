@@ -44,10 +44,11 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     from tensorflow.keras.layers import Input
     
-    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, dictToTxt
+    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer
     import model.metrics as metrics
     import model.models  # can improve this by only importing the model that is being used
+    import model.paramsLogger
 
     from model.train_model import train, chunker
     from model.load_savedModel import load
@@ -286,6 +287,14 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     for key in dict_params.keys():
         params_txt[key] = dict_params[key]
     
+    # add LR scehdule
+    # if runOnCluster==1:
+    #     fname_script = '/home/sidrees/scratch/RetinaPredictors/grid_scripts/from_git/model/train_model.py'
+    # else:
+    fname_script = 'model/train_model.py'
+    code_snippet = model.paramsLogger.extractCodeSnippet(fname_script,'def lr_scheduler','return lr')
+    params_txt['lr_schedule'] = code_snippet
+
     
     fname_paramsTxt = os.path.join(path_model_save,'model_params.txt')
     if os.path.exists(fname_paramsTxt):
@@ -296,8 +305,10 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     else:
         f_mode = 'w'
         
-    dictToTxt(params_txt,fname_paramsTxt,f_mode='a')
-    dictToTxt(mdl,fname_paramsTxt,f_mode='a')
+    model.paramsLogger.dictToTxt(params_txt,fname_paramsTxt,f_mode='a')
+    model.paramsLogger.dictToTxt(mdl,fname_paramsTxt,f_mode='a')
+    
+    
     
     # check if any layer has a custom layer so include its initial parameters
     weights_dict = get_weightsDict(mdl)
@@ -311,7 +322,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                 init_weights_dict[key_name] = init_weights_layer[key]
     
     
-    dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
+    model.paramsLogger.dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
 
 
     # %% Train model
