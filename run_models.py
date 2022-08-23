@@ -22,7 +22,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
                             pr_temporal_width = 180,
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
-                            lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',
+                            lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 # %% prepare data
@@ -308,8 +308,19 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     model.paramsLogger.dictToTxt(params_txt,fname_paramsTxt,f_mode='a')
     model.paramsLogger.dictToTxt(mdl,fname_paramsTxt,f_mode='a')
     
+    # get params of bipolar layer
+    # weights_dict = get_weightsDict(mdl)
+    # init_weights_dict = {}
+    # layer_name = 'bipolar'
     
+    # init_weights_layer = get_weightsOfLayer(weights_dict,layer_name)
+    # for key in init_weights_layer.keys():
+    #     key_name = layer_name+'/'+key
+    #     init_weights_dict[key_name] = init_weights_layer[key]
     
+    # model.paramsLogger.dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
+    
+    # THIS IS THE CORRECT WAY BUT SOMETHING IS GOING WRONG WITH THIS WAY
     # check if any layer has a custom layer so include its initial parameters
     weights_dict = get_weightsDict(mdl)
     init_weights_dict = {}
@@ -445,7 +456,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     pred_rate = mdl.predict(gen,steps=int(np.ceil(data_val.X.shape[0]/bz)))
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
 
-    
+
 # %% Save performance
     data_test=data_val
 
@@ -535,15 +546,16 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     dataset_rr = None
     save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred)   # It would really help to have a universal h5 writing function
 
-    
+    print('FEV = %0.2f' %(np.nanmax(model_performance['fev_medianUnits_allEpochs'])*100))
+
     
 # %% Write performance to csv file
     print('-----WRITING TO CSV FILE-----')
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','fname_mdl','expDate','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed']
-        csv_data = [mdl_name,fname_model,expDate,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed]
+        csv_header = ['mdl_name','fname_mdl','expDate','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
+        csv_data = [mdl_name,fname_model,expDate,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
         
         fname_csv_file = 'performance_'+expDate+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
