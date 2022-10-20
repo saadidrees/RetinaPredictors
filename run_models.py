@@ -11,7 +11,7 @@ Created on Wed Apr 21 23:29:28 2021
 from model.parser import parser_run_model
 
 
-def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
+def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             path_existing_mdl='',idxStart_fixedLayers=0,idxEnd_fixedLayers=-1,
                             saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
@@ -106,7 +106,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     trainingSamps_dur_orig = trainingSamps_dur
     if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
         trainingSamps_dur = 4
-    data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,LOAD_ALL_TR=True)
+    data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,LOAD_ALL_TR=False)
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
     
     
@@ -225,7 +225,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     if (initial_epoch>0 and initial_epoch < nb_epochs) or nb_epochs==0:     # Load existing model if true
         mdl = load(os.path.join(path_model_save,fname_model))
-        fname_latestWeights = os.path.join(path_model_save,'weights_'+fname_model+'_epoch-%03d' % initial_epoch)
+        rgb = glob.glob(os.path.join(path_model_save,'*.index'))
+        fname_latestWeights = os.path.join(path_model_save,'weights_'+fname_model+'_epoch-%03d' % (len(rgb)))
         mdl.load_weights(fname_latestWeights)
         # fname_history = os.path.join(path_model_save,'history_'+mdl_name+'.h5')
         # f = h5py.File(fname_history,'r')
@@ -253,7 +254,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
             mdl_existing = load(os.path.join(path_existing_mdl,fname_model_existing))
             
             # load the best weights of the existing model
-            fname_performance_existing = os.path.join(path_existing_mdl,'performance',expDate+'_'+fname_model_existing+'.h5')
+            fname_performance_existing = os.path.join(path_existing_mdl,'performance',expFold+'_'+fname_model_existing+'.h5')
             f = h5py.File(fname_performance_existing,'r')
             idx_bestEpoch_existing = np.array(f['model_performance']['idx_bestEpoch'])
             f.close()
@@ -261,9 +262,12 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
             mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight))     # would need to add .h5 in the end for backwards compatibility
 
             # set the required layers to non trainable and load weights from existing model
+            for l in range(len(mdl.layers)-2):
+                mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
+                
             list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
             for l in list_idx:
-                mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
+                # mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
                 mdl.layers[l].trainable = False         # Parameterize this
                 
         
@@ -279,7 +283,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     # %% Log all params and hyperparams
     
     
-    params_txt = dict(expDate=expDate,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test,
+    params_txt = dict(expFold=expFold,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test,
                       path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,nb_epochs=nb_epochs,bz_ms=bz_ms,runOnCluster=runOnCluster,USE_CHUNKER=USE_CHUNKER,
                       trainingSamps_dur=trainingSamps_dur_orig,validationSamps_dur=validationSamps_dur,CONTINUE_TRAINING=CONTINUE_TRAINING,
                       idxStart_fixedLayers=idxStart_fixedLayers,idxEnd_fixedLayers=idxEnd_fixedLayers,
@@ -322,18 +326,18 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     # THIS IS THE CORRECT WAY BUT SOMETHING IS GOING WRONG WITH THIS WAY
     # check if any layer has a custom layer so include its initial parameters
-    weights_dict = get_weightsDict(mdl)
-    init_weights_dict = {}
-    for layer in mdl.layers[1:]:
-        layer_name = model.models.get_layerFullNameStr(layer)
-        if layer_name[1:6]!='keras':
-            init_weights_layer = get_weightsOfLayer(weights_dict,layer.name)
-            for key in init_weights_layer.keys():
-                key_name = layer.name+'/'+key
-                init_weights_dict[key_name] = init_weights_layer[key]
+    # weights_dict = get_weightsDict(mdl)
+    # init_weights_dict = {}
+    # for layer in mdl.layers[1:]:
+    #     layer_name = model.models.get_layerFullNameStr(layer)
+    #     if layer_name[1:6]!='keras':
+    #         init_weights_layer = get_weightsOfLayer(weights_dict,layer.name)
+    #         for key in init_weights_layer.keys():
+    #             key_name = layer.name+'/'+key
+    #             init_weights_dict[key_name] = init_weights_layer[key]
     
     
-    model.paramsLogger.dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
+    # model.paramsLogger.dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
 
 
     # %% Train model
@@ -353,6 +357,17 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     t_elapsed = time.time()-t
     print('time elapsed: '+str(t_elapsed)+' seconds')
+    
+    # %% TEMP CELL
+    # idx_data = np.arange(0,1000)
+    # x = data_train.X[idx_data]
+    # y = data_train.y[idx_data]
+    # y_pred = mdl.predict(x)
+    
+    
+    # # %%
+    # idx_rgc = 7
+    # plt.plot(y[:,idx_rgc]);plt.plot(y_pred[:,idx_rgc])
     
     # %% Model Evaluation
     nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
@@ -376,13 +391,17 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     rrCorr_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
     rrCorr_allUnits_allEpochs[:] = np.nan
     
-    try:    # for compatibility with greg's dataset
+    # for compatibility with greg's dataset
+    if dataset_rr['stim_0']['val'][:,:,idx_unitsToTake].shape[0]>1:
         obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake]
         obs_noise = None
         num_iters = 10
-    except:
+    else:
         obs_rate_allStimTrials = data_val.y
-        obs_noise = data_quality['var_noise']
+        if 'var_noise' in data_quality:
+            obs_noise = data_quality['var_noise']
+        else:
+            obs_noise = 0
         num_iters = 1
     
     
@@ -420,8 +439,8 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
         rrCorr = np.mean(rrCorr_loop,axis=0)
         
         if np.isnan(rrCorr).all():  # if retinal reliability is in quality datasets
-            fracExVar = data_quality['fev_allUnits']
-            rrCorr = data_quality['dist_cc']
+            fracExVar = data_quality['fracExVar_allUnits']
+            rrCorr = data_quality['corr_allUnits']
 
 
         fev_allUnits_allEpochs[i,:] = fev
@@ -460,7 +479,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
 # %% Save performance
     data_test=data_val
 
-    fname_save_performance = os.path.join(path_save_model_performance,(expDate+'_'+fname_model+'.h5'))
+    fname_save_performance = os.path.join(path_save_model_performance,(expFold+'_'+fname_model+'.h5'))
 
     print('-----SAVING PERFORMANCE STUFF TO H5-----')
     
@@ -554,10 +573,10 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','fname_mdl','expDate','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
-        csv_data = [mdl_name,fname_model,expDate,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
+        csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
+        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
         
-        fname_csv_file = 'performance_'+expDate+'.csv'
+        fname_csv_file = 'performance_'+expFold+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
         if not os.path.exists(fname_csv_file):
             with open(fname_csv_file,'w',encoding='utf-8') as csvfile:
@@ -568,7 +587,7 @@ def run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,
             csvwriter = csv.writer(csvfile) 
             csvwriter.writerow(csv_data) 
 
-    fname_validation_excel = os.path.join(path_save_model_performance,expDate+'_validation_'+fname_model+'.csv')
+    fname_validation_excel = os.path.join(path_save_model_performance,expFold+'_validation_'+fname_model+'.csv')
     csv_header = ['epoch','val_fev']
     with open(fname_validation_excel,'w',encoding='utf-8') as csvfile:
         csvwriter = csv.writer(csvfile) 
