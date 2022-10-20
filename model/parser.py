@@ -10,7 +10,7 @@ import argparse
 def parser_run_model():
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('expDate',type=str)
+    parser.add_argument('expFold',type=str)
     parser.add_argument('mdl_name',type=str)
     parser.add_argument('path_model_save_base',type=str)
     parser.add_argument('fname_data_train_val_test',type=str)
