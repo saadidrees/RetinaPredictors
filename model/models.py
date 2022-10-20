@@ -5,7 +5,7 @@ Created on Tue Mar 23 20:42:39 2021
 
 @author: saad
 """
- 
+
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras import Model,regularizers
@@ -94,7 +94,10 @@ def modelFileName(U=0,P=0,T=0,CB_n=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0
     fname = ''
     dict_params = {}
     
-    U = '%0.2f'%U
+    if U>0.9:
+        U = '%d'%U
+    else:
+        U = '%0.2f'%U
     fname = parse_param('U',U,fname)    
     
     if P>0:
@@ -155,10 +158,10 @@ def modelFileName(U=0,P=0,T=0,CB_n=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0
     fname = parse_param('MP',MP,fname)    
     dict_params['MaxPool'] = int(MP)
     
-    if LR>0:
-        # LR = '%0.4f'%LR
-        LR = str(LR)
-        fname = parse_param('LR',LR,fname)    
+    # if LR>0:
+    # LR = '%0.4f'%LR
+    LR = str(LR)
+    fname = parse_param('LR',LR,fname)    
         
         
     if with_TRSAMPS==True:
@@ -227,10 +230,18 @@ def cnn_2d(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, c
 
     # Third layer
     if chan3_n>0:
+        
         if BatchNorm is True: 
             n1 = int(y.shape[-1])
             n2 = int(y.shape[-2])
             y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
+
+        if y.shape[-1]<filt3_size:
+            filt3_size = (filt3_size,y.shape[-1])
+        elif y.shape[-2]<filt3_size:
+            filt3_size = (y.shape[-2],filt3_size)
+        else:
+            filt3_size = filt3_size
 
         y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)       
         y = Activation('relu')(GaussianNoise(sigma)(y))
@@ -262,7 +273,7 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
 
     # first layer  
     y = inputs
-    y = LayerNormalization(axis=[1,2,3])(y)
+    y = LayerNormalization(axis=[1,2,3],epsilon=1e-7)(y)        # z-score the input
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     
     if MaxPool is True:
@@ -272,25 +283,29 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
 
     # second layer
     if chan2_n>0:
-        if BatchNorm is True: 
-            n1 = int(y.shape[-1])
-            n2 = int(y.shape[-2])
-            y = Reshape((chan1_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
-            
         y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)                  
-
+        
+        if BatchNorm is True: 
+            y_shape = y.shape
+            y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
+            
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
     # Third layer
     if chan3_n>0:
-        if BatchNorm is True: 
-            n1 = int(y.shape[-1])
-            n2 = int(y.shape[-2])
-            y = Reshape((chan2_n, n2, n1))(BatchNormalization(axis=-1)(Flatten()(y)))
-
-        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)       
-        y = Activation('relu')(GaussianNoise(sigma)(y))
+        if y.shape[-1]<filt3_size:
+            filt3_size = (filt3_size,y.shape[-1])
+        elif y.shape[-2]<filt3_size:
+            filt3_size = (y.shape[-2],filt3_size)
+        else:
+            filt3_size = filt3_size
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
         
+        if BatchNorm is True: 
+            y_shape = y.shape
+            y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
+
+        y = Activation('relu')(GaussianNoise(sigma)(y))
         
     y = Flatten()(y)
     if BatchNorm is True: 
@@ -1048,8 +1063,8 @@ def prfr_cnn2d_rods(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=1
     # y = Normalize_PRFR_MEAN(units=1)(y)
     # y = Normalize_PRFR_GF(units=1)(y)
     # y = Normalize(units=1)(y)
-    # y = LayerNormalization(axis=[1,2,3])(y)
-    y = LayerNormalization()(y)
+    y = LayerNormalization(axis=[1,2,3],epsilon=1e-7)(y)
+    # y = LayerNormalization()(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
