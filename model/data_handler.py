@@ -386,7 +386,8 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         num_CB_x = f[code_stim+'/stim_frames'].attrs['num_checkers_x']   # cb_info['steps_x'][0][0]
         num_CB_y = f[code_stim+'/stim_frames'].attrs['num_checkers_y']   # cb_info['steps_y'][0][0]
         
-        stim = np.reshape(stim,(stim.shape[0],num_CB_y,num_CB_x),order='F')       
+        if stim.ndim==3:    # only if stim space is flattened
+            stim = np.reshape(stim,(stim.shape[0],num_CB_y,num_CB_x),order='F')       
         # stim = zscore(stim)
         stim = rolling_window(stim,filt_temporal_width,time_axis=0) 
         
@@ -416,7 +417,11 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
             #         rgb = resp[:,i,j]
             #         rgb[rgb==0] = np.nan
             #         resp_median[i,j] = np.nanmedian(rgb)
-            temp = resp/resp_median[None,:,None]
+            if resp.ndim == 3:  # i.e. when the validation set contains of repetitions
+                temp = resp/resp_median[None,:,None]
+            else:
+                temp = resp/resp_median[None,:]
+                temp = temp[:,:,None]
             temp[np.isnan(temp)] = 0
             resp_norm = temp
             resp_orig = resp
@@ -454,7 +459,7 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
     # select only cells where we wont have so many zero spikerate in a batch   
     if idx_cells_orig is None:
         rgb = np.sum(datasets['train'].y,axis=0)
-        thresh = 0 #0.75*np.median(rgb)
+        thresh = 0.75*np.median(rgb)
         idx_unitsToTake = np.arange(len(units_all))
         idx_unitsToTake = idx_unitsToTake[rgb>thresh]
         units_all = units_all[idx_unitsToTake]
@@ -465,6 +470,7 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         resp_median_allUnits = resp_median
         
 # dataset for retinal reliability
+
     try:
         temp_val = np.moveaxis(datasets['val'].y,-1,0)
         dset_name = np.array(dataset)
@@ -491,9 +497,11 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
 
     numCells = len(idx_unitsToTake)
     rate_sameStim_trials = dataset_rr['stim_0']['val']
+    # if rate_sameStim_trials.shape[0]>1: # use this method if we have multiple trials
     _, fracExVar_allUnits, _, corr_allUnits = model_evaluate(rate_sameStim_trials,None,filt_temporal_width,RR_ONLY=True)
     retinalReliability_fev = np.round(np.median(fracExVar_allUnits),2)
     retinalReliability_corr = np.round(np.median(corr_allUnits),2)
+                
 
     data_quality = {
         'retinalReliability_fev': retinalReliability_fev,
@@ -938,7 +946,7 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
         return data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig,data_val_info
     
     
-def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_width):
+def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_width=0):
     
     if filt_temporal_width>0:
         rgb = unroll_data(stimFrames_train)
