@@ -68,7 +68,7 @@ def get_model_memory_usage(batch_size, model):
     
     return gbytes
 
-def modelFileName(U=0,P=0,T=0,CB_n=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,BN=0,MP=0,LR=0,TR=0,with_TR=True,TRSAMPS=0,with_TRSAMPS=True):
+def modelFileName(U=0,P=0,T=0,CB_n=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0,C3_n=0,C3_s=0,C3_3d=0,C4_n=0,C4_s=0,C4_3d=0,BN=0,MP=0,LR=0,TR=0,with_TR=True,TRSAMPS=0,with_TRSAMPS=True):
     
     """
     Takes in data and model parameters, and parses them to 
@@ -149,6 +149,18 @@ def modelFileName(U=0,P=0,T=0,CB_n=0,C1_n=0,C1_s=0,C1_3d=0,C2_n=0,C2_s=0,C2_3d=0
     dict_params['chan3_n'] = C3_n
     dict_params['filt3_size'] = C3_s
     
+    if C2_n>0 and C3_n>0 and C4_n>0:
+        if C4_3d>0:
+            C4 = '%02d-%02d-%02d'%(C4_n,C4_s,C4_3d)
+            dict_params['filt4_3rdDim'] = C3_3d
+        else:
+            C4 = '%02d-%02d'%(C4_n,C4_s)
+            
+        key = 'C4'
+        fname = fname+key+'-'+eval(key)+'_'    
+    dict_params['chan4_n'] = C4_n
+    dict_params['filt4_size'] = C4_s
+
             
     BN = '%d'%BN
     fname = parse_param('BN',BN,fname)    
@@ -264,16 +276,25 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
     filt2_size = kwargs['filt2_size']
     chan3_n = kwargs['chan3_n']
     filt3_size = kwargs['filt3_size']
+    
     BatchNorm = bool(kwargs['BatchNorm'])
     MaxPool = bool(kwargs['MaxPool'])
-
+    
+    mdl_params = {}
+    keys = ('chan4_n','filt4_size')
+    for k in keys:
+        if k in kwargs:
+            mdl_params[k] = kwargs[k]
+        else:
+            mdl_params[k] = 0
     
     sigma = 0.1
     filt_temporal_width=inputs.shape[1]
 
     # first layer  
     y = inputs
-    y = LayerNormalization(axis=[1,2,3],epsilon=1e-7)(y)        # z-score the input
+    # y = LayerNormalization(axis=[1,2,3],epsilon=1e-7)(y)        # z-score the input
+    # y = LayerNormalization(epsilon=1e-7)(y)        # z-score the input
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     
     if MaxPool is True:
@@ -306,12 +327,31 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
             y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
 
         y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # Fourth layer
+    if mdl_params['chan4_n']>0:
+        if y.shape[-1]<mdl_params['filt4_size']:
+            mdl_params['filt4_size'] = (mdl_params['filt4_size'],y.shape[-1])
+        elif y.shape[-2]<mdl_params['filt4_size']:
+            mdl_params['filt4_size'] = (y.shape[-2],mdl_params['filt4_size'])
+        else:
+            mdl_params['filt4_size'] = mdl_params['filt4_size']
+            
+        y = Conv2D(mdl_params['chan4_n'], mdl_params['filt4_size'], data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
+        
+        if BatchNorm is True: 
+            y_shape = y.shape
+            y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
+
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
         
     y = Flatten()(y)
     if BatchNorm is True: 
         y = BatchNormalization(axis=-1)(y)
     y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
     outputs = Activation('softplus')(y)
+    # outputs = Activation('relu')(y)
 
     mdl_name = 'CNN_2D_NORM'
     return Model(inputs, outputs, name=mdl_name)

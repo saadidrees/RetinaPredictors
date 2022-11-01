@@ -19,6 +19,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             chan1_n=8, filt1_size=13, filt1_3rdDim=20,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
+                            chan4_n=0, filt4_size=0, filt4_3rdDim=0,
                             pr_temporal_width = 180,
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
@@ -85,6 +86,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if chan3_n == 0:
         filt3_size = 0
         filt3_3rdDim = 0 
+        
+    if chan4_n == 0:
+        filt4_size = 0
+        filt4_3rdDim = 0 
     
     if 'BP' not in mdl_name:
         chans_bp=0
@@ -115,7 +120,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     idx_unitsToTake = np.atleast_1d(idx_unitsToTake)
     if idx_unitsToTake.shape[0]==1:
         if idx_unitsToTake[0]==0:      # if units are not provided take all
-            idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+            # idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+            idx_unitsToTake = np.arange(data_quality['idx_unitsToTake'].shape[0])   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
         elif idx_unitsToTake[0]==31:
             idx_units_retrain = np.array([27,28,29,34,35,36])
             idx_units_train = np.setdiff1d(np.arange(0,37),idx_units_retrain)
@@ -186,7 +192,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         mp_val=0       
         
     
-    bz = math.ceil(bz_ms/t_frame)   # input batch size (bz_ms) is in ms. Convert into samples
     
     x = Input(shape=data_train.X.shape[1:]) # keras input layer
     n_cells = data_train.y.shape[1]         # number of units in output layer
@@ -203,6 +208,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                                                         C1_n=chan1_n,C1_s=filt1_size,C1_3d=filt1_3rdDim,
                                                         C2_n=chan2_n,C2_s=filt2_size,C2_3d=filt2_3rdDim,
                                                         C3_n=chan3_n,C3_s=filt3_size,C3_3d=filt3_3rdDim,
+                                                        C4_n=chan4_n,C4_s=filt4_size,C4_3d=filt4_3rdDim,
                                                         BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial,TRSAMPS=trainingSamps_dur_orig)
     dict_params['filt_temporal_width'] = temporal_width
     
@@ -341,6 +347,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
 
     # %% Train model
+    bz = math.ceil(bz_ms/t_frame)   # input batch size (bz_ms) is in ms. Convert into samples
+
     t_elapsed = 0
     t = time.time()
     gbytes_usage = model.models.get_model_memory_usage(bz, mdl)  # for PRFR layer models, this is not a good estimate.
