@@ -130,7 +130,12 @@ def getModelParams(fname_modelFolder):
     
     p_regex = re.compile(r'U-(\d+\.\d+)')
     rgb = p_regex.search(fname_modelFolder)
-    params['U'] = float(rgb.group(1))
+    if rgb != None:
+        params['U'] = float(rgb.group(1))
+    else:
+        p_regex = re.compile(r'U-(\d+)')
+        rgb = p_regex.search(fname_modelFolder)
+        params['U'] = int(rgb.group(1))
     
     try:
         rgb = re.compile(r'P-(\d+)')
@@ -361,7 +366,8 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False
     
         t_start = 20
         
-        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,filt_width:,:]
+        # obs_rate_allStimTrials_corrected = obs_rate_allStimTrials[:,filt_width:,:]
+        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials
         t_end = obs_rate_allStimTrials_corrected.shape[1]-t_start-20
         obs_rate_allStimTrials_corrected = obs_rate_allStimTrials_corrected[:,t_start:t_end-lag,:]
         
@@ -386,6 +392,7 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False
             r_pred = pred_rate_corrected
             mse_resid = np.mean((r_pred-r2)**2,axis=0)
             fev = 1 - ((mse_resid-noise_trialAveraged)/(np.var(r2,axis=0)-noise_trialAveraged))
+            # fev = 1 - ((mse_resid-noise_trialAveraged)/(np.var(obs_rate_allStimTrials_corrected[idx_trials_r2,:,:],axis=(0,1))-noise_trialAveraged))
             # fev = 1 - ((mse_resid)/(np.var(r2,axis=0)-noise_trialAveraged))
         
         
