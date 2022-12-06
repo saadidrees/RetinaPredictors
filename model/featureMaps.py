@@ -14,15 +14,15 @@ import gc
 from model.train_model import chunker
 # import multiprocessing as mp
 # pool = mp.Pool(mp.cpu_count())
-import tensorflow as tf
-config = tf.compat.v1.ConfigProto(log_device_placement=True)
-config.gpu_options.allow_growth = True
-config.gpu_options.per_process_gpu_memory_fraction = .9
-tf.compat.v1.Session(config=config)
-gpus = tf.config.experimental.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(gpus[0], True)
-tf.compat.v1.disable_eager_execution()
-tf.compat.v1.experimental.output_all_intermediates(True) 
+# import tensorflow as tf
+# config = tf.compat.v1.ConfigProto(log_device_placement=True)
+# config.gpu_options.allow_growth = True
+# config.gpu_options.per_process_gpu_memory_fraction = .9
+# tf.compat.v1.Session(config=config)
+# gpus = tf.config.experimental.list_physical_devices('GPU')
+# tf.config.experimental.set_memory_growth(gpus[0], True)
+# tf.compat.v1.disable_eager_execution()
+# tf.compat.v1.experimental.output_all_intermediates(True) 
 
 
 def cross_corr(y1, y2):
@@ -208,4 +208,160 @@ def get_featureMaps(stim,mdl,mdl_params,layer_name,strongestUnit,chunk_size,PARA
     # pool.close()    
     return rwa_mean
 
+def spatRF2DFit(img_spatRF,tempRF,sig_fac=2,rot=True,sta=0,tempRF_sig=False):
+    
+    """
+    sigmas are half width.. the way ellipse is calculated is then the full width. But the sigma_x value itself is half widt.
+    
+    img_spatRF = np.zeros((30,39))
+    img_spatRF[13:15,13:15] = 1
+    img_spatRF[15:17,15:17] = 1
+    img_spatRF[15:17,13:15] = 1
+    img_spatRF[15:19,15:20] = 1
+    rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(img_spatRF,tempRF=0,sig_fac=3,rot=True,sta=0,tempRF_sig=False)
+
+    plt.imshow(img_spatRF);plt.plot(rf_coords[:,0],rf_coords[:,1],'r');#plt.plot(rf_params['x0']-rf_params['sigma_x'],rf_params['y0'],'ko')
+
+    """
+    from lmfit import Model
+    tempRF_avg = tempRF
+    
+    def gauss2d(x, y, A, x0, y0, sigma_x, sigma_y, theta):
+        theta = np.radians(theta)
+        sigx2 = sigma_x**2; sigy2 = sigma_y**2
+        a = np.cos(theta)**2/(2*sigx2) + np.sin(theta)**2/(2*sigy2)
+        b = np.sin(theta)**2/(2*sigx2) + np.cos(theta)**2/(2*sigy2)
+        c = np.sin(2*theta)/(4*sigx2) - np.sin(2*theta)/(4*sigy2)
+        
+        expo = -a*(x-x0)**2 - b*(y-y0)**2 - 2*c*(x-x0)*(y-y0)
+        return A*np.exp(expo)    
+    
+    fmodel = Model(gauss2d, independent_vars=('x','y'))
+    
+    peak_vals = np.array([img_spatRF.min(),img_spatRF.max()])       # check whether cell on or off
+    idx_strong = np.argmax(np.abs(peak_vals))       # 0 = OFF cent, 1 = ON cent
+    
+    
+    
+    A = peak_vals[idx_strong] #np.max(abs(img_spatRF))
+    ind = np.unravel_index(np.argmax(abs(img_spatRF)),img_spatRF.shape)
+    theta = 0  # deg
+    x0 = ind[1]
+    y0 = ind[0]
+    sigx = 1
+    sigy = 1
+    
+    
+    x = np.arange(0, img_spatRF.shape[1], 1)
+    y = np.arange(0,img_spatRF.shape[0],1)
+    x, y = np.meshgrid(x, y)
+    
+    rf_fit = fmodel.fit(img_spatRF-np.nanmean(img_spatRF), x=x, y=y, A=A, x0=x0, y0=y0, sigma_x=sigx, sigma_y=sigy, theta=theta)
+    
+    rf_fit_img_orig = fmodel.func(x, y, **rf_fit.best_values)
+    
+    # -------- TESTINJG
+    # rf_fit.best_values['sigma_x'] = 1
+    # rf_fit.best_values['sigma_y'] = 1
+    # -------- TESTINJG
+    
+    # Elipse
+    t = np.arange(-np.pi,np.pi,0.01)
+    r_x = sig_fac * rf_fit.best_values['sigma_x']
+    r_y = sig_fac * rf_fit.best_values['sigma_y']
+    r_theta = -rf_fit.best_values['theta']
+    x_e = r_x*np.cos(t)
+    y_e = r_y*np.sin(t)
+    rotationMat = np.array([[np.cos(r_theta), -np.sin(r_theta)], [np.sin(r_theta), np.cos(r_theta)]])
+    rf_coords = np.array([x_e,y_e]).T
+    if rot == True:
+        rf_rotated = np.matmul(rf_coords,rotationMat)
+    else:
+        rf_rotated = rf_coords
+    rf_fit_center = np.array([rf_fit.best_values['x0'],rf_fit.best_values['y0']])
+    ellipse_coord = rf_rotated + rf_fit_center[None,:]
+    
+    rf_fit_img = rf_fit_img_orig.copy()
+    rf_fit_img[(((r_y**2)*(x-rf_fit_center[0])**2) + ((r_x**2)*(y-rf_fit_center[1])**2)) > (r_x*r_y)**2] = np.nan       # set 0 all regions outside 'fac' sd from center of rf field
+    
+    if np.isnan(rf_fit_img).sum()==rf_fit_img.size:
+        rf_cent_int = np.round(rf_fit_center).astype('int')
+        rf_fit_img[rf_cent_int[1],rf_cent_int[0]] = rf_fit_img_orig[rf_cent_int[1],rf_cent_int[0]]
+    else:
+        if tempRF_sig==True:
+            tempRF_avg = sta
+            rgb = [(((r_y**2)*(x-rf_fit_center[0])**2) + ((r_x**2)*(y-rf_fit_center[1])**2)) > (r_x*r_y)**2][0]
+            tempRF_avg[:,rgb] = np.nan
+            tempRF_avg = tempRF_avg.reshape(tempRF_avg.shape[0],tempRF_avg.shape[1]*tempRF_avg.shape[2])
+            tempRF_avg = np.nanmean(tempRF_avg,axis=1)
+    
+    return ellipse_coord,rf_fit_img,rf_fit.best_values,tempRF_avg
+
+def get_strf(sta):
+    
+    spat_dims = np.array([sta.shape[-2],sta.shape[-1]])
+    # sta_flat = sta.reshape(sta.shape[0],sta.shape[1]*sta.shape[2],order='F')
+    spatRF = np.nanstd(sta,axis=0)
+    spat_peak_loc = np.argmax(spatRF)
+    spat_peak_loc = np.unravel_index(spat_peak_loc,spat_dims)
+    tempRF = sta[:,spat_peak_loc[0],spat_peak_loc[1]]
+    
+    return spatRF, tempRF
+
+def decompose(sta):
+    # print('correct decompose')
+    from scipy import linalg
+    k = 1
+    sta_meansub = sta.copy()# - sta.mean()
+    sta_meansub = sta_meansub.astype('float32')
+    
+    sta_flat2d = sta.reshape(sta_meansub.shape[0],-1).astype('float32')
+
+    assert sta_meansub.ndim >= 2, "STA must be at least 2-D"
+    u, s, v = np.linalg.svd(sta_flat2d, full_matrices=False)
+    # u, s, v = linalg.svd(sta_flat2d, full_matrices=False)
+
+
+    # Keep the top k components
+    k = np.min([k, s.size])
+    u = u[:, :k]
+    s = s[:k]
+    v = v[:k, :]
+
+    # Compute the rank-k STA
+    sk = (u.dot(np.diag(s).dot(v))).reshape(sta_meansub.shape)
+
+    peaksearch_win = np.arange(sta.shape[0]-25,sta.shape[0])
+    idx_tempPeak = np.argmax(np.abs(u[peaksearch_win,0]))     # only check for peak in the final 25 time points.
+    idx_tempPeak = idx_tempPeak + peaksearch_win[0]
+    sign = np.sign(u[idx_tempPeak,0])
+    if sign<0:
+        u = u*sign
+        v = v*sign
+    
+        
+    # sign = np.sign(np.tensordot(u[:, 0], sta_meansub, axes=1).sum())
+    # u *= sign
+    # v *= sign
+
+    # Return the rank-k approximate STA, and the SVD components
+    spat = v[0].reshape(sta.shape[1:])
+    temp = u[:,0]
+    return spat,temp
+
+def getSTA(stim,spikes):
+    
+    """
+    stim = [samples,time,y,x]
+    """
+    
+    # stim = norm_stim
+    spikeTimes = np.where(spikes)
+    
+    sta = stim[spikeTimes]
+    sta = np.sum(sta,axis=0)/len(spikeTimes)
+    
+    return sta
+    
+    
 

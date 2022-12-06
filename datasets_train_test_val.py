@@ -18,7 +18,7 @@ Exptdata = namedtuple('Exptdata', ['X', 'y'])
 whos_data = 'kiersten'
 lightLevel = 'allLightLevels'     # ['scotopic', 'photopic','scotopic_photopic']
 datasetsToLoad = ['photopic']#['scotopic','photopic','scotopic_photopic']
-convertToRstar = True
+convertToRstar = False
 
 
 if whos_data == 'saad':

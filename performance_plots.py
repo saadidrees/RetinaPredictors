@@ -9,7 +9,6 @@ import h5py
 import numpy as np
 import os
 import re
-  
 from global_scripts import utils_si
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -17,7 +16,7 @@ from matplotlib.ticker import LinearLocator
 
 from scipy.stats import wilcoxon
 import gc
- 
+
 import csv
 from collections import namedtuple
 Exptdata = namedtuple('Exptdata', ['X', 'y'])
@@ -40,10 +39,10 @@ from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 
 # expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
 expDates = ('monkey01',)
-subFold = 'ClosedLoopTest' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
+subFold = 'ICLR2023' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
 mdl_subFold = ''
-lightLevel_1 = 'scot-30-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' 
-models_all = ('BP_CNN2D',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
+lightLevel_1 = 'scot-0.3-30-Rstar' #_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' 
+models_all = ('PRFR_CNN2D_RODS',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
 
 writeToCSV = False
 
@@ -87,7 +86,7 @@ for idx_exp in range(len(expDates)):
     ## -- this is temporary here for extracting median response of units
     path_dataset = os.path.join(path_dataset_base,'datasets')
     fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+lightLevel_1+'.h5'))
-    _,_,_,data_quality,_,_,_ = load_h5Dataset(fname_data_train_val_test)
+    _,_,_,data_quality,_,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False,LOAD_VAL=False)
     resp_median_allUnits = data_quality['resp_median_allUnits']
     # -- this is temporary here for extracting median response of units
 
@@ -305,17 +304,17 @@ select_exp = expDates[0]
 select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 # params_mdl = params_allExps[select_exp][select_mdl]
 
-val_dataset_1 = lightLevel_1  #lightLevel_1 #      # ['scotopic','photopic']
+val_dataset_1 = lightLevel_1 #'scot-3-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' #lightLevel_1  #lightLevel_1 #      # ['scotopic','photopic']
 correctMedian = False
 
-select_LR=0.001
-select_U = 31#0.15
+select_LR = '0.001'
+select_U = 37#31#0.15
 select_P = 180#180
 select_T = 120#120
 select_BN = 1
 select_MP = 1
 # select_TR = 1
-select_CB = 1
+select_CB = 0
 select_C1_n = 8#1#2#13 #13 #20
 select_C1_s = 9
 select_C1_3d = 0#50#25
@@ -325,7 +324,7 @@ select_C2_3d = 0#10#5
 select_C3_n = 18 #36 #24 #22
 select_C3_s = 5#1#1
 select_C3_3d = 0#62#32
-select_TRSAMPS = 30
+select_TRSAMPS = 40
 
 # paramFileName = paramsToName(select_mdl,U=select_U,P=select_P,T=select_T,BN=select_BN,MP=select_MP,LR=select_LR,
 #                  C1_n=select_C1_n,C1_s=select_C1_s,C1_3d=select_C1_3d,
@@ -361,7 +360,7 @@ weights_dict = get_weightsDict(mdl)
 
 
 fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
-data_train,data_val,_,_,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
+data_train,data_val,_,_,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False)
 samps_shift = int(np.array(parameters['samps_shift']))
 # samps_shift = 0
 
@@ -389,11 +388,14 @@ elif select_mdl[:8]=='PR_CNN3D':
     data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
     obs_rate_allStimTrials_d1 = dattaset_rr['stim_0']['val'][:,pr_temporal_width:,:]
 
+idx_unitsToTake = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['idx_unitsToTake']
+obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1[:,:,idx_unitsToTake]
 # plt.plot(x[:,-1,0])
 # plt.plot(x_pred[:,-1,0])
 # plt.show()
 
 obs_rate = data_val.y
+obs_rate = obs_rate[:,idx_unitsToTake]
 
 # mdl_new = mdl
 # idx_CNN_start = 5
@@ -519,7 +521,7 @@ axs[0].set_ylabel('FEV',fontsize=font_size_ticks)
 axs[0].set_title('',fontsize=font_size_ticks)
 axs[0].set_ylim((0,1.1))
 axs[0].set_yticks(np.arange(0,1.1,.2))
-# axs[0].text(.75,.45,'N = %d RGCs' %fev_allUnits.shape[1],fontsize=font_size_ticks)
+axs[0].text(-0.2,1,'FEV = %0.2f' %fevs[0],fontsize=font_size_ticks)
 axs[0].tick_params(axis='both',labelsize=font_size_ticks)
 
 
@@ -557,8 +559,8 @@ else:
     idx_currMdl_start = 0#4
 
 
-val_dataset_2_all = ('scot-3',) #('scot-0.3','scot-3','scot-30')
-suffix = '-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
+val_dataset_2_all = ('scot-0.3','scot-3','scot-30')
+suffix = '-Rstar' #'-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
 med_fevs = 0
 idx_cells_valid = np.arange(fev_d1_allUnits.shape[0])
 fev_stack = fev_d1_allUnits[idx_cells_valid]

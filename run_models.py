@@ -111,7 +111,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     trainingSamps_dur_orig = trainingSamps_dur
     if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
         trainingSamps_dur = 4
-    data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,LOAD_ALL_TR=False)
+    
+    idx_train_start = 0    # mins to chop off in the begining.
+    data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,   # THIS NEEDS TO BE TIDIED UP
+                                                                                        LOAD_ALL_TR=False,idx_train_start=idx_train_start,VALFROMTRAIN=True)
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
     
     
@@ -138,6 +141,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
 
     print(idx_unitsToTake)
+    print(len(idx_unitsToTake))
     
     # Data will be rolled so that each sample has a temporal width. Like N frames of movie in one sample. The duration of each frame is in t_frame
     # if the model has a photoreceptor layer, then the PR layer has a termporal width of pr_temporal_width, which before convs will be chopped off to temporal width
@@ -190,8 +194,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         mp_val=1
     else:
         mp_val=0       
-        
-    
     
     x = Input(shape=data_train.X.shape[1:]) # keras input layer
     n_cells = data_train.y.shape[1]         # number of units in output layer
@@ -284,7 +286,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     fname_excel = 'performance_'+fname_model+'.csv'
     
-    mdl.summary()
+    # mdl.summary()
     
     # %% Log all params and hyperparams
     
@@ -358,7 +360,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if initial_epoch < nb_epochs:
         print('-----RUNNING MODEL-----')
         validation_batch_size = 100 # samples
-        mdl_history = train(mdl, data_train, data_val, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=500,
+        mdl_history = train(mdl, data_train, data_test, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=2,
                             USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=use_lrscheduler,lr_fac=lr_fac)  
         mdl_history = mdl_history.history
         _ = gc.collect()
@@ -366,16 +368,30 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     t_elapsed = time.time()-t
     print('time elapsed: '+str(t_elapsed)+' seconds')
     
-    # %% TEMP CELL
-    # idx_data = np.arange(0,1000)
-    # x = data_train.X[idx_data]
-    # y = data_train.y[idx_data]
-    # y_pred = mdl.predict(x)
+    # %% TEMP CELL 1
+    # y = data_train.y
+    # # y_pred = mdl.predict(data_train.X)
+    # a = np.nanmedian(y,axis=0)
+    # b = np.argsort(a)
+    # print(b)
+    # idx_cell = b[10]; plt.plot(y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
+    # # plt.plot(data_val.y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
     
+
+    # %% TEMP CELL 2
+
+    # idx = np.arange(1000,1500)
+    # y_train = data_train.y[idx];y_val = data_val.y
+    # pred_train = mdl.predict(data_train.X[idx]);pred_val = mdl.predict(data_val.X[idx])
+    # idx_cell = 15; plt.plot(y_train[:500,idx_cell]);plt.plot(pred_train[:500,idx_cell]);plt.show()      # 7, 92
+    # plt.plot(y_val[:500,idx_cell]);plt.plot(pred_val[:500,idx_cell]);plt.show()
     
-    # # %%
-    # idx_rgc = 7
-    # plt.plot(y[:,idx_rgc]);plt.plot(y_pred[:,idx_rgc])
+    # %%
+    # inp = mdl.input
+    # outputs = mdl.layers[1].output
+    # new_model = Model(mdl.input, outputs=outputs)
+    # out = new_model.predict(data_train.X[:100])
+    
     
     # %% Model Evaluation
     nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
@@ -405,7 +421,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         obs_noise = None
         num_iters = 10
     else:
-        obs_rate_allStimTrials = data_val.y
+        obs_rate_allStimTrials = data_test.y
         if 'var_noise' in data_quality:
             obs_noise = data_quality['var_noise']
         else:
@@ -426,8 +442,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
-        gen = chunker(data_val.X,bz,mode='predict') # use generators to generate batches of data
-        pred_rate = mdl.predict(gen,steps=int(np.ceil(data_val.X.shape[0]/bz)))
+        gen = chunker(data_test.X,bz,mode='predict') # use generators to generate batches of data
+        pred_rate = mdl.predict(gen,steps=int(np.ceil(data_test.X.shape[0]/bz)))
         # pred_rate = mdl.predict(data_val.X)
         _ = gc.collect()
         val_loss = None
@@ -447,8 +463,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         rrCorr = np.mean(rrCorr_loop,axis=0)
         
         if np.isnan(rrCorr).all():  # if retinal reliability is in quality datasets
-            fracExVar = data_quality['fracExVar_allUnits']
-            rrCorr = data_quality['corr_allUnits']
+            fracExVar = data_quality['fracExVar_allUnits'][idx_unitsToTake]
+            rrCorr = data_quality['corr_allUnits'][idx_unitsToTake]
 
 
         fev_allUnits_allEpochs[i,:] = fev
@@ -482,7 +498,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
     pred_rate = mdl.predict(gen,steps=int(np.ceil(data_val.X.shape[0]/bz)))
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
-
+    
 
 # %% Save performance
     data_test=data_val
@@ -581,8 +597,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
-        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
+        csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
+        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
         
         fname_csv_file = 'performance_'+expFold+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)

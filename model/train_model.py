@@ -52,10 +52,11 @@ def lr_scheduler(epoch,lr):
     #                       [50,10]])
     
     # for new rat data
-    arr_scheduler = np.array([[10,10],
-                          [20,10],
+    arr_scheduler = np.array([[5,10],
+                          [20,1],
                           [30,10],
-                          [50,1]])
+                          [50,1],
+                          [80,1]])
 
 
     idx = np.where(arr_scheduler[:,0]==epoch)[0]

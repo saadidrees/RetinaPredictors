@@ -14,8 +14,8 @@ from run_models import run_model
 
 data_pers = 'kiersten' #'kiersten'
 expDate = 'monkey01'
-subFold = 'ClosedLoopTest' 
-dataset = 'scot-30-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
+subFold = '' 
+dataset = 'scot-3-30-Rstar' #'scot-30-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
 
 idx_units_retrain = np.array([27,28,29,34,35,36])
 idx_units_train = np.setdiff1d(np.arange(0,37),idx_units_retrain)
@@ -24,24 +24,24 @@ idx_units_ON = np.arange(0,30)
 idx_units_ON_retrain = np.array([24,25,26,27,28,29])
 idx_units_ON_train = np.setdiff1d(idx_units_ON,idx_units_ON_retrain)
 
-idx_unitsToTake = idx_units_ON_train #[0] #idx_units_train
+idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 
-mdl_subFold = ''
-mdl_name = 'BP_CNN2D' #'CNN_2D_NORM' #'BP_CNN2D' #'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
-path_existing_mdl = ''#'/home/saad/data/analyses/data_kiersten/monkey01/ClosedLoopTest/scot-30-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2/BP_CNN2D/U-31.00_P-180_T-120_CB-01_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.0010_TRSAMPS-030_TR-01'
+mdl_subFold = 'LayerNorm_eps0'
+mdl_name = 'PRFR_CNN2D_RODS' #'CNN_2D_NORM' #'BP_CNN2D' #'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
+path_existing_mdl = '' #'/home/saad/data/analyses/data_kiersten/monkey01/ClosedLoopTest/scot-30-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2/BP_CNN2D/U-24.00_P-180_T-120_CB-01_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.0010_TRSAMPS-030_TR-01'
 info = ''
-idxStart_fixedLayers=0#1
-idxEnd_fixedLayers=-1#29
-CONTINUE_TRAINING=1
+idxStart_fixedLayers = 0#1
+idxEnd_fixedLayers = -1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
+CONTINUE_TRAINING = 1
 
-lr = 0.001
+lr = 0.0001
 lr_fac = 1# how much to divide the learning rate when training is resumed
-use_lrscheduler=1
-USE_CHUNKER=0
+use_lrscheduler=0
+USE_CHUNKER=1
 pr_temporal_width = 180
 temporal_width=120
 thresh_rr=0
-chans_bp = 1
+chans_bp = 0
 chan1_n=8
 filt1_size=9
 filt1_3rdDim=0
@@ -51,7 +51,7 @@ filt2_3rdDim=0
 chan3_n=18
 filt3_size=5
 filt3_3rdDim=0
-nb_epochs=27         # setting this to 0 only runs evaluation
+nb_epochs=70#42         # setting this to 0 only runs evaluation
 bz_ms=5000#5000
 BatchNorm=1
 MaxPool=1
@@ -60,8 +60,8 @@ num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur=30 # minutes
-validationSamps_dur=0
+trainingSamps_dur=40 # minutes
+validationSamps_dur=0.2
 
 name_datasetFile = expDate+'_dataset_train_val_test_'+dataset+'.h5'
 path_model_save_base = os.path.join('/home/saad/data/analyses/data_'+data_pers+'/',expDate,subFold,dataset,mdl_subFold)

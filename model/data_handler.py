@@ -753,10 +753,12 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
             
     f.close()
     
-def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
-    
-    f = h5py.File(fname,'r')
+# NEED TO TIDY THIS UP
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False,idx_train_start=0,VALFROMTRAIN=False):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
+    FLAG_VALFROMTRAIN=False
+    f = h5py.File(fname_data_train_val_test,'r')
     t_frame = np.array(f['parameters']['t_frame'])
+    
     # some loading parameters
     if nsamps_val==-1 or nsamps_val==0:
         idx_val_start = 0
@@ -766,18 +768,18 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
         idx_val_start = 1000
         idx_val_end = idx_val_start+nsamps_val
         
-        
+    idx_train_start = int((idx_train_start*60*1000)/(t_frame))    # mins to frames
     if nsamps_train==-1 or nsamps_train==0 :
-        idx_train_start = 0
+        # idx_train_start = 0
         idx_train_end = -1
+        # idx_data = np.arange(idx_train_start,np.array(f['data_train']['y'].shape[0]))
     else:
         LOAD_ALL_TR = False
         if nsamps_train <1000:  # i.e. if this is in time, else it is in samples
             nsamps_train = int((nsamps_train*60*1000)/t_frame)
-        idx_train_start = 0
+        # idx_train_start = 0
         idx_train_end = idx_train_start+nsamps_train
-        
-
+        # idx_data = np.arange(idx_train_start,idx_train_end)
     
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
     f_keys = list(f.keys())
@@ -809,66 +811,103 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
             
         else:   # if there is only one dataset
             if idx_train_end!=-1:
-                bool_idx = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
-                bool_idx[:int(nsamps_train/2)] = True
-                bool_idx[-int(nsamps_train/2):] = True
+                
+                # Take data offset by start time. Take validation and test data from center of training data
+                bool_idx_train = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                bool_idx_val = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                bool_idx_test = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                bool_idx_val_test = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                
+                nsamps_test = int(nsamps_val/4)
+                nsamps_val_test = nsamps_val+nsamps_test
+                nsamps_train_val_test = nsamps_train+nsamps_val+nsamps_test
+
+                mid =  int(nsamps_train_val_test/2) + idx_train_start       # mid point of train_val_test
+                bool_idx_val_test[mid-int(nsamps_val_test/2):mid] = True
+                bool_idx_val_test[mid:mid+int(nsamps_val_test/2)] = True
+                bool_idx_train[idx_train_start:idx_train_start+nsamps_train_val_test] = True
+                bool_idx_train[bool_idx_val_test] = False
+                idx_val_start = np.where(bool_idx_val_test)[0][0]
+                bool_idx_val[idx_val_start:idx_val_start+nsamps_val] = True
+                bool_idx_test[idx_val_start+nsamps_val:idx_val_start+nsamps_val+nsamps_test]  = True
+                
+                assert(sum(bool_idx_train&bool_idx_val)==0)
+                assert(sum(bool_idx_train&bool_idx_test)==0)
+                assert(sum(bool_idx_val&bool_idx_test)==0)
+                
+                data_val_info = dict(nsamps_train=nsamps_train,nsamps_val=nsamps_val,nsamps_test=nsamps_test,
+                                     bool_idx_train=bool_idx_train,bool_idx_val=bool_idx_val,bool_idx_test=bool_idx_test)
+                
+                # plt.plot(bool_idx_train);plt.plot(bool_idx_val);plt.plot(bool_idx_test);plt.xlim([260000,270000]);plt.show();
                 
             else:
-                bool_idx = np.ones(f['data_train']['X'].shape[0],dtype='bool')
-                
-            int_idx = np.where(bool_idx)
-            X = np.array(f['data_train']['X'][int_idx],dtype='float32')
-            y = np.array(f['data_train']['y'][int_idx],dtype='float32')
+                bool_idx_train = np.ones(f['data_train']['X'].shape[0],dtype='bool')
+            
+            idx = np.where(bool_idx_train)
+            X = np.array(f['data_train']['X'][idx],dtype='float32')
+            y = np.array(f['data_train']['y'][idx],dtype='float32')
             data_train = Exptdata(X,y)
+            
 
     else:
         data_train = None
         
     # Validation data
-    if LOAD_VAL==True:
-        regex = re.compile(r'data_val_(\d+)')
-        dsets = [i for i in f_keys if regex.search(i)]
-        if len(dsets)>0:
-            d = 0
-            X = np.array(f[dsets[d]]['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
-            y = np.array(f[dsets[d]]['y'][idx_val_start:idx_val_end],dtype='float32')
-            data_val = Exptdata(X,y)
-
-                  
-            # dataset info
-            if ('data_val_info_'+str(d)) in f:
-                data_val_info = {}
-                for i in f['data_val_info_'+str(d)].keys():
-                    data_val_info[i] = np.array(f['data_val_info_'+str(d)][i])
-                    
-                if 'triggers' in data_val_info:
-                    data_val_info['triggers'] = data_val_info['triggers'][idx_val_start:idx_val_end]
-                    
+    if VALFROMTRAIN==False:
+        if LOAD_VAL==True:
+            regex = re.compile(r'data_val_(\d+)')
+            dsets = [i for i in f_keys if regex.search(i)]
+            if len(dsets)>0:
+                d = 0
+                X = np.array(f[dsets[d]]['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
+                y = np.array(f[dsets[d]]['y'][idx_val_start:idx_val_end],dtype='float32')
+                data_val = Exptdata(X,y)
+    
+                      
+                # dataset info
+                if ('data_val_info_'+str(d)) in f:
+                    data_val_info = {}
+                    for i in f['data_val_info_'+str(d)].keys():
+                        data_val_info[i] = np.array(f['data_val_info_'+str(d)][i])
+                        
+                    if 'triggers' in data_val_info:
+                        data_val_info['triggers'] = data_val_info['triggers'][idx_val_start:idx_val_end]
+                        
+                else:
+                    data_val_info = None
             else:
-                data_val_info = None
+                X = np.array(f['data_val']['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
+                y = np.array(f['data_val']['y'][idx_val_start:idx_val_end],dtype='float32')
+                data_val = Exptdata(X,y)
+    
+                # dataset info
+                if 'data_val_info' in f:
+                    data_val_info = {}
+                    for i in f['data_val_info'].keys():
+                        data_val_info[i] = np.array(f['data_val_info'][i])
+                else:
+                    data_val_info = None
         else:
-            X = np.array(f['data_val']['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
-            y = np.array(f['data_val']['y'][idx_val_start:idx_val_end],dtype='float32')
-            data_val = Exptdata(X,y)
-
-            # dataset info
-            if 'data_val_info' in f:
-                data_val_info = {}
-                for i in f['data_val_info'].keys():
-                    data_val_info[i] = np.array(f['data_val_info'][i])
-            else:
-                data_val_info = None
+            data_val = None
     else:
-        data_val = None
+        idx = np.where(bool_idx_val)
+        X = np.array(f['data_train']['X'][idx],dtype='float32')
+        y = np.array(f['data_train']['y'][idx],dtype='float32')
+        data_val = Exptdata(X,y)
 
-        
-        
+       
     
     # Testing data
-    if 'data_test' in f.keys():
-        data_test = Exptdata(np.array(f['data_test']['X']),np.array(f['data_test']['y']))
-    else:       
-        data_test = None
+    if VALFROMTRAIN==False:
+        if 'data_test' in f.keys():
+            data_test = Exptdata(np.array(f['data_test']['X']),np.array(f['data_test']['y']))
+        else:       
+            data_test = None
+    else:
+        idx = np.where(bool_idx_test)
+        X = np.array(f['data_train']['X'][idx],dtype='float32')
+        y = np.array(f['data_train']['y'][idx],dtype='float32')
+        data_test = Exptdata(X,y)
     
     # Quality data
     select_groups = ('data_quality')
@@ -945,7 +984,234 @@ def load_h5Dataset(fname,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val
     else:
         return data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig,data_val_info
     
+"""
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False,idx_train_start=0,VALFROMTRAIN=False):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
+    FLAG_VALFROMTRAIN=False
+    f = h5py.File(fname_data_train_val_test,'r')
+    t_frame = np.array(f['parameters']['t_frame'])
+    # some loading parameters
+    if nsamps_val==-1 or nsamps_val==0:
+        idx_val_start = 0
+        idx_val_end = -1
+    else:
+        nsamps_val = int((nsamps_val*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
+        idx_val_start = 1000
+        idx_val_end = idx_val_start+nsamps_val
+        
+    idx_train_start = int((idx_train_start*60*1000)/(t_frame))    # mins to frames
+    if nsamps_train==-1 or nsamps_train==0 :
+        # idx_train_start = 0
+        idx_train_end = -1
+        # idx_data = np.arange(idx_train_start,np.array(f['data_train']['y'].shape[0]))
+    else:
+        LOAD_ALL_TR = False
+        if nsamps_train <1000:  # i.e. if this is in time, else it is in samples
+            nsamps_train = int((nsamps_train*60*1000)/t_frame)
+        # idx_train_start = 0
+        idx_train_end = idx_train_start+nsamps_train
+        # idx_data = np.arange(idx_train_start,idx_train_end)
     
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    f_keys = list(f.keys())
+    
+    # Training data
+    if LOAD_TR==True:   # only if it is requested to load the training data
+        regex = re.compile(r'data_train_(\d+)')
+        dsets = [i for i in f_keys if regex.search(i)]
+        if len(dsets)>0:    # if the dataset is split into multiple datasets
+            if LOAD_ALL_TR==True:   # concatenate all datasets into one
+                X = np.array([]).reshape(0,f[dsets[0]]['X'].shape[1],f[dsets[0]]['X'].shape[2])
+                y = np.array([]).reshape(0,f[dsets[0]]['y'].shape[1])
+                for i in dsets:
+                    rgb = np.array(f[i]['X'])
+                    X = np.concatenate((X,rgb),axis=0)
+                    
+                    rgb = np.array(f[i]['y'])
+                    y = np.concatenate((y,rgb),axis=0)
+                X = X.astype('float32')
+                y = y.astype('float32')
+                
+                
+                                
+                data_train = Exptdata(X,y)
+            else:            # just pick the first dataset
+                X = np.array(f[dsets[0]]['X'][idx_train_start:idx_train_end],dtype='float32')
+                y = np.array(f[dsets[0]]['y'][idx_train_start:idx_train_end],dtype='float32')
+                data_train = Exptdata(X,y)
+            
+        else:   # if there is only one dataset
+            if idx_train_end!=-1:
+                
+                # take a chunk from start and a chunk from the end
+                # bool_idx = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                # bool_idx[:int(nsamps_train/2)] = True
+                # bool_idx[-int(nsamps_train/2):] = True
+                
+                # take a chunk from middle
+                bool_idx = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                mid = int(bool_idx.shape[0]/2) + idx_train_start
+                assert(mid+nsamps_train < f['data_train']['X'].shape[0])
+                bool_idx[mid-int(nsamps_train/2):mid] = True
+                bool_idx[mid:mid+int(nsamps_train/2)] = True
+                assert(sum(bool_idx)==nsamps_train)
+                
+                if VALFROMTRAIN==True:
+                    bool_idx_val = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                    val_start = np.where(bool_idx)[-1][-1]+100
+                    bool_idx_val[val_start:val_start+int(nsamps_val)] = True
+                    assert(sum(bool_idx_val)==nsamps_val)
+                    
+                    bool_idx_test = np.zeros(f['data_train']['X'].shape[0],dtype='bool')
+                    test_start = np.where(bool_idx|bool_idx_val)[-1][-1]+100
+                    bool_idx_test[test_start:test_start+int(nsamps_val/2)] = True
+                    assert(sum(bool_idx_test)==nsamps_val/2)
+                    
+                    FLAG_VALFROMTRAIN=True
+            else:
+                bool_idx = np.ones(f['data_train']['X'].shape[0],dtype='bool')
+                
+            int_idx = np.where(bool_idx)
+            X = np.array(f['data_train']['X'][int_idx],dtype='float32')
+            y = np.array(f['data_train']['y'][int_idx],dtype='float32')
+            data_train = Exptdata(X,y)
+            
+
+    else:
+        data_train = None
+        
+    # Validation data
+    if FLAG_VALFROMTRAIN==False:
+        if LOAD_VAL==True:
+            regex = re.compile(r'data_val_(\d+)')
+            dsets = [i for i in f_keys if regex.search(i)]
+            if len(dsets)>0:
+                d = 0
+                X = np.array(f[dsets[d]]['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
+                y = np.array(f[dsets[d]]['y'][idx_val_start:idx_val_end],dtype='float32')
+                data_val = Exptdata(X,y)
+    
+                      
+                # dataset info
+                if ('data_val_info_'+str(d)) in f:
+                    data_val_info = {}
+                    for i in f['data_val_info_'+str(d)].keys():
+                        data_val_info[i] = np.array(f['data_val_info_'+str(d)][i])
+                        
+                    if 'triggers' in data_val_info:
+                        data_val_info['triggers'] = data_val_info['triggers'][idx_val_start:idx_val_end]
+                        
+                else:
+                    data_val_info = None
+            else:
+                X = np.array(f['data_val']['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
+                y = np.array(f['data_val']['y'][idx_val_start:idx_val_end],dtype='float32')
+                data_val = Exptdata(X,y)
+    
+                # dataset info
+                if 'data_val_info' in f:
+                    data_val_info = {}
+                    for i in f['data_val_info'].keys():
+                        data_val_info[i] = np.array(f['data_val_info'][i])
+                else:
+                    data_val_info = None
+        else:
+            data_val = None
+    else:
+        int_idx = np.where(bool_idx_val)
+        X = np.array(f['data_train']['X'][int_idx],dtype='float32')
+        y = np.array(f['data_train']['y'][int_idx],dtype='float32')
+        data_val = Exptdata(X,y)
+
+       
+    
+    # Testing data
+    if FLAG_VALFROMTRAIN==False:
+        if 'data_test' in f.keys():
+            data_test = Exptdata(np.array(f['data_test']['X']),np.array(f['data_test']['y']))
+        else:       
+            data_test = None
+    else:
+        int_idx = np.where(bool_idx_test)
+        X = np.array(f['data_train']['X'][int_idx],dtype='float32')
+        y = np.array(f['data_train']['y'][int_idx],dtype='float32')
+        data_test = Exptdata(X,y)
+    
+    # Quality data
+    select_groups = ('data_quality')
+    level_keys = list(f[select_groups].keys())
+    data_quality = {}
+    for i in level_keys:
+        data_key = '/'+select_groups+'/'+i
+        rgb = np.array(f[data_key])
+        rgb_type = rgb.dtype.name
+           
+        if 'bytes' in rgb_type:
+            data_quality[i] = utils_si.h5_tostring(rgb)
+        else:
+            data_quality[i] = rgb
+            
+    # Retinal reliability data
+    select_groups = ('dataset_rr')
+    level_keys = list(f[select_groups].keys())
+    dataset_rr = {}
+    for i in level_keys:
+        level4_keys = list(f[select_groups][i].keys())
+        temp_2 = {}
+
+        for d in level4_keys:
+            data_key ='/'+select_groups+'/'+i+'/'+d
+        
+            rgb = np.array(f[data_key])
+            try:
+                rgb_type = rgb.dtype.name
+                if 'bytes' in rgb_type:
+                    temp_2[d] = utils_si.h5_tostring(rgb)
+                else:
+                    temp_2[d] = rgb
+            except:
+                temp_2[d] = rgb
+        dataset_rr[i] = temp_2
+        
+    # Parameters
+    select_groups = ('parameters')
+    level_keys = list(f[select_groups].keys())
+    parameters = {}
+    for i in level_keys:
+        data_key = '/'+select_groups+'/'+i
+        rgb = np.array(f[data_key])
+        rgb_type = rgb.dtype.name
+           
+        if 'bytes' in rgb_type:
+            parameters[i] = utils_si.h5_tostring(rgb)
+        else:
+            parameters[i] = rgb
+    
+    # Orig response (non normalized)
+    try:
+        select_groups = ('resp_orig')
+        level_keys = list(f[select_groups].keys())
+        resp_orig = {}
+        for i in level_keys:
+            data_key = '/'+select_groups+'/'+i
+            rgb = np.array(f[data_key])
+            rgb_type = rgb.dtype.name
+               
+            if 'bytes' in rgb_type:
+                resp_orig[i] = utils_si.h5_tostring(rgb)
+            else:
+                resp_orig[i] = rgb
+    except:
+        resp_orig = None
+
+            
+    f.close()
+
+    if RETURN_VALINFO==False:
+        return data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig
+    else:
+        return data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig,data_val_info
+    
+"""
 def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_width=0):
     
     if filt_temporal_width>0:
