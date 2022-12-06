@@ -811,6 +811,8 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
             
         else:   # if there is only one dataset
             if idx_train_end!=-1:
+                if nsamps_val==0:   # for backwards compat
+                    nsamps_val = int((0.3*60*1000)/t_frame)
                 
                 # Take data offset by start time. Take validation and test data from center of training data
                 bool_idx_train = np.zeros(f['data_train']['X'].shape[0],dtype='bool')

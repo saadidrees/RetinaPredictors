@@ -21,7 +21,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
                             chan4_n=0, filt4_size=0, filt4_3rdDim=0,
                             pr_temporal_width = 180,
-                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0,idx_unitsToTake=0,
+                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0.3,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
