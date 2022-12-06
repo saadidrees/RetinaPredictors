@@ -122,7 +122,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # for monkey01 experiments. Need to find a BETTER way to do this
     idx_unitsToTake = np.atleast_1d(idx_unitsToTake)
     if idx_unitsToTake.shape[0]==1:
-        idx_unitsToTake = np.arange(0,idx_unitsToTake)
+        if idx_unitsToTake[0]==0:      # if units are not provided take all
+            idx_unitsToTake = np.arange(data_quality['idx_unitsToTake'].shape[0])   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+        else:
+            idx_unitsToTake = np.arange(0,idx_unitsToTake)
     # if idx_unitsToTake.shape[0]==1:
     #     if idx_unitsToTake[0]==0:      # if units are not provided take all
     #         # idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
@@ -362,7 +365,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if initial_epoch < nb_epochs:
         print('-----RUNNING MODEL-----')
         validation_batch_size = 100 # samples
-        mdl_history = train(mdl, data_train, data_test, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=2,
+        mdl_history = train(mdl, data_train, data_test, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=1,
                             USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=use_lrscheduler,lr_fac=lr_fac)  
         mdl_history = mdl_history.history
         _ = gc.collect()
