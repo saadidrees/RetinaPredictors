@@ -122,22 +122,24 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # for monkey01 experiments. Need to find a BETTER way to do this
     idx_unitsToTake = np.atleast_1d(idx_unitsToTake)
     if idx_unitsToTake.shape[0]==1:
-        if idx_unitsToTake[0]==0:      # if units are not provided take all
-            # idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
-            idx_unitsToTake = np.arange(data_quality['idx_unitsToTake'].shape[0])   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
-        elif idx_unitsToTake[0]==31:
-            idx_units_retrain = np.array([27,28,29,34,35,36])
-            idx_units_train = np.setdiff1d(np.arange(0,37),idx_units_retrain)
-            idx_unitsToTake = idx_units_train
-        elif idx_unitsToTake[0]==6:
-            idx_unitsToTake = np.array([27,28,29,34,35,36])
+        idx_unitsToTake = np.arange(0,idx_unitsToTake)
+    # if idx_unitsToTake.shape[0]==1:
+    #     if idx_unitsToTake[0]==0:      # if units are not provided take all
+    #         # idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+    #         idx_unitsToTake = np.arange(data_quality['idx_unitsToTake'].shape[0])   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+    #     elif idx_unitsToTake[0]==31:
+    #         idx_units_retrain = np.array([27,28,29,34,35,36])
+    #         idx_units_train = np.setdiff1d(np.arange(0,37),idx_units_retrain)
+    #         idx_unitsToTake = idx_units_train
+    #     elif idx_unitsToTake[0]==6:
+    #         idx_unitsToTake = np.array([27,28,29,34,35,36])
             
-        elif idx_unitsToTake[0]==24:
-            idx_units_ON = np.arange(0,30)
-            idx_units_ON_retrain = np.array([24,25,26,27,28,29])
-            idx_units_ON_train = np.setdiff1d(idx_units_ON,idx_units_ON_retrain)
-        elif idx_unitsToTake[0]==5:
-            idx_unitsToTake = np.array([24,25,26,27,28])
+    #     elif idx_unitsToTake[0]==24:
+    #         idx_units_ON = np.arange(0,30)
+    #         idx_units_ON_retrain = np.array([24,25,26,27,28,29])
+    #         idx_units_ON_train = np.setdiff1d(idx_units_ON,idx_units_ON_retrain)
+    #     elif idx_unitsToTake[0]==5:
+    #         idx_unitsToTake = np.array([24,25,26,27,28])
 
 
     print(idx_unitsToTake)
