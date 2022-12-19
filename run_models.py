@@ -134,6 +134,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             idx_unitsToTake = np.arange(0,idx_unitsToTake)
     
     select_rgctype = re.findall(r'(\w+)',select_rgctype)
+    print(len(select_rgctype))
     if len(select_rgctype)>0:
         print('Selecting RGC subtypes %s'%select_rgctype)
         f = h5py.File(fname_data_train_val_test,'r')
@@ -193,13 +194,15 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     else:
         raise ValueError('model not found')
     
+    """
     y = data_train.y
     a = np.nanmedian(y,axis=0)
     b = np.argsort(a)
     # print(b)
     idx_cell = b[-1]; plt.plot(y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
     # plt.plot(data_val.y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
-        
+    """
+    
     # Clean this up
     if BatchNorm==1:
         bn_val=1
