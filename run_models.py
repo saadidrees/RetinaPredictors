@@ -134,7 +134,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             idx_unitsToTake = np.arange(0,idx_unitsToTake)
     
     select_rgctype = re.findall(r'(\w+)',select_rgctype)
-    print(len(select_rgctype))
+    # print(len(select_rgctype))
     if len(select_rgctype)>0:
         print('Selecting RGC subtypes %s'%select_rgctype)
         f = h5py.File(fname_data_train_val_test,'r')
