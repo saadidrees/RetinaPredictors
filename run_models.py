@@ -24,6 +24,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0.3,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
+                            select_rgctype='',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 # %% prepare data
@@ -38,6 +39,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     import h5py
     import glob
     import importlib
+    import re
+    import matplotlib.pyplot as plt
 
 
     import tensorflow as tf
@@ -105,9 +108,11 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         os.makedirs(path_save_performance)
           
 # load train val and test datasets from saved h5 file
-    # load_h5dataset is a function to load training and validation data from h5 dataset. We can extract all data or a subset using the nsamps arguments.
-    # data_train, val and test are named tuples. data_train.X contains the stimulus with dimensions [samples,y pixels, x pixels]
-    # and data_train.y contains the spikerate normalized by median [samples,numOfCells]
+    """
+        load_h5dataset is a function to load training and validation data from h5 dataset. We can extract all data or a subset using the nsamps arguments.
+        data_train, val and test are named tuples. data_train.X contains the stimulus with dimensions [samples,y pixels, x pixels]
+        and data_train.y contains the spikerate normalized by median [samples,numOfCells]
+    """
     trainingSamps_dur_orig = trainingSamps_dur
     if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
         trainingSamps_dur = 4
@@ -117,6 +122,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                                                                                         LOAD_ALL_TR=False,idx_train_start=idx_train_start,VALFROMTRAIN=True)
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
     
+    # Get RGC type info
     
 # Arrange data according to the model
     # for monkey01 experiments. Need to find a BETTER way to do this
@@ -126,23 +132,22 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             idx_unitsToTake = np.arange(data_quality['idx_unitsToTake'].shape[0])   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
         else:
             idx_unitsToTake = np.arange(0,idx_unitsToTake)
-    # if idx_unitsToTake.shape[0]==1:
-    #     if idx_unitsToTake[0]==0:      # if units are not provided take all
-    #         # idx_unitsToTake = data_quality['idx_unitsToTake']   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
-    #         idx_unitsToTake = np.arange(data_quality['idx_unitsToTake'].shape[0])   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
-    #     elif idx_unitsToTake[0]==31:
-    #         idx_units_retrain = np.array([27,28,29,34,35,36])
-    #         idx_units_train = np.setdiff1d(np.arange(0,37),idx_units_retrain)
-    #         idx_unitsToTake = idx_units_train
-    #     elif idx_unitsToTake[0]==6:
-    #         idx_unitsToTake = np.array([27,28,29,34,35,36])
-            
-    #     elif idx_unitsToTake[0]==24:
-    #         idx_units_ON = np.arange(0,30)
-    #         idx_units_ON_retrain = np.array([24,25,26,27,28,29])
-    #         idx_units_ON_train = np.setdiff1d(idx_units_ON,idx_units_ON_retrain)
-    #     elif idx_unitsToTake[0]==5:
-    #         idx_unitsToTake = np.array([24,25,26,27,28])
+    
+    select_rgctype = re.findall(r'(\w+)',select_rgctype)
+    if len(select_rgctype)>0:
+        print('Selecting RGC subtypes %s'%select_rgctype)
+        f = h5py.File(fname_data_train_val_test,'r')
+        uname_all = np.array(f['data_quality']['uname_selectedUnits'],dtype='bytes')
+        uname_all = list(model.utils_si.h5_tostring(uname_all))
+        uname_new = list()
+        for t in select_rgctype:
+            r = re.compile(r'.*%s'%t) 
+            rgb = list(filter(r.match,uname_all))
+            uname_new.extend(rgb)
+        idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
+        f.close()
+        idx_unitsToTake = idx_selectedRGCtypes.copy()
+
 
 
     print(idx_unitsToTake)
@@ -187,6 +192,13 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     else:
         raise ValueError('model not found')
+    
+    y = data_train.y
+    a = np.nanmedian(y,axis=0)
+    b = np.argsort(a)
+    # print(b)
+    idx_cell = b[-1]; plt.plot(y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
+    # plt.plot(data_val.y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
         
     # Clean this up
     if BatchNorm==1:
@@ -293,7 +305,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     # mdl.summary()
     
-    # %% Log all params and hyperparams
+# %% Log all params and hyperparams
     
     
     params_txt = dict(expFold=expFold,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test,
@@ -326,16 +338,16 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     model.paramsLogger.dictToTxt(mdl,fname_paramsTxt,f_mode='a')
     
     # get params of bipolar layer
-    # weights_dict = get_weightsDict(mdl)
-    # init_weights_dict = {}
-    # layer_name = 'bipolar'
+    weights_dict = get_weightsDict(mdl)
+    init_weights_dict = {}
+    layer_name = 'photoreceptor_rods_reike'
     
-    # init_weights_layer = get_weightsOfLayer(weights_dict,layer_name)
-    # for key in init_weights_layer.keys():
-    #     key_name = layer_name+'/'+key
-    #     init_weights_dict[key_name] = init_weights_layer[key]
+    init_weights_layer = get_weightsOfLayer(weights_dict,layer_name)
+    for key in init_weights_layer.keys():
+        key_name = layer_name+'/'+key
+        init_weights_dict[key_name] = init_weights_layer[key]
     
-    # model.paramsLogger.dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
+    model.paramsLogger.dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
     
     # THIS IS THE CORRECT WAY BUT SOMETHING IS GOING WRONG WITH THIS WAY
     # check if any layer has a custom layer so include its initial parameters
@@ -353,7 +365,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # model.paramsLogger.dictToTxt(init_weights_dict,fname_paramsTxt,f_mode='a')
 
 
-    # %% Train model
+    
+# %% Train model
     bz = math.ceil(bz_ms/t_frame)   # input batch size (bz_ms) is in ms. Convert into samples
 
     t_elapsed = 0
@@ -373,24 +386,19 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     t_elapsed = time.time()-t
     print('time elapsed: '+str(t_elapsed)+' seconds')
     
-    # %% TEMP CELL 1
-    # y = data_train.y
-    # # y_pred = mdl.predict(data_train.X)
-    # a = np.nanmedian(y,axis=0)
-    # b = np.argsort(a)
-    # print(b)
-    # idx_cell = b[10]; plt.plot(y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
-    # # plt.plot(data_val.y[-1000:,idx_cell]);plt.plot([0,1000],[0,00],'k')
-    
 
     # %% TEMP CELL 2
+    """
+    a = np.argsort(fev_allUnits_bestEpoch)
+    # y_train = data_train.y[idx];
+    y_val = data_val.y
+    # pred_train = mdl.predict(data_train.X);
+    pred_val = mdl.predict(data_val.X)
+    idx = np.arange(700,1000)
+    idx_cell = a[-100]; #plt.plot(y_train[:500,idx_cell]);plt.plot(pred_train[:500,idx_cell]);plt.show()      # 7, 92
+    plt.plot(y_val[idx,idx_cell]);plt.plot(pred_val[idx,idx_cell]);plt.title(str(idx_cell));plt.show()
 
-    # idx = np.arange(1000,1500)
-    # y_train = data_train.y[idx];y_val = data_val.y
-    # pred_train = mdl.predict(data_train.X[idx]);pred_val = mdl.predict(data_val.X[idx])
-    # idx_cell = 15; plt.plot(y_train[:500,idx_cell]);plt.plot(pred_train[:500,idx_cell]);plt.show()      # 7, 92
-    # plt.plot(y_val[:500,idx_cell]);plt.plot(pred_val[:500,idx_cell]);plt.show()
-    
+    """
     # %%
     # inp = mdl.input
     # outputs = mdl.layers[1].output
@@ -485,6 +493,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
         _ = gc.collect()
     
+    """
+    plt.plot(fev_medianUnits_allEpochs);plt.show()
+    fig,ax = plt.subplots(1,1,figsize=(3,3))
+    ax.boxplot(fev_allUnits_bestEpoch);plt.ylim([-0.1,1]);plt.ylabel('FEV')
+    ax.text(1.1,fev_medianUnits_bestEpoch+.1,'%0.2f'%(fev_medianUnits_bestEpoch))
+    """
     
     idx_bestEpoch = np.nanargmax(fev_medianUnits_allEpochs)
     fev_medianUnits_bestEpoch = np.round(fev_medianUnits_allEpochs[idx_bestEpoch],2)

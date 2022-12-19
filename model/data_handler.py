@@ -833,9 +833,9 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
                 bool_idx_val[idx_val_start:idx_val_start+nsamps_val] = True
                 bool_idx_test[idx_val_start+nsamps_val:idx_val_start+nsamps_val+nsamps_test]  = True
                 
-                assert(sum(bool_idx_train&bool_idx_val)==0)
-                assert(sum(bool_idx_train&bool_idx_test)==0)
-                assert(sum(bool_idx_val&bool_idx_test)==0)
+                assert(sum(bool_idx_train&bool_idx_val)<2)
+                assert(sum(bool_idx_train&bool_idx_test)<2)
+                assert(sum(bool_idx_val&bool_idx_test)<2)
                 
                 data_val_info = dict(nsamps_train=nsamps_train,nsamps_val=nsamps_val,nsamps_test=nsamps_test,
                                      bool_idx_train=bool_idx_train,bool_idx_val=bool_idx_val,bool_idx_test=bool_idx_test)
