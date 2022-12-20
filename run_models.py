@@ -133,21 +133,22 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         else:
             idx_unitsToTake = np.arange(0,idx_unitsToTake)
     
-    select_rgctype = re.findall(r'(\w+)',select_rgctype)
-    # print(len(select_rgctype))
-    if len(select_rgctype)>0:
-        print('Selecting RGC subtypes %s'%select_rgctype)
-        f = h5py.File(fname_data_train_val_test,'r')
-        uname_all = np.array(f['data_quality']['uname_selectedUnits'],dtype='bytes')
-        uname_all = list(model.utils_si.h5_tostring(uname_all))
-        uname_new = list()
-        for t in select_rgctype:
-            r = re.compile(r'.*%s'%t) 
-            rgb = list(filter(r.match,uname_all))
-            uname_new.extend(rgb)
-        idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
-        f.close()
-        idx_unitsToTake = idx_selectedRGCtypes.copy()
+    if select_rgctype != '0':   # for cluster
+        select_rgctype = re.findall(r'(\w+)',select_rgctype)
+        # print(len(select_rgctype))
+        if len(select_rgctype)>0:
+            print('Selecting RGC subtypes %s'%select_rgctype)
+            f = h5py.File(fname_data_train_val_test,'r')
+            uname_all = np.array(f['data_quality']['uname_selectedUnits'],dtype='bytes')
+            uname_all = list(model.utils_si.h5_tostring(uname_all))
+            uname_new = list()
+            for t in select_rgctype:
+                r = re.compile(r'.*%s'%t) 
+                rgb = list(filter(r.match,uname_all))
+                uname_new.extend(rgb)
+            idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
+            f.close()
+            idx_unitsToTake = idx_selectedRGCtypes.copy()
 
 
 
@@ -398,7 +399,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # pred_train = mdl.predict(data_train.X);
     pred_val = mdl.predict(data_val.X)
     idx = np.arange(700,1000)
-    idx_cell = a[-100]; #plt.plot(y_train[:500,idx_cell]);plt.plot(pred_train[:500,idx_cell]);plt.show()      # 7, 92
+    idx_cell = a[-2]; #plt.plot(y_train[:500,idx_cell]);plt.plot(pred_train[:500,idx_cell]);plt.show()      # 7, 92
     plt.plot(y_val[idx,idx_cell]);plt.plot(pred_val[idx,idx_cell]);plt.title(str(idx_cell));plt.show()
 
     """
@@ -648,7 +649,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
         
 if __name__ == "__main__":
-
+    print('In "Main"')
     args = parser_run_model()
     # Raw print arguments
     print("Arguments: ")
