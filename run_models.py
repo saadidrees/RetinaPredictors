@@ -28,7 +28,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 # %% prepare data
-
+    print('In main function body')
     
 # import needed modules
     import numpy as np
