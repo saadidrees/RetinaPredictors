@@ -50,7 +50,7 @@ def parser_run_model():
     parser.add_argument('--use_lrscheduler',type=str2int,default=1)
     parser.add_argument('--idx_unitsToTake',type=int,default=0)
     parser.add_argument('--job_id',type=int,default=0)
-    parser.add_argument('--select_rgctype',type=str,default='')
+    parser.add_argument('--select_rgctype',type=str)
     
 
     args = parser.parse_args()
