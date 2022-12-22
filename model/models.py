@@ -2197,19 +2197,19 @@ class photoreceptor_RAT_REIKE(tf.keras.layers.Layer):
         self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
         cgmp2cur_init = tf.keras.initializers.Constant(0.01) # 0.01
-        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
         cgmphill_init = tf.keras.initializers.Constant(0.3)  # 3
-        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype='float32'),trainable=False)
         cgmphill_scaleFac = tf.keras.initializers.Constant(10.) 
         self.cgmphill_scaleFac = tf.Variable(name='cgmphill_scaleFac',initial_value=cgmphill_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         cdark_init = tf.keras.initializers.Constant(1.)
         self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         
-        betaSlow_init = tf.keras.initializers.Constant(0.1) #tf.keras.initializers.Constant(1.) # 0
+        betaSlow_init = tf.keras.initializers.Constant(0.) #tf.keras.initializers.Constant(1.) # 0
         self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype='float32'),trainable=True)
-        betaSlow_scaleFac = tf.keras.initializers.Constant(10.) 
+        betaSlow_scaleFac = tf.keras.initializers.Constant(1.) 
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         
         hillcoef_init = tf.keras.initializers.Constant(0.26) #0.52 #tf.keras.initializers.Constant(1.) # 4
@@ -2234,7 +2234,7 @@ class photoreceptor_RAT_REIKE(tf.keras.layers.Layer):
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
 
         gdark_init = tf.keras.initializers.Constant(0.28)    # 20 for rods 
-        self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=True)
+        self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype='float32'),trainable=False)
         gdark_scaleFac = tf.keras.initializers.Constant(100)    # 28 for cones; 20 for rods 
         self.gdark_scaleFac = tf.Variable(name='gdark_scaleFac',initial_value=gdark_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
         

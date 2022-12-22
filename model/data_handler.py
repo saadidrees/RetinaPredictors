@@ -754,10 +754,24 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
     f.close()
     
 # NEED TO TIDY THIS UP
-def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False,idx_train_start=0,VALFROMTRAIN=False):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False,idx_train_start=0,VALFROMTRAIN=False,LOADFROMBOOL=False):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
     FLAG_VALFROMTRAIN=False
     f = h5py.File(fname_data_train_val_test,'r')
     t_frame = np.array(f['parameters']['t_frame'])
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    f_keys = list(f.keys())
+
+    if LOADFROMBOOL == True:
+        if nsamps_train.dtype=='bool':
+            idx = np.where(nsamps_train)
+        else:
+            idx = nsamps_train
+        X = np.array(f['data_train']['X'][idx],dtype='float32')
+        y = np.array(f['data_train']['y'][idx],dtype='float32')
+        data_train = Exptdata(X,y)
+        return data_train
+
+        
     
     # some loading parameters
     if nsamps_val==-1 or nsamps_val==0:
@@ -781,8 +795,6 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
         idx_train_end = idx_train_start+nsamps_train
         # idx_data = np.arange(idx_train_start,idx_train_end)
     
-    Exptdata = namedtuple('Exptdata', ['X', 'y'])
-    f_keys = list(f.keys())
     
     # Training data
     if LOAD_TR==True:   # only if it is requested to load the training data
@@ -829,18 +841,19 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
                 bool_idx_val_test[mid:mid+int(nsamps_val_test/2)] = True
                 bool_idx_train[idx_train_start:idx_train_start+nsamps_train_val_test] = True
                 bool_idx_train[bool_idx_val_test] = False
-                idx_val_start = np.where(bool_idx_val_test)[0][0]
-                bool_idx_val[idx_val_start:idx_val_start+nsamps_val] = True
-                bool_idx_test[idx_val_start+nsamps_val:idx_val_start+nsamps_val+nsamps_test]  = True
+                if VALFROMTRAIN == True:
+                    idx_val_start = np.where(bool_idx_val_test)[0][0]
+                    bool_idx_val[idx_val_start:idx_val_start+nsamps_val] = True
+                    bool_idx_test[idx_val_start+nsamps_val:idx_val_start+nsamps_val+nsamps_test]  = True
+                    
+                    assert(sum(bool_idx_train&bool_idx_val)<2)
+                    assert(sum(bool_idx_train&bool_idx_test)<2)
+                    assert(sum(bool_idx_val&bool_idx_test)<2)
+                    
+                    data_val_info = dict(nsamps_train=nsamps_train,nsamps_val=nsamps_val,nsamps_test=nsamps_test,
+                                         bool_idx_train=bool_idx_train,bool_idx_val=bool_idx_val,bool_idx_test=bool_idx_test)
                 
-                assert(sum(bool_idx_train&bool_idx_val)<2)
-                assert(sum(bool_idx_train&bool_idx_test)<2)
-                assert(sum(bool_idx_val&bool_idx_test)<2)
-                
-                data_val_info = dict(nsamps_train=nsamps_train,nsamps_val=nsamps_val,nsamps_test=nsamps_test,
-                                     bool_idx_train=bool_idx_train,bool_idx_val=bool_idx_val,bool_idx_test=bool_idx_test)
-                
-                # plt.plot(bool_idx_train);plt.plot(bool_idx_val);plt.plot(bool_idx_test);plt.xlim([260000,270000]);plt.show();
+                    # plt.plot(bool_idx_train);plt.plot(bool_idx_val);plt.plot(bool_idx_test);plt.xlim([260000,270000]);plt.show();
                 
             else:
                 bool_idx_train = np.ones(f['data_train']['X'].shape[0],dtype='bool')

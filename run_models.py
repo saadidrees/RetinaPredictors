@@ -113,13 +113,23 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         data_train, val and test are named tuples. data_train.X contains the stimulus with dimensions [samples,y pixels, x pixels]
         and data_train.y contains the spikerate normalized by median [samples,numOfCells]
     """
+    data_info = {}
     trainingSamps_dur_orig = trainingSamps_dur
     if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
         trainingSamps_dur = 4
     
     idx_train_start = 0    # mins to chop off in the begining.
-    data_train,data_val,data_test,data_quality,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,   # THIS NEEDS TO BE TIDIED UP
-                                                                                        LOAD_ALL_TR=False,idx_train_start=idx_train_start,VALFROMTRAIN=True)
+    rgb = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,   # THIS NEEDS TO BE TIDIED UP
+                         LOAD_ALL_TR=False,idx_train_start=idx_train_start,VALFROMTRAIN=True,RETURN_VALINFO=True)
+    data_train=rgb[0];
+    data_val = rgb[1];
+    data_test = rgb[2]
+    data_quality = rgb[3]
+    dataset_rr = rgb[4]
+    parameters = rgb[5]
+    if len(rgb)>7:
+        data_info = rgb[7]
+    
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
     
     # Get RGC type info
@@ -519,13 +529,18 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d.h5' % (idx_bestEpoch+1)
     fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d' % (idx_bestEpoch+1)
     mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
-    pred_rate = mdl.predict(gen,steps=int(np.ceil(data_val.X.shape[0]/bz)))
+    # pred_rate = mdl.predict(gen,steps=int(np.ceil(data_val.X.shape[0]/bz)))
+    pred_rate = mdl.predict(data_val.X)
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
+    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(data_val.y,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+
     
 
 # %% Save performance
-    data_test=data_val
-
+    # data_test=data_val
+    if 't_elapsed' not in locals():
+        t_elapsed = np.nan
+        
     fname_save_performance = os.path.join(path_save_model_performance,(expFold+'_'+fname_model+'.h5'))
 
     print('-----SAVING PERFORMANCE STUFF TO H5-----')
@@ -594,7 +609,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
          'temporal_width':temporal_width,
          'pr_temporal_width': pr_temporal_width
          }
-    
+    if len(data_info)>0:
+        for k in data_info:
+            stim_info[k] = data_info[k]
     
     datasets_val = {
         'data_val_X': data_val.X,
@@ -620,8 +637,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
-        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
+        csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','RGC_types','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
+        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,select_rgctype,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
         
         fname_csv_file = 'performance_'+expFold+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
