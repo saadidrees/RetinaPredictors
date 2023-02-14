@@ -83,7 +83,13 @@ def unroll_data(data,time_axis=0,rolled_axis=1):
     # rgb = np.concatenate((rgb,data[-1:,0,:]),axis=0)
     return rgb
         
-
+def isintuple(x,name):
+    t = type(x)
+    attrs = getattr(t, '_fields', None)
+    if name in attrs:
+        return True
+    else:
+        return False
 
 def load_data(fname_dataFile,frac_val=0.2,frac_test=0.05,filt_temporal_width=40,idx_cells=None,thresh_rr=0.45):
     
@@ -350,7 +356,7 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         idx_cells = idx_cells_orig
 
     
-    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    Exptdata = namedtuple('Exptdata', ['X', 'y','spikes'])
     datasets = {}
     resp_non_norm = {}
     # total_spikeCounts = np.zeros(len(idx_cells))
@@ -367,15 +373,20 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
           
         # firing rates
         resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
+        spikes = np.array(f[code_stim+'/spikeCounts'])[idx_time]
         # resp = resp.T
         if resp.ndim == 2:
             resp = resp[:,idx_cells]
             resp = resp[filt_temporal_width:]
+            spikes = spikes[:,idx_cells]
+            spikes = spikes[filt_temporal_width:]
 
         if resp.ndim > 2:
             resp = resp[filt_temporal_width:]
             # resp = np.moveaxis(resp,-1,0)
             resp = resp[:,idx_cells,:]
+            spikes = spikes[filt_temporal_width:]
+            spikes = spikes[:,idx_cells,:]
         
         # spikeCounts = np.array(f[code_stim+'/spikeCounts'])[idx_time,idx_cells.T]
         # spikeCounts = spikeCounts.T    
@@ -422,15 +433,16 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
             else:
                 temp = resp/resp_median[None,:]
                 temp = temp[:,:,None]
+                spikes = spikes[:,:,None]
             temp[np.isnan(temp)] = 0
             resp_norm = temp
             resp_orig = resp
         
         resp_orig[np.isnan(resp_orig)] = 0
         if NORM_RESP==1:
-            datasets[s] = Exptdata(stim, resp_norm)
+            datasets[s] = Exptdata(stim, resp_norm, spikes)
         else:
-            datasets[s] = Exptdata(stim, resp_orig)
+            datasets[s] = Exptdata(stim, resp_orig, spikes)
         resp_non_norm[s] = resp_orig
         
     f.close()
@@ -444,8 +456,11 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         
         y = datasets['train'].y[:N_samps]
         y = np.concatenate((y,datasets['train'].y[idx_half+100:idx_half+100+N_samps]),axis=0)
-        
-        datasets['train'] = Exptdata(X,y)
+ 
+        spikes = datasets['train'].spikes[:N_samps]
+        spikes = np.concatenate((spikes,datasets['train'].spikes[idx_half+100:idx_half+100+N_samps]),axis=0)
+
+        datasets['train'] = Exptdata(X,y,spikes)
 
     
     
@@ -473,19 +488,23 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
 
     try:
         temp_val = np.moveaxis(datasets['val'].y,-1,0)
+        temp_val_spikes = np.moveaxis(datasets['val'].spikes,-1,0)
         dset_name = np.array(dataset)
      
     except:
         select_val = valSets[-1]
         temp_val = np.moveaxis(datasets['val_'+select_val].y,-1,0)
+        temp_val_spikes = np.moveaxis(datasets['val_'+select_val].spikes,-1,0)
         dset_name = select_val
     
     dataset_rr = {}    
     if idx_cells_orig is None:
         temp_val = temp_val[:,:,idx_unitsToTake]
+        temp_val_spikes = temp_val_spikes[:,:,idx_unitsToTake]
 
     dict_vars = {
          'val': temp_val,
+         'val_spikes': temp_val_spikes,
          'dataset_name': np.atleast_1d(np.array(dset_name,dtype='bytes'))
          }
      
@@ -527,10 +546,11 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         val_dset_name = 'val_'+dset_name
         
     rgb = np.nanmean(datasets[val_dset_name].y,-1)
+    rgb_spikes = np.nanmean(datasets[val_dset_name].spikes,-1)
     if idx_cells_orig is None:
-        data_val = Exptdata(datasets[val_dset_name].X,rgb[:,idx_unitsToTake])      # for validation i take the mean rate across all trials
+        data_val = Exptdata(datasets[val_dset_name].X,rgb[:,idx_unitsToTake],rgb_spikes[:,idx_unitsToTake])      # for validation i take the mean rate across all trials
     else:
-        data_val = Exptdata(datasets[val_dset_name].X,rgb)
+        data_val = Exptdata(datasets[val_dset_name].X,rgb,rgb_spikes)
     
     if frac_test>0:
         nsamples_test = int(np.floor(datasets['train'].X.shape[0]*frac_test))       
@@ -544,26 +564,31 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
 
         stim_test = datasets['train'].X[idx_test]
         resp_test = datasets['train'].y[idx_test,:]
+        spikes_test = datasets['train'].spikes[idx_test,:]
         if idx_cells_orig is None:
             resp_test = resp_test[:,idx_unitsToTake]
-        data_test = Exptdata(stim_test,resp_test)
+            spikes_test = spikes_test[:,idx_unitsToTake]
+        data_test = Exptdata(stim_test,resp_test,spikes_test)
         
         idx_train = np.setdiff1d(np.arange(0,datasets['train'].X.shape[0]),idx_test)
         stim_train = datasets['train'].X[idx_train]
         resp_train = datasets['train'].y[idx_train,:]   
+        spikes_train = datasets['train'].spikes[idx_train,:]  
         if idx_cells_orig is None:
             resp_train = resp_train[:,idx_unitsToTake] 
+            spikes_train = spikes_train[:,idx_unitsToTake] 
         
-        data_train = Exptdata(stim_train,resp_train)
+        data_train = Exptdata(stim_train,resp_train,spikes_train)
         
     else:
         data_test = data_val
         
         if idx_cells_orig is None:
             rgb = datasets['train'].y[:,idx_unitsToTake]
-            data_train = Exptdata(datasets['train'].X,rgb)
+            rgb_spikes = datasets['train'].spikes[:,idx_unitsToTake]
+            data_train = Exptdata(datasets['train'].X,rgb,rgb_spikes)
         else:
-            data_train = Exptdata(datasets['train'].X,datasets['train'].y)
+            data_train = Exptdata(datasets['train'].X,datasets['train'].y,datasets['train'].spikes)
     
     resp_orig = {}
     for i in resp_non_norm.keys():
@@ -594,15 +619,24 @@ def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
 def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
     if data != None:
         Exptdata = namedtuple('Exptdata', ['X', 'y'])
+        Exptdata_spikes = namedtuple('Exptdata_spikes', ['X', 'y','spikes'])
         if filt_temporal_width>0:
             X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
             y = data.y[:,idx_unitsToTake]
             y = y[filt_temporal_width:]
+            if isintuple(data,'spikes')==True:
+                spikes = data.spikes[:,idx_unitsToTake]
+                spikes = spikes[filt_temporal_width:]
         else:
             X = np.expand_dims(data.X,axis=1)
             y = data.y[:,idx_unitsToTake]
-        
-        data = Exptdata(X,y)
+            if isintuple(data,'spikes')==True:
+                spikes = data.spikes[:,idx_unitsToTake]
+
+        if isintuple(data,'spikes')==True:
+            data = Exptdata_spikes(X,y,spikes)
+        else:
+            data = Exptdata(X,y)
         
         del X, y
     return data
@@ -654,6 +688,7 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         grp = f.create_group('/data_train')
         grp.create_dataset('X',data=data_train[data_train_keys[0]].X,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].X.shape[-2],data_train[data_train_keys[0]].X.shape[-1]))
         grp.create_dataset('y',data=data_train[data_train_keys[0]].y,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].y.shape[-1]))
+        grp.create_dataset('spikes',data=data_train[data_train_keys[0]].spikes,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].spikes.shape[-1]))
 
         for i in range(1,len(data_train_keys)):
             f['data_train']['X'].resize((f['data_train']['X'].shape[0] + data_train[data_train_keys[i]].X.shape[0]),axis=0)
@@ -662,6 +697,8 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
             f['data_train']['y'].resize((f['data_train']['y'].shape[0] + data_train[data_train_keys[i]].y.shape[0]),axis=0)
             f['data_train']['y'][-data_train[data_train_keys[i]].y.shape[0]:] = data_train[data_train_keys[i]].y
 
+            f['data_train']['spikes'].resize((f['data_train']['spikes'].shape[0] + data_train[data_train_keys[i]].spikes.shape[0]),axis=0)
+            f['data_train']['spikes'][-data_train[data_train_keys[i]].spikes.shape[0]:] = data_train[data_train_keys[i]].spikes
 
     # if type(data_train) is dict:    # if the training set is divided into multiple datasets then create a group for each
     #     for i in data_train.keys():
@@ -673,6 +710,7 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         grp = f.create_group('/data_train')
         grp.create_dataset('X',data=data_train.X,compression='gzip')
         grp.create_dataset('y',data=data_train.y,compression='gzip')
+        grp.create_dataset('spikes',data=data_train.spikes,compression='gzip')
     
     
     if type(data_val)==dict: # if the training set is divided into multiple datasets
@@ -680,6 +718,7 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         grp = f.create_group('/data_val')
         grp.create_dataset('X',data=data_val[data_val_keys[0]].X,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].X.shape[-2],data_val[data_val_keys[0]].X.shape[-1]))
         grp.create_dataset('y',data=data_val[data_val_keys[0]].y,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].y.shape[-1]))
+        grp.create_dataset('spikes',data=data_val[data_val_keys[0]].spikes,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].spikes.shape[-1]))
 
         for i in range(1,len(data_val_keys)):
             f['data_val']['X'].resize((f['data_val']['X'].shape[0] + data_val[data_val_keys[i]].X.shape[0]),axis=0)
@@ -687,15 +726,20 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
             
             f['data_val']['y'].resize((f['data_val']['y'].shape[0] + data_val[data_val_keys[i]].y.shape[0]),axis=0)
             f['data_val']['y'][-data_val[data_val_keys[i]].y.shape[0]:] = data_val[data_val_keys[i]].y
+            
+            f['data_val']['spikes'].resize((f['data_val']['spikes'].shape[0] + data_val[data_val_keys[i]].spikes.shape[0]),axis=0)
+            f['data_val']['spikes'][-data_val[data_val_keys[i]].spikes.shape[0]:] = data_val[data_val_keys[i]].spikes
     else:
         grp = f.create_group('/data_val')
         grp.create_dataset('X',data=data_val.X,compression='gzip')
         grp.create_dataset('y',data=data_val.y,compression='gzip')
+        grp.create_dataset('spikes',data=data_val.spikes,compression='gzip')
     
     if data_test != None:  # data_test is None if it does not exist. So if it doesn't exist, don't save it.
         grp = f.create_group('/data_test')
         grp.create_dataset('X',data=data_test.X,compression='gzip')
         grp.create_dataset('y',data=data_test.y,compression='gzip')
+        # grp.create_dataset('spikes',data=data_test.spikes,compression='gzip')
         
     # Training data info
     if type(data_train_info)==dict: # if the training set is divided into multiple datasets
@@ -759,6 +803,7 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
     f = h5py.File(fname_data_train_val_test,'r')
     t_frame = np.array(f['parameters']['t_frame'])
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    Exptdata_spikes = namedtuple('Exptdata', ['X', 'y','spikes'])
     f_keys = list(f.keys())
 
     if LOADFROMBOOL == True:
@@ -768,7 +813,8 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
             idx = nsamps_train
         X = np.array(f['data_train']['X'][idx],dtype='float32')
         y = np.array(f['data_train']['y'][idx],dtype='float32')
-        data_train = Exptdata(X,y)
+        spikes = np.array(f['data_train']['spikes'][idx],dtype='float32')
+        data_train = Exptdata_spikes(X,y,spikes)
         return data_train
 
         
@@ -804,22 +850,30 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
             if LOAD_ALL_TR==True:   # concatenate all datasets into one
                 X = np.array([]).reshape(0,f[dsets[0]]['X'].shape[1],f[dsets[0]]['X'].shape[2])
                 y = np.array([]).reshape(0,f[dsets[0]]['y'].shape[1])
+                spikes = np.array([]).reshape(0,f[dsets[0]]['spikes'].shape[1])
                 for i in dsets:
                     rgb = np.array(f[i]['X'])
                     X = np.concatenate((X,rgb),axis=0)
                     
                     rgb = np.array(f[i]['y'])
                     y = np.concatenate((y,rgb),axis=0)
+                    
+                    rgb = np.array(f[i]['spikes'])
+                    spikes = np.concatenate((spikes,rgb),axis=0)
+
                 X = X.astype('float32')
                 y = y.astype('float32')
+                spikes = spikes.astype('float32')
                 
                 
                                 
-                data_train = Exptdata(X,y)
+                data_train = Exptdata_spikes(X,y,spikes)
             else:            # just pick the first dataset
                 X = np.array(f[dsets[0]]['X'][idx_train_start:idx_train_end],dtype='float32')
                 y = np.array(f[dsets[0]]['y'][idx_train_start:idx_train_end],dtype='float32')
-                data_train = Exptdata(X,y)
+                spikes = np.array(f[dsets[0]]['spikes'][idx_train_start:idx_train_end],dtype='float32')
+                data_train = Exptdata_spikes(X,y,spikes)
+                # data_train = Exptdata(X,y)
             
         else:   # if there is only one dataset
             if idx_train_end!=-1:
@@ -861,7 +915,8 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
             idx = np.where(bool_idx_train)
             X = np.array(f['data_train']['X'][idx],dtype='float32')
             y = np.array(f['data_train']['y'][idx],dtype='float32')
-            data_train = Exptdata(X,y)
+            spikes = np.array(f['data_train']['spikes'][idx],dtype='float32')
+            data_train = Exptdata_spikes(X,y,spikes)
             
 
     else:
@@ -876,7 +931,8 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
                 d = 0
                 X = np.array(f[dsets[d]]['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
                 y = np.array(f[dsets[d]]['y'][idx_val_start:idx_val_end],dtype='float32')
-                data_val = Exptdata(X,y)
+                spikes = np.array(f[dsets[d]]['spikes'][idx_val_start:idx_val_end],dtype='float32')
+                data_val = Exptdata_spikes(X,y,spikes)
     
                       
                 # dataset info
@@ -893,7 +949,8 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
             else:
                 X = np.array(f['data_val']['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
                 y = np.array(f['data_val']['y'][idx_val_start:idx_val_end],dtype='float32')
-                data_val = Exptdata(X,y)
+                spikes = np.array(f['data_val']['spikes'][idx_val_start:idx_val_end],dtype='float32')
+                data_val = Exptdata_spikes(X,y,spikes)
     
                 # dataset info
                 if 'data_val_info' in f:
@@ -908,7 +965,8 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
         idx = np.where(bool_idx_val)
         X = np.array(f['data_train']['X'][idx],dtype='float32')
         y = np.array(f['data_train']['y'][idx],dtype='float32')
-        data_val = Exptdata(X,y)
+        spikes = np.array(f['data_train']['spikes'][idx],dtype='float32')
+        data_val = Exptdata_spikes(X,y,spikes)
 
        
     
@@ -922,7 +980,8 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
         idx = np.where(bool_idx_test)
         X = np.array(f['data_train']['X'][idx],dtype='float32')
         y = np.array(f['data_train']['y'][idx],dtype='float32')
-        data_test = Exptdata(X,y)
+        spikes = np.array(f['data_train']['spikes'][idx],dtype='float32')
+        data_test = Exptdata_spikes(X,y,spikes)
     
     # Quality data
     select_groups = ('data_quality')

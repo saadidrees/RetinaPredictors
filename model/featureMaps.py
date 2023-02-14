@@ -12,6 +12,9 @@ from model.data_handler import rolling_window
 import math
 import gc
 from model.train_model import chunker
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+import model.featureMaps
 # import multiprocessing as mp
 # pool = mp.Pool(mp.cpu_count())
 # import tensorflow as tf
@@ -216,25 +219,48 @@ def spatRF2DFit(img_spatRF,tempRF,sig_fac=2,rot=True,sta=0,tempRF_sig=False):
     img_spatRF = np.zeros((30,39))
     img_spatRF[13:15,13:15] = 1
     img_spatRF[15:17,15:17] = 1
-    img_spatRF[15:17,13:15] = 1
-    img_spatRF[15:19,15:20] = 1
-    rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(img_spatRF,tempRF=0,sig_fac=3,rot=True,sta=0,tempRF_sig=False)
-
+    img_spatRF[19:20,13:15] = 1
+    # img_spatRF[15:19,17:20] = 1
+    # img_spatRF[13:15,19:22] = 1
+    rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(img_spatRF,tempRF=0,sig_fac=2,rot=True,sta=0,tempRF_sig=False)
     plt.imshow(img_spatRF);plt.plot(rf_coords[:,0],rf_coords[:,1],'r');#plt.plot(rf_params['x0']-rf_params['sigma_x'],rf_params['y0'],'ko')
 
     """
     from lmfit import Model
     tempRF_avg = tempRF
+    """
+    def twoD_Gaussian(x,y, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
+        xo = float(xo)
+        yo = float(yo)    
+        a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
+        b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
+        c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
+        g = offset + amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) 
+                                + c*((y-yo)**2)))
+        return g.ravel()
+    """
+
     
     def gauss2d(x, y, A, x0, y0, sigma_x, sigma_y, theta):
         theta = np.radians(theta)
         sigx2 = sigma_x**2; sigy2 = sigma_y**2
         a = np.cos(theta)**2/(2*sigx2) + np.sin(theta)**2/(2*sigy2)
         b = np.sin(theta)**2/(2*sigx2) + np.cos(theta)**2/(2*sigy2)
-        c = np.sin(2*theta)/(4*sigx2) - np.sin(2*theta)/(4*sigy2)
+        c = np.sin(2*theta)/(4*sigx2) + (-np.sin(2*theta))/(4*sigy2)
         
         expo = -a*(x-x0)**2 - b*(y-y0)**2 - 2*c*(x-x0)*(y-y0)
         return A*np.exp(expo)    
+    
+    # def gauss2d(x, y, A, x0, y0, sigma_x, sigma_y, theta):
+    #     theta = np.radians(theta)
+    #     sigx2 = sigma_x**2; sigy2 = sigma_y**2
+    #     a = np.cos(theta)**2/(2*sigx2) + np.sin(theta)**2/(2*sigy2)
+    #     b = np.sin(theta)**2/(2*sigx2) + np.cos(theta)**2/(2*sigy2)
+    #     c = np.sin(2*theta)/(4*sigx2) - np.sin(2*theta)/(4*sigy2)
+        
+    #     expo = -a*(x-x0)**2 - b*(y-y0)**2 - 2*c*(x-x0)*(y-y0)
+    #     return A*np.exp(expo)    
+
     
     fmodel = Model(gauss2d, independent_vars=('x','y'))
     
@@ -243,7 +269,7 @@ def spatRF2DFit(img_spatRF,tempRF,sig_fac=2,rot=True,sta=0,tempRF_sig=False):
     
     
     
-    A = peak_vals[idx_strong] #np.max(abs(img_spatRF))
+    A = np.abs(peak_vals[idx_strong]) #np.max(abs(img_spatRF))
     ind = np.unravel_index(np.argmax(abs(img_spatRF)),img_spatRF.shape)
     theta = 0  # deg
     x0 = ind[1]
@@ -256,6 +282,8 @@ def spatRF2DFit(img_spatRF,tempRF,sig_fac=2,rot=True,sta=0,tempRF_sig=False):
     y = np.arange(0,img_spatRF.shape[0],1)
     x, y = np.meshgrid(x, y)
     
+    img_spatRF = np.abs(img_spatRF) # to make sure gaussian gets both dark and bright?
+    # plt.imshow(img_spatRF)
     rf_fit = fmodel.fit(img_spatRF-np.nanmean(img_spatRF), x=x, y=y, A=A, x0=x0, y0=y0, sigma_x=sigx, sigma_y=sigy, theta=theta)
     
     rf_fit_img_orig = fmodel.func(x, y, **rf_fit.best_values)
@@ -269,10 +297,12 @@ def spatRF2DFit(img_spatRF,tempRF,sig_fac=2,rot=True,sta=0,tempRF_sig=False):
     t = np.arange(-np.pi,np.pi,0.01)
     r_x = sig_fac * rf_fit.best_values['sigma_x']
     r_y = sig_fac * rf_fit.best_values['sigma_y']
-    r_theta = -rf_fit.best_values['theta']
+    r_theta = +rf_fit.best_values['theta']
+    r_theta_rad = math.radians(r_theta)
     x_e = r_x*np.cos(t)
     y_e = r_y*np.sin(t)
-    rotationMat = np.array([[np.cos(r_theta), -np.sin(r_theta)], [np.sin(r_theta), np.cos(r_theta)]])
+    # rotationMat = np.array([[np.cos(r_theta), +np.sin(r_theta)], [-np.sin(r_theta), np.cos(r_theta)]])
+    rotationMat = np.array([[np.cos(r_theta_rad), +np.sin(r_theta_rad)], [-np.sin(r_theta_rad), np.cos(r_theta_rad)]])
     rf_coords = np.array([x_e,y_e]).T
     if rot == True:
         rf_rotated = np.matmul(rf_coords,rotationMat)
@@ -283,6 +313,7 @@ def spatRF2DFit(img_spatRF,tempRF,sig_fac=2,rot=True,sta=0,tempRF_sig=False):
     
     rf_fit_img = rf_fit_img_orig.copy()
     rf_fit_img[(((r_y**2)*(x-rf_fit_center[0])**2) + ((r_x**2)*(y-rf_fit_center[1])**2)) > (r_x*r_y)**2] = np.nan       # set 0 all regions outside 'fac' sd from center of rf field
+    # plt.imshow(rf_fit_img)
     
     if np.isnan(rf_fit_img).sum()==rf_fit_img.size:
         rf_cent_int = np.round(rf_fit_center).astype('int')
@@ -296,6 +327,7 @@ def spatRF2DFit(img_spatRF,tempRF,sig_fac=2,rot=True,sta=0,tempRF_sig=False):
             tempRF_avg = np.nanmean(tempRF_avg,axis=1)
     
     return ellipse_coord,rf_fit_img,rf_fit.best_values,tempRF_avg
+
 
 def get_strf(sta):
     
@@ -312,10 +344,11 @@ def decompose(sta):
     # print('correct decompose')
     from scipy import linalg
     k = 1
-    sta_meansub = sta.copy()# - sta.mean()
-    sta_meansub = sta_meansub.astype('float32')
+    # sta_meansub = sta.copy() - sta.mean()
+    sta = sta.astype('float64')
+    sta_meansub = sta - sta.mean()
     
-    sta_flat2d = sta.reshape(sta_meansub.shape[0],-1).astype('float32')
+    sta_flat2d = sta_meansub.reshape(sta_meansub.shape[0],-1)#.astype('float32')
 
     assert sta_meansub.ndim >= 2, "STA must be at least 2-D"
     u, s, v = np.linalg.svd(sta_flat2d, full_matrices=False)
@@ -349,19 +382,157 @@ def decompose(sta):
     temp = u[:,0]
     return spat,temp
 
-def getSTA(stim,spikes):
+def getSTA(stim,spikes,nFrames=30):
     
     """
     stim = [samples,time,y,x]
     """
     
     # stim = norm_stim
-    spikeTimes = np.where(spikes)
+    # spikes = np.where(spikes)[0]
     
-    sta = stim[spikeTimes]
-    sta = np.sum(sta,axis=0)/len(spikeTimes)
+    if stim.ndim == 4:  # [samps,time,y,x]
+        sta = stim[spikes]
+        sta = np.sum(sta,axis=0)/len(spikes)
+        
+    elif stim.ndim == 3: #[samps,y,x]
+        num_spikes = len(spikes)
+        spikeCount = 0
+        sta = np.zeros((nFrames,stim.shape[1],stim.shape[2]))
+
+        idx_start = np.where(spikes>nFrames)[0][0]
+        for i in tqdm(range(idx_start,num_spikes)):
+            if i>spikes.shape[0]:
+                break
+            else:
+                last_frame = spikes[i]
+                first_frame = last_frame - nFrames
+                
+                sta = sta + stim[first_frame:last_frame,:,:]
+                spikeCount+=1
+
+            
+        sta = sta/spikeCount
+
+        # spatial_feature, temporal_feature = decompose(sta)
+        # plt.imshow(spatial_feature,cmap='winter');plt.show()
+        # plt.plot(temporal_feature);plt.show()
+
+        
     
     return sta
     
     
+def getSTA_spikeTrain(stim,spikes,N_trials=1,timeBin=16,REV_CORR=True):
+    
+    """
+    stim = [samples,time,y,x]
+    spikes = [samples] # binary
+    
+    N_trials = 1
+    nsamps = 60000
+    stim = data.X[:nsamps,-30:]
+    spikes = data.spikes[:nsamps,2]
+    """
+    # stim = (stim-stim.mean())/stim.std()
+    # stim[stim<50] = -1
+    # stim[stim>50] = 1
 
+    # plt.hist(stim[0,0].flatten());plt.show()
+    N_trials_orig = N_trials
+    if N_trials==0:
+        N_trials=1
+    totalSamps = stim.shape[0]
+    # N_trials = 2
+
+    num_spikes = np.floor(totalSamps/N_trials).astype('int32') #len(np.where(spikes[0,:])[0])
+
+    idx_chunks = np.arange(0,num_spikes*(N_trials+1),num_spikes)
+    nFrames = stim.shape[1]
+
+
+    sta_mat_allTrials = np.zeros((N_trials,nFrames,stim.shape[-2],stim.shape[-1]),dtype=np.float128)
+    for j in tqdm(range(N_trials)):
+        spikes_currTrial = spikes[idx_chunks[j]:idx_chunks[j+1]].astype('bool')
+        stim_currTrial = stim[idx_chunks[j]:idx_chunks[j+1]]
+        sta = stim_currTrial[spikes_currTrial]
+        sta = np.sum(sta,axis=0)/np.sum(spikes_currTrial[spikes_currTrial>0])
+
+        if REV_CORR==True:
+            meanFiringRate = np.sum(spikes_currTrial[spikes_currTrial>0])/(spikes_currTrial.shape[0]*timeBin/1000) # Fabrizio Gabbiani theoretical neuroscience
+            stim_currTrial_norm = stim_currTrial-stim_currTrial.mean()
+            revcorr_scale = meanFiringRate/np.var(stim_currTrial_norm)
+            sta = revcorr_scale * sta
+
+        sta_mat_allTrials[j] = sta#(sta_mat-sta_mat.mean())/np.std(sta_mat)
+
+    totalSpikes = spikes.sum()
+
+    sta_mat_quant = sta_mat_allTrials.copy()   
+    sta_mat_quant = (sta_mat_quant-sta_mat_quant.mean())/np.std(sta_mat_quant)
+    # plt.hist(sta_mat_quant.flatten());plt.show()
+    
+    if N_trials_orig==0:
+        sta_prod = sta #sta_mat_quant[0]
+    elif N_trials_orig==1:
+        sta_prod = sta_mat_quant[0]**2
+    else:
+        sta_prod = np.prod(sta_mat_quant,axis=0)
+
+    spatRF, tempRF = model.featureMaps.decompose(sta_prod)
+    # plt.imshow(spatRF,cmap='gray');plt.show()
+    # plt.plot(tempRF);plt.show()
+    
+    spatRF3, tempRF3 = model.featureMaps.decompose(sta_mat_quant[0]**3)
+    
+    rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF3,tempRF=0,sig_fac=2,rot=True,sta=0,tempRF_sig=False)
+    # plt.imshow(spatRF3,cmap='gray');plt.plot(rf_coords[:,0],rf_coords[:,1],'r'); plt.show()
+
+    polarity = np.sign(rf_params['A'])
+    
+
+    tempRF_neg = np.ones(tempRF.shape[0])
+    tempRF_neg[tempRF3<0] = -1
+    tempRF_fxd = tempRF_neg*np.sqrt(tempRF)
+    tempRF_fxd[np.isnan(tempRF_fxd)] = 0
+    # plt.plot(tempRF_fxd)
+    
+    spatRF = polarity*spatRF
+    tempRF = tempRF_fxd
+    
+    return sta_prod,spatRF,tempRF
+    
+
+def getSTA_spikeTrain_simple(stim,spikes):
+    
+    """
+    stim = [samples,time,y,x]
+    spikes = [samples] # binary
+    
+    N_trials = 1
+    nsamps = 60000
+    stim = data.X[:nsamps,-30:]
+    spikes = data.spikes[:nsamps,2]
+    """
+    stim = (stim-stim.mean())#/stim.std()
+    # stim = stim - np.mean(stim,axis=0)  # mean across all samples 
+    # stim[stim<50] = -1
+    # stim[stim>50] = 1
+
+    # plt.hist(stim[0,0].flatten());plt.show()
+    # nonzerospikes_idx = np.where(spikes>0)[0]
+    # nonzerospikes = spikes[nonzerospikes_idx]
+    # nonzerospikes_stim = stim[nonzerospikes_idx]
+    
+    # sta = np.zeros((stim.shape[1],stim.shape[2],stim.shape[3]))
+    # for i in range(len(nonzerospikes_idx)):
+    #     sta = sta+(stim[i]*nonzerospikes[i])
+    # sta = sta/np.sum(nonzerospikes)
+
+    sta = stim[spikes.astype('bool')]
+    # sta = np.sum(sta,axis=0)/np.sum(spikes[spikes>0])
+    sta = np.sum(sta,axis=0)/np.sum(spikes>0)
+    
+    sta = sta - np.mean(stim,axis=0)
+    
+    return sta
