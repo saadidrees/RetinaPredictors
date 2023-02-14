@@ -246,7 +246,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dict_params['filt_temporal_width'] = temporal_width
     
     # filt_temporal_width = dict_params['filt_temporal_width']; chan1_n = dict_params['chan1_n']; filt1_size = dict_params['filt1_size']; chan2_n = dict_params['chan2_n']; filt2_size = dict_params['filt2_size']
-    # chan3_n = dict_params['chan3_n']; filt3_size = dict_params['filt3_size']; BatchNorm = bool(dict_params['BatchNorm']); MaxPool = bool(dict_params['MaxPool'])
+    # chan3_n = dict_params['chan3_n']; filt3_size = dict_params['filt3_size']; BatchNorm = bool(dict_params['BatchNorm']); MaxPool = dict_params['MaxPool']
     
     
     path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)   # the model save directory is the fname_model appened to save path
