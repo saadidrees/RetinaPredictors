@@ -2,7 +2,7 @@
 #int-or-string.sh
 #SBATCH --job-name=RAT
 #SBATCH --account=def-joelzy
-#SBATCH --time=48:00:00
+#SBATCH --time=00:60:00
 #SBATCH --gres=gpu:1 --cpus-per-task=1
 #SBATCH --mem-per-cpu=48000M
 #SBATCH -o logs/%j-out.txt
@@ -10,8 +10,8 @@
 
 
 
-module load python/3.6 cuda cudnn
-#module load python/3.9 cuda cudnn
+#module load python/3.6 cuda cudnn
+module load python/3.9 cuda cudnn
 
 cd $SLURM_TMPDIR
 echo "directory changed"
