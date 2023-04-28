@@ -17,26 +17,29 @@ in what direction to change the output that will result in lower firing rate.
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Activation
-from tensorflow.keras.regularizers import l1, l2
+from tensorflow.keras.regularizers import l2
 
 
 import numpy as np
 import multiprocessing
 import matplotlib.pyplot as plt
 plt.rcParams['svg.fonttype'] = 'none'
+import matplotlib
+from cycler import cycler
+
 import os
 import h5py
 
 from model.load_savedModel import load
 from model.train_model import chunker
 
-from model.data_handler import load_h5Dataset, prepare_data_cnn2d, prepare_data_pr_cnn2d, unroll_data, rolling_window
+from model.data_handler import load_h5Dataset, prepare_data_cnn2d, rolling_window
 from model.performance import getModelParams, model_evaluate_new,paramsToName, get_weightsDict, get_weightsOfLayer
 from model import utils_si
 from model.models import modelFileName
 from model.featureMaps import spatRF2DFit, get_strf, decompose
 import model.gradient_tools
-from pyret.filtertools import sta, decompose
+# from pyret.filtertools import sta, decompose
 import gc
 import re
 from collections import namedtuple
@@ -44,6 +47,7 @@ Exptdata = namedtuple('Exptdata', ['X', 'y'])
 Exptdata_spikes = namedtuple('Exptdata_spikes', ['X', 'y','spikes'])
 import time
 import seaborn
+import scipy
 # import pandas as pd
 from tqdm import tqdm
 
@@ -64,116 +68,154 @@ data_pers = 'kiersten' #'kiersten'
 expDate = 'rat' #'monkey01'
 subFold = 'gradient_analysis' 
 
-path_dataset = '/home/saad/data/analyses/data_kiersten/rat/datasets/' #/home/saad/postdoc_db/analyses/data_kiersten/monkey01/CNS/datasets/'         # CNS
-dataset_model = '16ms_sig2_20121031_phot-3000' #'scot-3-30-Rstar'
-
-path_save = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/'
-
-path_mdl = '/home/saad/data/analyses/data_kiersten/rat/' #'/home/saad/postdoc_db/analyses/data_kiersten/monkey01/CNS'      # CNS
-mdl_subFold = 'OFF_type1' #'ON_type2-ON_type3-OFF_type2-OFF_type3' 
+rgctypes = 'ON_type2-ON_type3-OFF_type2-OFF_type3' # 'OFF_type1' 'ON_type'
 mdl_names = ('CNN_2D_RAT',)# CNN_2D_RAT 'PRFR_CNN2D_RAT') #('CNN_2D_NORM','PRFR_CNN2D_RODS') #'CNN_2D_NORM' #'PRFR_CNN2D_RODS' 
-paramName_mdl = {}
-paramName_mdl['PRFR_CNN2D_RAT'] = 'U-128_P-060_T-050_C1-05-09_C2-13-07_C3-25-05_BN-1_MP-2_LR-0.001_TRSAMPS-040_TR-01'  # type2 and 3s
-# paramName_mdl['CNN_2D_RAT'] = 'U-128_T-050_C1-05-09_C2-15-09_C3-25-07_BN-1_MP-2_LR-0.0001_TRSAMPS-040_TR-01' # # type2 and 3s
-paramName_mdl['CNN_2D_RAT'] = 'U-23_T-050_C1-05-09_C2-13-07_C3-23-05_BN-1_MP-2_LR-0.0001_TRSAMPS-040_TR-01'     #OFF Type 1s
 
+
+path_dataset = '/home/saad/data/analyses/data_kiersten/rat/datasets/' 
+dataset_model = '16ms_sig2_20121031_phot-3000' #'
+path_save = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/'
+path_mdl = '/home/saad/data/analyses/data_kiersten/rat/' 
+
+paramName_mdl = {
+                'ON_type2-ON_type3-OFF_type2-OFF_type3': {'CNN_2D_RAT':'U-128_T-050_C1-05-09_C2-15-09_C3-25-07_BN-1_MP-2_LR-0.0001_TRSAMPS-040_TR-01',
+                                                          'PRFR_CNN2D_RAT':'U-128_P-060_T-050_C1-05-09_C2-13-07_C3-25-05_BN-1_MP-2_LR-0.001_TRSAMPS-040_TR-01'},
+                'OFF_type1': {'CNN_2D_RAT': 'U-23_T-050_C1-05-09_C2-13-07_C3-23-05_BN-1_MP-2_LR-0.0001_TRSAMPS-040_TR-01'},
+                'ON_type1': {'CNN_2D_RAT': 'U-19_T-050_C1-07-09_C2-13-07_C3-27-07_BN-1_MP-2_LR-0.0001_TRSAMPS-040_TR-01'}
+                 }
+
+
+"""
+Load all models into RAM (mdl_dict) and set their weights to the best epoch.
+Also load the following for each model from its performance file
+    - indices of data that went into trainig (bool_idx_train)
+    - the indices of units that went into the model (idx_unitsInModel)
+    - and name of those units (uname_all)
+"""
+
+# select_mdl = mdl_names[0]                                                         
 mdl_dict = {}
+for select_mdl in mdl_names:
 
-mdl_select = mdl_names[0]
-for mdl_select in mdl_names:
-
-    fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,mdl_select,paramName_mdl[mdl_select])
-    fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[mdl_select]+'.h5')
+    fold_mdl = os.path.join(path_mdl,dataset_model,rgctypes,select_mdl,paramName_mdl[rgctypes][select_mdl])
+    fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[rgctypes][select_mdl]+'.h5')
     
     # Load model
     f = h5py.File(fname_performanceFile,'r')
     perf_model = {}
     for key in f['model_performance'].keys():
         perf_model[key] = np.array(f['model_performance'][key])
-    rgb = utils_si.h5_tostring(f['uname_selectedUnits'])
-    perf_model['uname_selectedUnits'] = rgb
-    f.close
-    idx_bestEpoch = np.nanargmax(perf_model['fev_medianUnits_allEpochs'])
-    # plt.plot(perf_model['fev_medianUnits_allEpochs'])
     
-    mdl = load(os.path.join(fold_mdl,paramName_mdl[mdl_select]))
-    fname_bestWeight = 'weights_'+paramName_mdl[mdl_select]+'_epoch-%03d' % (idx_bestEpoch+1)
+    fev_allUnits_bestEpoch = np.array(f['model_performance']['fev_allUnits_bestEpoch'])
+    uname_all = np.array(f['uname_selectedUnits'],dtype='bytes')
+    uname_all = np.asarray(list(model.utils_si.h5_tostring(uname_all)))
+    idx_unitsInModel = np.array(f['idx_unitsToTake'])
+    bool_idx_train = np.array(f['stim_info']['bool_idx_train']) 
+
+    f.close
+    
+    idx_bestEpoch = np.nanargmax(perf_model['fev_medianUnits_allEpochs'])
+    mdl = load(os.path.join(fold_mdl,paramName_mdl[rgctypes][select_mdl]))
+    fname_bestWeight = 'weights_'+paramName_mdl[rgctypes][select_mdl]+'_epoch-%03d' % (idx_bestEpoch+1)
     try:
         mdl.load_weights(os.path.join(fold_mdl,fname_bestWeight))
     except:
         mdl.load_weights(os.path.join(fold_mdl,fname_bestWeight+'.h5'))
     weights_dict = get_weightsDict(mdl)
     
-    mdl_dict[mdl_select] = mdl
+    mdl_dict[select_mdl] = mdl
+    
 
-
-# %% Get index of the top common units across all models to be analyzed
-# n_units = 5
-# fev_stack = np.zeros(len(perf_model['uname_selectedUnits'] ))
-# idx_fev_stack = np.zeros(len(perf_model['uname_selectedUnits'] ))
-
-# for mdl_select in mdl_names:
-#     fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,mdl_select,paramName_mdl[mdl_select])
-#     fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[mdl_select]+'.h5')
-
-#     f = h5py.File(fname_performanceFile,'r')
-#     fev_allUnits_bestEpoch = np.array(f['model_performance']['fev_allUnits_bestEpoch'])
-#     f.close()
-#     idx_fev_sorted = np.argsort(-1*fev_allUnits_bestEpoch)  # descending order
-#     fev_stack = np.vstack((fev_stack,fev_allUnits_bestEpoch))
-#     idx_fev_stack = np.vstack((idx_fev_stack,idx_fev_sorted))
-# fev_stack = fev_stack[1:].T
-# idx_fev_stack = idx_fev_stack[1:].T
-
-# n_search = 20
-# idx_fev = idx_fev_stack[:n_search]
-# rgb = np.intersect1d(idx_fev[:,0],idx_fev[:,1]).astype('int32')
-# idx_unitsToExtract = rgb[:n_units]
-# fev_selectedUnits = fev_stack[idx_unitsToExtract]
-
-# idx_unitsToExtract = np.array([37, 42, 43, 55,89,90])
-# # idx_unitsToExtract = np.array([37,55])# OFF RGCs
 
 # %% Select units from a single model for which gradients are to be extracted
+"""
+Here we select the units for which we wish to extract the gradients.
+For each unit, 2 indices will be generated.
+1. idx_unitsToExtract --> index of units to be extracted relative to units in the Model (0 to n_outputs in model)
+2. idx_unitsInDatasetFile --> index of units to be extracted relative to units in the dataset file (in another section)
+Because different rgc types may be modeled seperately and so for every model, 
+N_unitsInModel < = N_unitsInData
+
+If USE_DICT is set to True, then the units to be extracted will be taken from the
+dict_topUnits. The unit names/ids will be searched for in the model unit list and 
+corresponding indices relative to model will be retrieved. Also their fev will be retrieved
+
+If USE_DICT is set to False, indices and names of top n_units based on that model's fev will be retrieved
+
+Output: 
+    1. uname_unitsToExtract
+    2. idx_unitsToExtract
+    3. fev_unitsToExtract
+
+"""
+
 n_units = 3
-select_rgctype_txt = 'OFF_type1'
-mdl_select = 'CNN_2D_RAT'
+select_rgctype_toExtract = 'ON_type2'
+# select_mdl = 'CNN_2D_RAT'   #'PRFR_CNN2D_RAT'   #CNN_2D_RAT'
+USE_DICT = True
 
-fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,mdl_select,paramName_mdl[mdl_select])
-fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[mdl_select]+'.h5')
 
-f = h5py.File(fname_performanceFile,'r')
-fev_allUnits_bestEpoch = np.array(f['model_performance']['fev_allUnits_bestEpoch'])
-uname_all = np.array(f['uname_selectedUnits'],dtype='bytes')
-uname_all = np.asarray(list(model.utils_si.h5_tostring(uname_all)))
-f.close()
+dict_topUnits = {
+                'OFF_type1': ['unit_0294','unit_0012','unit_0253'],
+                'OFF_type2': ['unit_0345','unit_0164','unit_0175'],
+                'OFF_type3': ['unit_0337','unit_0153','unit_0252'],
+                'ON_type1': ['unit_0257','unit_0273','unit_0291'],
+                'ON_type2': ['unit_0297','unit_0260','unit_0262'],
+                'ON_type3': ['unit_0060','unit_0162','unit_0051']
+                }
 
-if select_rgctype_txt != '':  
-    select_rgctype = re.findall(r'(\w+)',select_rgctype_txt)
-    # print(len(select_rgctype))
-    if len(select_rgctype)>0:
-        print('Selecting RGC subtypes %s'%select_rgctype)
-        uname_new = list()
-        for t in select_rgctype:
-            r = re.compile(r'.*%s'%t) 
-            rgb = list(filter(r.match,uname_all))
-            uname_new.extend(rgb)
-        idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
+if USE_DICT == True:
+    unames_topUnits = dict_topUnits[select_rgctype_toExtract]
+    idx_unitsToExtract = np.zeros(n_units,'int')
+    for i in range(len(unames_topUnits)):
+        r = re.compile(r'.*%s'%unames_topUnits[i]) 
+        rgb = list(filter(r.match,uname_all))
+        idx_unitsToExtract[i] = int(np.intersect1d(uname_all,rgb,return_indices=True)[1])
+    uname_unitsToExtract = uname_all[idx_unitsToExtract]
+    fev_unitsToExtract = fev_allUnits_bestEpoch[idx_unitsToExtract]
+    print(uname_unitsToExtract)
 
-fev_selectedRGCtypes = fev_allUnits_bestEpoch[idx_selectedRGCtypes]
-fev_sorted = np.argsort(-1*fev_selectedRGCtypes)
-idx_unitsToExtract = idx_selectedRGCtypes[fev_sorted[:n_units]]
-uname_unitsToExtract = uname_all[idx_unitsToExtract]
-print(uname_unitsToExtract)
+
+
+else:
+    if select_rgctype_toExtract != '':  
+        select_rgctype = re.findall(r'(\w+)',select_rgctype_toExtract)
+        if len(select_rgctype)>0:
+            print('Selecting RGC subtypes %s'%select_rgctype)
+            uname_new = list()
+            for t in select_rgctype:
+                r = re.compile(r'.*%s'%t) 
+                rgb = list(filter(r.match,uname_all))
+                uname_new.extend(rgb)
+            idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
+    
+    fev_selectedRGCtypes = fev_allUnits_bestEpoch[idx_selectedRGCtypes]
+    fev_sorted = np.argsort(-1*fev_selectedRGCtypes)
+    idx_unitsToExtract = idx_selectedRGCtypes[fev_sorted[:n_units]]
+    uname_unitsToExtract = uname_all[idx_unitsToExtract]
+    fev_unitsToExtract = fev_allUnits_bestEpoch[idx_unitsToExtract]
+    print(uname_unitsToExtract)
 
 
 # %% Load all the datasets on which the model is to be evaluated and for which we have to compute gradients
+"""
+Loads the stimulus (data_alldsets[dset]['raw'].X) for which the gradients will be calculated.
+Each stimulus sample comes with its associated actual spike rate (.y) and spike count (.spikes) for all units.
+But we only extract for the units selected above. 
+idx_unitsInModel[idx_unitsToExtract] gives us the index of units we want to extract relative to all the units
+in the experiment recording. This is what we need whenever we will be referencing anything from the dataset file.
 
-#nsamps_dur = 20   # amount of data to load. In minutes
+Generates a dict "data_alldsets":
+    1a. data_alldsets[dset]['raw'].X         --> Stimulus frames [x_samples,temporal_width,pixels_y,pixels_x]
+    1b. data_alldsets[dset]['raw'].y         --> Spike rate [x_samples,n_units] corresponding to units selected above
+    1c. 1a. data_alldsets[dset]['raw'].spikes   --> spike counts Spike rate [x_samples,n_units]
+    
+    2. data_alldsets[dset]['idx_samps']     --> index of the stimulus frames relative to the master dataset
+    3. data_alldsets[dset]['spat_dims']     --> size of stimulus spatial dimensions
+    4. data_alldsets[dset]['temporal_dim'] --> size of stimulus temporal dimension, i.e. number of consecutive frames in each sample
+"""
 
-# fname_sta_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/monkey01','db_files','datasets','monkey01_dataset_CB_allLightLevels_8ms.h5')
-
-dataset_eval = (dataset_model,) #('phot-3000_mdl-rieke_s-19.84_p-15.99_e-1057_k-0.01_h-3_b-10.7_hc-2.43_gd-28_g-0.923_preproc-cones_norm-0_tb-16_Euler_RF-0',) #'16ms_sig2_20121031_phot-3000' # 16ms_sig2_20121031_phot
+dataset_eval = (dataset_model,) 
 data_alldsets = {}
 d = dataset_eval[0]
 
@@ -186,20 +228,22 @@ for d in dataset_eval:
     # Load model information that we need to arrange the data
     # Including index of data that went into training
     params_model = getModelParams(os.path.split(fname_performanceFile)[-1])
-    temporal_width = 60 #params_model['T']
+    temporal_width = params_model['T']
     pr_temporal_width = params_model['P']
     if pr_temporal_width<10:
         pr_temporal_width = temporal_width+50
-    f = h5py.File(fname_performanceFile,'r')
-    bool_idx_train = np.array(f['stim_info']['bool_idx_train']) 
-    idx_unitsToTake = np.array(f['idx_unitsToTake'])
-    idx_unitsToTake = idx_unitsToTake[idx_unitsToExtract]   # only take the subset of subset for which we want to extract gradients
-    uname_all = np.array(f['uname_selectedUnits'])
-    uname_all = uname_all[idx_unitsToExtract]
+    idx_unitsInDatasetFile = idx_unitsInModel[idx_unitsToExtract]   # only take the subset of subset for which we want to extract gradients
+    
+    # Just to make sure no issues in indexing
+    f = h5py.File(fname_data_train_val_test,'r')
+    unames_inDataFile = np.empty(n_units,dtype='object')
+    for u in range(len(idx_unitsInDatasetFile)):
+        unames_inDataFile[u] = f['data_quality']['uname_selectedUnits'][idx_unitsInDatasetFile[u]]
+    # unames_inDataFile = np.array(f['data_quality']['uname_selectedUnits'][idx_unitsInDatasetFile],'bytes')
+    unames_inDataFile = np.asarray(list(model.utils_si.h5_tostring(unames_inDataFile)))
+    rgb = np.sort(uname_unitsToExtract) == np.sort(unames_inDataFile)
+    assert(np.all(rgb)==True,'indices of units selected for gradient extraction do not match index of units in dataset file')
     f.close()
-
-
-    # data_train,data_val,_,_,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_train=nsamps_dur)
     
     nsamps_train = -1 #bool_idx_train
     if isinstance(nsamps_train,int): # i.e. of it is -1
@@ -209,7 +253,7 @@ for d in dataset_eval:
     else:
         data_train = load_h5Dataset(fname_data_train_val_test,nsamps_train=bool_idx_train,LOADFROMBOOL=True)
         bool_dataLoaded = bool_idx_train.copy()
-    data_train = prepare_data_cnn2d(data_train,pr_temporal_width,idx_unitsToTake)
+    data_train = prepare_data_cnn2d(data_train,pr_temporal_width,idx_unitsInDatasetFile)
     
     nsamps =  data_train.X.shape[0] # 60,000
     samp_interval = 1     # 120*2*2 # Sub sample the input samples
@@ -223,7 +267,6 @@ for d in dataset_eval:
     
     
     data_alldsets[d]['raw'] = data      # contains stim and resp we will use for calculating gradients
-    data_alldsets[d]['idx_samps'] = bool_idx_train   # index of data relative to "bool_idx_train"
     
     # index of data that was retrieved so we can do the same again irrespective of grads dataset
     rgb = np.where(bool_dataLoaded)[0]
@@ -237,72 +280,6 @@ data_alldsets['spat_dims'] = (data.X.shape[-2],data.X.shape[-1])
 data_alldsets['temporal_dim'] = data.X.shape[1]
 del data
 
-# %% Extract performance for each model at each dataset
-perf_datasets = {}
-for mdl_select in mdl_names:
-    perf_datasets[mdl_select] = {}
-    
-    for d in dataset_eval:
-        perf_datasets[mdl_select][d] = {}
-        
-        name_datasetFile = expDate+'_dataset_train_val_test_'+d+'.h5'
-        fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
-
-        # _,data_val,_,_,dataset_rr,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False)
-        # obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val']
-        # idx_unitsToTake = np.arange(data_val.y.shape[1])
-        
-
-        # Load model information that we need to arrange the data
-        fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,mdl_select,paramName_mdl[mdl_select])
-        fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[mdl_select]+'.h5')
-
-        params_model = getModelParams(os.path.split(fname_performanceFile)[-1])
-        temporal_width = params_model['T']
-        pr_temporal_width = params_model['P']
-        if pr_temporal_width<10:
-            pr_temporal_width = temporal_width+50
-              
-        
-        
-        # get info about training, testing and val data so we can compute FEVs
-        f = h5py.File(fname_performanceFile,'r')
-        bool_idx_val = np.array(f['stim_info']['bool_idx_val'])
-        idx_unitsToTake = np.array(f['idx_unitsToTake'])
-        idx_unitsToTake = idx_unitsToTake[idx_unitsToExtract]
-        f.close()
-        data_val = load_h5Dataset(fname_data_train_val_test,LOADFROMBOOL=True,nsamps_train=bool_idx_val)
-        obs_rate_allStimTrials_d1 = data_val.y[None,:,:]
-
-        
-        # Arrange data as per model inputs
-        if mdl_select[:6]=='CNN_2D':
-            obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1[:,temporal_width:,idx_unitsToTake]
-            data_val = prepare_data_cnn2d(data_val,temporal_width,idx_unitsToTake)
-        elif mdl_select[:8]=='PR_CNN2D' or mdl_select[:10]=='PRFR_CNN2D' or mdl_select[:8]=='BP_CNN2D':
-            obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1[:,pr_temporal_width:,idx_unitsToTake]
-            data_val = prepare_data_cnn2d(data_val,pr_temporal_width,idx_unitsToTake)
-            temporal_width = pr_temporal_width
-        
-        obs_rate_allStimTrials_d1 = np.squeeze(obs_rate_allStimTrials_d1)   # backwards compat
-        
-        pred_rate = mdl_dict[mdl_select].predict(data_val.X)
-        pred_rate = pred_rate[:,idx_unitsToExtract]
-        fev_d1_allUnits, _, predCorr_d1_allUnits, _ = model_evaluate_new(obs_rate_allStimTrials_d1,pred_rate,0,lag = 0,obs_noise=0)
-        perf_datasets[mdl_select][d]['fev_allUnits'] = fev_d1_allUnits
-        perf_datasets[mdl_select][d]['corr_allUnits'] = predCorr_d1_allUnits
-        
-        # ---- temp to compute RWA from model
-        # data_train,_,_,_,_,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=True)
-        # pred_rate = mdl_dict[mdl_select].predict(data_train.X[idx_samps],batch_size = 100)
-        data_train = data_alldsets[d]['raw'].X[:,-temporal_width:,:,:]
-        # pred_rate = mdl_dict[mdl_select].predict(data_train,batch_size = 100)
-        bz = 100
-        gen = chunker(data_train,bz,mode='predict') # use generators to generate batches of data
-        pred_rate = mdl_dict[mdl_select].predict(gen,steps=int(np.ceil(data_train.shape[0]/bz)))
-        pred_rate = pred_rate[:,idx_unitsToExtract]
-        perf_datasets[mdl_select][d]['pred_rate'] = pred_rate
-        
 # %% Compute gradients
 """
 Because extracting gradients require gpu memory, we have to extract gradients
@@ -322,9 +299,9 @@ Gradients are computed within GradientTape framework. This allows TF to 'record'
 relevant operations in the forward pass. Then during backward pass, TF traverses
 this list of operations in reverse order to compute gradients.
 """
-precFactor = 1
+
 temporal_width_grads = 22
-mdl_select = 'CNN_2D_RAT' # 'CNN_2D_RAT' 'PRFR_CNN2D_RAT'
+select_mdl = 'CNN_2D_RAT' # 'CNN_2D_RAT' 'PRFR_CNN2D_RAT'
 partialModel = False
 mdl_photocurrs = None
 startLayer = 4
@@ -332,26 +309,24 @@ endLayer = -1
 save_grads = True
 
 if partialModel==True:
-    mdl_totake = tf.keras.models.Model(inputs=mdl_dict[mdl_select].layers[startLayer].input,
-                                       outputs=mdl_dict[mdl_select].layers[endLayer].output)
+    mdl_totake = tf.keras.models.Model(inputs=mdl_dict[select_mdl].layers[startLayer].input,
+                                       outputs=mdl_dict[select_mdl].layers[endLayer].output)
     
-    mdl_photocurrs = tf.keras.models.Model(inputs=mdl_dict[mdl_select].input,
-                                       outputs=mdl_dict[mdl_select].layers[startLayer-1].output)
+    mdl_photocurrs = tf.keras.models.Model(inputs=mdl_dict[select_mdl].input,
+                                       outputs=mdl_dict[select_mdl].layers[startLayer-1].output)
 else:
-    mdl_totake = mdl_dict[mdl_select]
+    mdl_totake = mdl_dict[select_mdl]
 mdl_totake.summary()
 tempWidth_inp = mdl_totake.input.shape[1]
 
 weights_dense_orig = mdl_totake.layers[-2].get_weights()
 
-
-
 d = dataset_eval[0]
 
 # nsamps =  data_alldsets[d]['raw'].data.X.shape[0]
-
+counter_gc = 0
 if save_grads==True:
-    fname_gradsFile = os.path.join(path_save,'gradients','grads_'+mdl_select+'_'+str(nsamps)+'_u-'+str(n_units)+'_'+select_rgctype_txt+'.h5')
+    fname_gradsFile = os.path.join(path_save,'gradients','grads_'+select_mdl+'_'+str(nsamps)+'_u-'+str(n_units)+'_'+select_rgctype_toExtract+'.h5')
     if mdl_photocurrs != None:
         fname_gradsFile = fname_gradsFile[:-3]+'_photocurrs.h5'
     if os.path.exists(fname_gradsFile):
@@ -359,11 +334,11 @@ if save_grads==True:
 
 for d in dataset_eval:
     data = data_alldsets[d]['raw']
-    if mdl_select[:6] == 'CNN_2D':#_NORM':
+    if select_mdl[:6] == 'CNN_2D':#_NORM':
         data = Exptdata(data.X[:,-temporal_width:,:,:],data.y)
         batch_size = 256
     else:
-        batch_size = 128
+        batch_size = 256
 
     nsamps = data.X.shape[0]
     total_batches = int(np.floor((nsamps/batch_size)))
@@ -375,9 +350,10 @@ for d in dataset_eval:
     t_start = time.time()
     if save_grads==True:
         f_grads = h5py.File(fname_gradsFile,'a')
-        grp = model.gradient_tools.init_GradDataset(f_grads,mdl_select,d,grads_shape,stim_shape,batchsize=batch_size)
+        grp = model.gradient_tools.init_GradDataset(f_grads,select_mdl,d,grads_shape,stim_shape,batchsize=batch_size)
 
-    for i in range(total_batches):
+    for i in range(0,total_batches):
+        counter_gc+=1
         print (' List: Batch %d of %d'%(i+1,total_batches))
         idx_chunk = np.arange(i*batch_size,(i+1)*batch_size)
         data_select_X = data.X[idx_chunk][:,-tempWidth_inp:]
@@ -403,7 +379,7 @@ for d in dataset_eval:
             if mdl_photocurrs == None:
                 mdl_new = Model(mdl_totake.inputs,outputs)
             else:
-                mdl_new = Model(mdl_dict[mdl_select].layers[startLayer].input,outputs) #= mdl_dict[mdl_select].layers[startLayer].input
+                mdl_new = Model(mdl_dict[select_mdl].layers[startLayer].input,outputs) #= mdl_dict[select_mdl].layers[startLayer].input
             
             a = weights_dense_orig[0][:,idx_unitToModel]
             b = weights_dense_orig[1][idx_unitToModel]
@@ -416,8 +392,7 @@ for d in dataset_eval:
                 out = mdl_new(inp,training=False)
             grads_chunk = tape.gradient(out, inp)
             
-            grads_chunk = grads_chunk[:,-temporal_width_grads:,:,:] * precFactor
-            # grads_chunk = np.array(grads_chunk,dtype='float16')
+            grads_chunk = grads_chunk[:,-temporal_width_grads:,:,:]
             grads_chunk = np.array(grads_chunk)
             
             grads_chunk_allUnits[u] = grads_chunk
@@ -427,6 +402,10 @@ for d in dataset_eval:
         if save_grads==True:
             model.gradient_tools.append_GradDataset(f_grads,grp,grads_chunk_allUnits,stim_chunk)
         
+        if counter_gc == 250:
+            _ = gc.collect()
+            counter_gc = 0
+
         t_batch = time.time()-t_batch_start
         print(t_batch/60)
 
@@ -436,44 +415,54 @@ for d in dataset_eval:
     if save_grads==True:
         # grp['grads'].attrs['idx_data'] = data_alldsets[d]['idx_samps']
         grp.create_dataset('idx_data',data=data_alldsets[d]['idx_samps'])
-        grp.create_dataset('uname_all',data=uname_all)
+        grp.create_dataset('unames',data=uname_unitsToExtract.astype('bytes'))
+        grp.create_dataset('fev',data=fev_unitsToExtract)
     f_grads.close()
     
-#(persistent=False,watch_accessed_variables=True)
+# %%
+# If grads wrt to photocurrents, then extract photocurrents in an array for later
+if mdl_photocurrs != None:
+    batch_size = 256
+    nsamps = data.X.shape[0]
+    total_batches = int(np.floor((nsamps/batch_size)))
+    stim_photocurrs = np.empty((total_batches*batch_size,temporal_width_grads,data.X.shape[2],data.X.shape[3]),dtype='float32')
+    stim_photocurrs[:] = np.nan
+    
+    counter_gc = 0
+    for i in tqdm(range(344,total_batches)):
+        counter_gc += 1
+        # print (' List: Batch %d of %d'%(i+1,total_batches))
+        idx_chunk = np.arange(i*batch_size,(i+1)*batch_size)
+        data_select_X = data.X[idx_chunk][:,-tempWidth_inp:]
+        
+        pred_photocurrs = mdl_photocurrs.predict(data_select_X)
+        stim_photocurrs[idx_chunk] = pred_photocurrs[:,-temporal_width_grads:,:,:]
+        
+        if counter_gc == 100:
+            counter_gc = 0
+            _ = gc.collect()
+        
 # %% Get Predicted resonse
+
 # ---- photocurrents
-batch_size = 128
 
-nsamps = data.X.shape[0]
-total_batches = int(np.floor((nsamps/batch_size)))
-stim_photocurrs = np.zeros((total_batches*batch_size,temporal_width_grads,data.X.shape[2],data.X.shape[3]),dtype='float32')
-stim_photocurrs[:] = np.nan
+# # ----cnns
+# tempWidth_inp = 50
+# data_alldsets[select_lightLevel]['raw'].X[idx_sampsInFullMat[idx_chunk],-temp_window:,:,:]
+# batch_size = 512
+# nsamps = num_samps_toload
+# total_batches = int(np.floor((nsamps/batch_size)))
+# pred_resp = np.zeros((total_batches*batch_size),dtype='float32')
+# pred_resp[:] = np.nan
 
-for i in tqdm(range(total_batches)):
-    # print (' List: Batch %d of %d'%(i+1,total_batches))
-    idx_chunk = np.arange(i*batch_size,(i+1)*batch_size)
-    data_select_X = data.X[idx_chunk][:,-tempWidth_inp:]
+# for i in tqdm(range(total_batches)):
+#     # print (' List: Batch %d of %d'%(i+1,total_batches))
+#     idx_chunk = np.arange(i*batch_size,(i+1)*batch_size)
+#     data_select_X = data_alldsets[select_lightLevel]['raw'].X[idx_chunk,-tempWidth_inp:,:,:]
     
-    pred_photocurrs = mdl_photocurrs.predict(data_select_X)
-    stim_photocurrs[idx_chunk] = pred_photocurrs[:,-temporal_width_grads:,:,:]
-
-# ----cnns
-tempWidth_inp = 50
-data_alldsets[select_lightLevel]['raw'].X[idx_sampsInFullMat[idx_chunk],-temp_window:,:,:]
-batch_size = 512
-nsamps = num_samps_toload
-total_batches = int(np.floor((nsamps/batch_size)))
-pred_resp = np.zeros((total_batches*batch_size),dtype='float32')
-pred_resp[:] = np.nan
-
-for i in tqdm(range(total_batches)):
-    # print (' List: Batch %d of %d'%(i+1,total_batches))
-    idx_chunk = np.arange(i*batch_size,(i+1)*batch_size)
-    data_select_X = data_alldsets[select_lightLevel]['raw'].X[idx_chunk,-tempWidth_inp:,:,:]
+#     rgb = mdl_new.predict(data_select_X)
+#     pred_resp[idx_chunk] = rgb[:,0]
     
-    rgb = mdl_new.predict(data_select_X)
-    pred_resp[idx_chunk] = rgb[:,0]
-
 # %% STA vs gradient comparisons
 fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/rat/datasets/20121031_STAs_CB_allLightLevels_16ms_sig2.h5' #'/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
 datasets_plot = dataset_eval #('16ms_sig2_20121031_phot-3000',)
@@ -489,17 +478,17 @@ sig_fac = 1.5
 range_tempFilt = np.arange(temporal_width_grads-temp_window,temporal_width_grads)
 
 # u_arr = np.array([0,1,2,3,4,5,6,30,31,32,33,34,35,36])
-u_arr = [2]
+u_arr = [0]
 u = u_arr[0]
 
  
 m = 0
-mdls_toplot = ('CNN_2D_RAT',) #PRFR_CNN2D_RAT
-num_samps = nsamps #grads_dict[mdl_select][datasets_plot[0]]['grads_all'].shape[4]
+mdls_toplot = ('CNN_2D_RAT',) #PRFR_CNN2D_RAT  CNN_2D_RAT
+num_samps = nsamps #grads_dict[select_mdl][datasets_plot[0]]['grads_all'].shape[4]
 
 for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
     select_rgc = u  # 1, 5
-    uname = perf_model['uname_selectedUnits'][idx_unitsToExtract][select_rgc]
+    uname = uname_unitsToExtract[select_rgc]
     print(uname)
 
     spatRF_sta = np.zeros((data_alldsets['spat_dims'][0],data_alldsets['spat_dims'][1],len(datasets_plot),len(mdl_names)))
@@ -514,8 +503,8 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
 
 
     for m in range(1): #range(len(mdl_names)):
-        mdl_select = mdls_toplot[m]
-        # fname_gradsFile = os.path.join(path_save,'grads_'+mdl_select+'_photocurrents.h5')
+        select_mdl = mdls_toplot[m]
+        # fname_gradsFile = os.path.join(path_save,'grads_'+select_mdl+'_photocurrents.h5')
         
         ctr_d = -1
         d = datasets_plot[0]
@@ -525,8 +514,8 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
             ctr_d+=1
         
             data = data_alldsets[d]['raw']
-            # grads_all = grads_dict[mdl_select][d]['grads_all']
-            # grads_all = f_grads[mdl_select][d]['grads'][u,:]
+            # grads_all = grads_dict[select_mdl][d]['grads_all']
+            # grads_all = f_grads[select_mdl][d]['grads'][u,:]
             
             # Method 1: Compute STA by taking Response Weighted Average of the stimulus (model independent)
             
@@ -552,8 +541,8 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
 
             
             # Method 2: Compute LSTA from model for just one input sample
-            select_img = 3000 #768 #712
-            spatRF, tempRF = model.featureMaps.decompose(f_grads[mdl_select][d]['grads'][u,select_img,-temp_window:,:,:])
+            select_img = 500 #768 #712
+            spatRF, tempRF = model.featureMaps.decompose(f_grads[select_mdl][d]['grads'][u,select_img,-temp_window:,:,:])
             rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
             mean_rfCent = np.abs(np.nanmean(rf_fit_img))
             spatRF_singImg[:,:,ctr_d,m] = spatRF/mean_rfCent
@@ -615,7 +604,7 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
     
 
     for m in range(1): #range(len(mdl_names)):
-        mdl_select = mdl_names[m]
+        select_mdl = mdl_names[m]
         
         ctr_d = -1
         d = dataset_eval[0]
@@ -624,7 +613,7 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
             
             ctr_d+=1
         
-            txt_subtitle = ''#'%s | %s | FEV = %02d%% | R = %0.2f'%(mdl_select,d[5:],perf_datasets[mdl_select][d]['fev_allUnits'][select_rgc]*100,perf_datasets[mdl_select][d]['corr_allUnits'][select_rgc])
+            txt_subtitle = ''#'%s | %s | FEV = %02d%% | R = %0.2f'%(select_mdl,d[5:],perf_datasets[select_mdl][d]['fev_allUnits'][select_rgc]*100,perf_datasets[select_mdl][d]['corr_allUnits'][select_rgc])
         
             
             # idx_p = len(dataset_eval)*ctr_d
@@ -728,18 +717,19 @@ select_mdl = 'CNN_2D_RAT' #('PRFR_CNN2D_RAT','CNN_2D_RAT)
 photocurrs = False
 select_lightLevel = dataset_eval[0]
 
-nbins = 5
+nbins = 10
 ONLY_LARGEGRADS = False
 temp_window = 22
 sig_fac = 1.5
 timeBin = 16
-num_samps_toload = 392900 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
+num_samps_toload = 392000 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
 batch_size = 40000
 if batch_size<num_samps_toload:
     total_batches = int(np.ceil((num_samps_toload/batch_size)))
     idx_batchStart = np.linspace(0,num_samps_toload,total_batches,dtype='int32')
 else:
-    idx_batchStart = np.array([0,idx_batchStart[0]])
+    idx_batchStart = np.array([0,num_samps_toload])
+    total_batches=2
     
 
 labels_rf_params = ['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough','t_peak']
@@ -748,17 +738,29 @@ binning_param = 'cent_x'
 
 
 # u_arr = np.arange(0,20) #np.arange(20,len(perf_model['uname_selectedUnits']))
-u_arr = [0] #22
+u_arr = [2] #22
 u = u_arr[0]
-gradFile_suffix = 'u-%d_%s'%(n_units,select_rgctype_txt)
+gradFile_suffix = 'u-%d_%s'%(n_units,select_rgctype_toExtract)
 
-fname_gradsFile = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/gradients/grads_'+select_mdl+'_393189_'+gradFile_suffix+'.h5' #393229 #149940.
-# fname_gradsFile = '/home/saad/data_hdd/analyses/data_kiersten/rat/gradient_analysis/grads_CNN_2D_RAT_393229.h5'
+USE_SSD = False
+if USE_SSD == True:
+    path_gradFiles = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+else:
+    path_gradFiles = '/home/saad/data_hdd/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+
+fname_gradsFile = 'grads_'+select_mdl+'_393229_'+gradFile_suffix+'.h5' #393229 #149940.
+fname_gradsFile = os.path.join(path_gradFiles,fname_gradsFile)
+
 if photocurrs==True:
     fname_gradsFile = fname_gradsFile[:-3]+'_photocurrs.h5'
     idx_tempPeak = -1
 else:
-    idx_tempPeak = -6
+    idx_tempPeak = -(tempRF_sta.shape[0]-np.argmax(tempRF_sta[:,0,0]))
+    
+if select_mdl[:4] == 'PRFR':
+    idx_tempPeak_sta = idx_tempPeak - 1
+else:
+    idx_tempPeak_sta = idx_tempPeak
 
 print(fname_gradsFile)
 f_grads = h5py.File(fname_gradsFile,'r')
@@ -767,77 +769,82 @@ f_grads = h5py.File(fname_gradsFile,'r')
     # nsamps = data.X.shape[0]
     
 def extractRFProps(idx):
-    params = np.zeros(rf_params_grand.shape[1])
-    params[:] = np.nan
-    
-    # grads_curr = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[idx],:,:,:].astype('float64')
-    # spatRF_chunk,tempRF_chunk = model.featureMaps.decompose(grads_curr)
-    # rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_chunk,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-    # mean_rfCent = np.nanmean(np.abs(rf_fit_img))
-    # spatRF_chunk = spatRF_chunk/mean_rfCent
-    # tempRF_chunk = tempRF_chunk*mean_rfCent
-
-    # plt.imshow(spatRF_chunk[idx],'gray');plt.plot(rf_coords[:,0],rf_coords[:,1])
-    
-    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_chunk[idx],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-    idx_xy = ~np.isnan(rf_fit_img)
-    tempRF_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[idx],:,:,:].astype('float64')
-    tempRF_chunk = tempRF_chunk[:,idx_xy]
-    tempRF_chunk = np.mean(tempRF_chunk,axis=-1)
-    # plt.plot(tempRF_chunk)
-    sign = np.sign(tempRF_chunk[idx_tempPeak])
-    if sign<0:
-        tempRF_chunk = tempRF_chunk*sign
-    mean_rfCent = np.nanmean(np.abs(rf_fit_img))
-    if mean_rfCent==0:
-        raise ValueError(idx)
-    spatRF_chunk[idx] = spatRF_chunk[idx]/mean_rfCent
-    tempRF_chunk = tempRF_chunk*mean_rfCent
-
-    
-    pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
-    neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
-    biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
     try:
-        t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
-    except:
-        t_zero = np.nan
-    t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk))
-    t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
-    try:
-        t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
-    except:
-        t_zero_peakTrough = np.nan
-    # Collect rf params. Adjust sigm for full width and sig fac
-    #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
-    params[0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
-    params[1] = 180-rf_params['theta']                         # theta
-    params[2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
-    params[3] = rf_params['x0']
-    params[4] = rf_params['y0']
-    params[5] = np.nan
-    params[6] = tempRF_chunk.max()
-    params[7] = biRF
-    params[8] = t_zero
-    params[9] = t_trough
-    params[10] = t_zero_peakTrough
-    params[11] = tempRF_chunk.min()
-    params[12] = t_peak
+        params = np.zeros(rf_params_grand.shape[1])
+        params[:] = np.nan
+        
+        # grads_curr = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[idx],:,:,:].astype('float64')
+        # spatRF_chunk,tempRF_chunk = model.featureMaps.decompose(grads_curr)
+        # rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_chunk,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        # mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        # spatRF_chunk = spatRF_chunk/mean_rfCent
+        # tempRF_chunk = tempRF_chunk*mean_rfCent
     
+        # plt.imshow(spatRF_chunk[idx],'gray');plt.plot(rf_coords[:,0],rf_coords[:,1])
+        
+        rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_chunk[idx],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        idx_xy = ~np.isnan(rf_fit_img)
+        tempRF_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[idx],:,:,:].astype('float64')
+        tempRF_chunk = tempRF_chunk[:,idx_xy]
+        tempRF_chunk = np.mean(tempRF_chunk,axis=-1)
+        # plt.plot(tempRF_chunk)
+        sign = np.sign(tempRF_chunk[idx_tempPeak])
+        if sign<0:
+            tempRF_chunk = tempRF_chunk*sign
+        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        if mean_rfCent==0:
+            raise ValueError(idx)
+        spatRF_chunk[idx] = spatRF_chunk[idx]/mean_rfCent
+        tempRF_chunk = tempRF_chunk*mean_rfCent
+    
+        
+        pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
+        neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
+        biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
+        try:
+            t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
+        except:
+            t_zero = np.nan
+        t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk))
+        t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
+        try:
+            t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
+        except:
+            t_zero_peakTrough = np.nan
+        # Collect rf params. Adjust sigm for full width and sig fac
+        #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
+        params[0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
+        params[1] = 180-rf_params['theta']                         # theta
+        params[2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
+        params[3] = rf_params['x0']
+        params[4] = rf_params['y0']
+        params[5] = np.nan
+        params[6] = tempRF_chunk.max()
+        params[7] = biRF
+        params[8] = t_zero
+        params[9] = t_trough
+        params[10] = t_zero_peakTrough
+        params[11] = tempRF_chunk.min()
+        params[12] = t_peak
+    except:
+        tempRF_chunk = np.zeros(temp_window);tempRF_chunk[:] = np.nan
+        rf_coords = np.zeros((629,2));rf_coords[:] = np.nan
+        
     return params,tempRF_chunk,rf_coords
 
 
 for u in u_arr:
     select_rgc = u
     try:
-        uname_all_grads = np.array(f_grads[select_mdl][select_lightLevel]['uname_all'])
-        rgb = uname_all_grads == uname_all
+        uname_all_grads = np.array(f_grads[select_mdl][select_lightLevel]['unames'],'bytes')
+        uname_all_grads = utils_si.h5_tostring(uname_all_grads)
+        rgb = uname_all_grads == uname_unitsToExtract
         if np.all(rgb) == False:
             raise ValueError('gradient dataset and stimulus dataset do not match')
         else:
             uname = uname_all_grads[select_rgc]
     except:
-        uname = perf_model['uname_selectedUnits'][idx_unitsToExtract][select_rgc]
+        uname = uname_unitsToExtract[select_rgc]
         
     print(uname)
     idx_sampsInFullMat = idx_samps[:num_samps_toload] #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
@@ -845,7 +852,7 @@ for u in u_arr:
     
     spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
     
-    spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]))      # [imgs,y,x,lightlevels,models]
+    spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]),dtype='float16')      # [imgs,y,x,lightlevels,models]
     tempRF_grand = np.zeros((num_samps_toload,temp_window))      # [imgs,time,lightlevels,models]
     rf_params_grand = np.zeros((num_samps_toload,len(labels_rf_params)),dtype='float64') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
     rf_coords_grand = np.zeros((1000,2,num_samps_toload),dtype='float32')    # [points,[x,y],imgs,lightlevel,models]
@@ -856,7 +863,7 @@ for u in u_arr:
         print('Batch %d of %d'%(batch+1,total_batches-1))
         idx_chunk = np.arange(idx_batchStart[batch],idx_batchStart[batch+1])
     
-        spatRF_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk,idx_tempPeak,:,:].astype('float64')
+        spatRF_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk,idx_tempPeak,:,:]#.astype('float64')
 
         # ---- Gradient STRF each sample
         # rf_coords_chunk  = np.empty((1000,2,len(idx_chunk)),dtype='float32')
@@ -892,7 +899,7 @@ for u in u_arr:
         grads_spat = grads_spat.astype('float64')
         std_grads = np.std(grads_spat,axis=(-1,-2))
         plt.hist(std_grads.flatten());plt.show()
-        thresh_std = 0.00008
+        thresh_std = 0.0001
         bool_largeGrads = std_grads>thresh_std
         # spikes_all = data_alldsets[select_lightLevel]['raw'].spikes[:num_samps_toload,select_rgc]
         # bool_largeGrads = spikes_all>0
@@ -900,6 +907,8 @@ for u in u_arr:
         bool_largeGrads = np.ones(num_samps_toload,'bool')
     
     print(bool_largeGrads.sum())
+    
+    _ = gc.collect()
     
     params_plot = ['spatloc','gain','biphasic','t_peak','cent_x','cent_y']
     idx_params_select = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] in params_plot]
@@ -912,23 +921,24 @@ for u in u_arr:
     cnt = -1
     for param in idx_params_select:
         cnt+=1
-        # axs[cnt].hist(rf_params_grand[:,param])
+        axs[cnt].hist(rf_params_grand[:,param])
         axs[cnt].hist(rf_params_grand[bool_largeGrads,param])
         ax_title = '%s'%labels_rf_params[param]
         axs[cnt].set_title(ax_title,size=12)
         # axs[cnt].set_ylabel('TempRF for all samples',size=font_title)
 
     # Plot RF position as function of time
-    idx_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == 'gain'][0]
+    idx_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == 'cent_y'][0]
+    rgb = rf_params_grand[:,idx_param].copy()
+    rgb = rgb - rgb.mean()
     t = np.arange(0,rf_params_grand.shape[0])*timeBin/1000
-    idx_datapoints = np.arange(0,1000)
+    idx_datapoints = np.arange(4500,5500)
     fontsize=12
     fig,axs = plt.subplots(1,1,figsize=(15,5))
-    axs.plot(t[idx_datapoints],rf_params_grand[idx_datapoints,idx_param])
+    axs.plot(t[idx_datapoints],rgb[idx_datapoints])
     axs.set_xlabel('Time (s)',fontsize=fontsize)
     axs.set_ylabel(labels_rf_params[idx_param]+' (pixels)',fontsize=fontsize)
     
-
     """
     rgb = rf_params_grand[:N_actual,10]
     idx_min = np.argmin(rgb)
@@ -949,9 +959,10 @@ for u in u_arr:
     idx_binning_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == binning_param][0]
     data_tobin = rf_params_grand[:,idx_binning_param]
     idx_sorted = np.argsort(data_tobin)
-    idx_largeGrads = np.where(bool_largeGrads)[0]
-    _,rgb,_ = np.intersect1d(idx_sorted,idx_largeGrads,return_indices=True)
-    idx_sorted = idx_sorted[idx_sorted[rgb]]
+    a = bool_largeGrads[idx_sorted]
+    b = np.where(a)[0]
+    c = idx_sorted[b]
+    idx_sorted = c
     data_sorted = data_tobin[idx_sorted]
     idx_bin_edges = np.arange(0,idx_sorted.shape[0],np.floor(idx_sorted.shape[0]/nbins),dtype='int')
     if len(idx_bin_edges)<nbins+1:
@@ -1024,7 +1035,7 @@ for u in u_arr:
     
 
     # ---- Real STRF binning
-    i = 5
+    i = 9
     for i in tqdm(range(len(idx_bin_edges)-1),desc='Data STA'):
         idx_totake = idx_sorted[idx_bin_edges[i]:idx_bin_edges[i+1]]
         # idx_totake = np.arange(idx_bin_edges[i],idx_bin_edges[i+1])
@@ -1038,8 +1049,8 @@ for u in u_arr:
 
         # sta,spatRF,tempRF = model.featureMaps.getSTA_spikeTrain(norm_stim,spikes_totake,N_trials=0,timeBin=timeBin,REV_CORR=True)      
         sta = model.featureMaps.getSTA_spikeTrain_simple(norm_stim,spikes_totake)      
+        # spatRF = sta[idx_tempPeak,:,:]
         spatRF = sta[idx_tempPeak,:,:]
-        # spatRF = sta[22,:,:]
         rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
         # cent_idx = np.array([np.round(rf_params['y0']),np.round(rf_params['x0'])],'int32')
         cent_idx_min_max = np.array([np.unravel_index(spatRF.argmin(), spatRF.shape),np.unravel_index(spatRF.argmax(), spatRF.shape)])
@@ -1047,9 +1058,6 @@ for u in u_arr:
         cent_idx = cent_idx_min_max[min_max_spatRF]
         
         tempRF = sta[:,cent_idx[0],cent_idx[1]]
-        # peaksearch_win = np.arange(sta.shape[0]-25,sta.shape[0])
-        # idx_tempPeak = np.argmax(np.abs(tempRF[peaksearch_win]))     # only check for peak in the final 25 time points.
-        # idx_tempPeak = idx_tempPeak + peaksearch_win[0]
         sign = np.sign(tempRF[idx_tempPeak])
         if sign<0:      
             # sta = sta*sign
@@ -1058,7 +1066,10 @@ for u in u_arr:
         mean_rfCent = np.nanmean(np.abs(rf_fit_img))
         spatRF = spatRF/mean_rfCent
         tempRF = tempRF*mean_rfCent
-        # tempRF = tempRF*scaleFac
+        
+        scaleFac = np.nanmean(spikes_totake/16e-3)/np.var(norm_stim)
+        tempRF = tempRF*scaleFac
+        
         # plt.plot(tempRF)
         # plt.imshow(spatRF,cmap='gray');plt.plot(rf_coords[:,0],rf_coords[:,1],'r');plt.xlim(win_x);plt.ylim(win_y);plt.show()
         # plt.plot(tempRF);plt.show()
@@ -1075,6 +1086,8 @@ for u in u_arr:
         spatRF_real_binned_grand[:,:,i] = spatRF
         tempRF_real_binned_grand[:,i] = tempRF
         sta_real_binned_grand[:,:,:,i] = sta
+        
+        _ = gc.collect()
 
     
     vmin = spatRF_real_binned_grand.min()
@@ -1105,7 +1118,7 @@ for u in u_arr:
 
     
     # Plot grads, sta and overlays
-    if nbins==5:
+    if nbins<6:
         idx_binsToPlot = np.array([0,1,2,3,4])
     else:
         idx_binsToPlot = np.array([0,2,4,6,9])
@@ -1120,7 +1133,7 @@ for u in u_arr:
     cent_y = win_y[0]+int(0.5*(win_y[1]-win_y[0]))
     
     fig,axs = plt.subplots(len(idx_binsToPlot),4,figsize=(12,12))
-    txt_title = '%s | %s | n_bins=%d | onlyLargeGrads=%s'%(uname,binning_param,nbins,ONLY_LARGEGRADS)
+    txt_title = '%s | %s %02d%% FEV | %s | n_bins=%d | onlyLargeGrads=%s'%(uname,select_mdl,fev_unitsToExtract[select_rgc]*100,binning_param,nbins,ONLY_LARGEGRADS)
     fig.suptitle(txt_title)
     cnt = -1
     cmap = 'gray'
@@ -1157,24 +1170,20 @@ for u in u_arr:
         axs[cnt,3].set_aspect('equal')
 
     
-    # framesToPlot = np.arange(10,22)
-    # binsToPlot = np.array([0,1,2,3,4]) #np.array([0,2,4,6,7,8,10,12,14])
-    # vmin = np.nanmin(avgMovie_binned_grand[framesToPlot][:,:,:,binsToPlot])
-    # vmax = np.nanmax(avgMovie_binned_grand[framesToPlot][:,:,:,binsToPlot])
-    # winx_plt = [win_x[0]+5,win_x[1]-5]
-    # winy_plt = [win_y[0]+5,win_y[1]-5]
-    # cent_x = winx_plt[0]+int(0.5*(winx_plt[1]-winx_plt[0]))
-    # cent_y = winy_plt[0]+int(0.5*(winy_plt[1]-winy_plt[0]))
-    
-    # fig,axs = plt.subplots(len(binsToPlot),len(framesToPlot),figsize=(45,12))   # averae video
-    # for i in range(len(binsToPlot)):
+    # framesToPlot = np.arange(15,22)
+    # vmin = vmin_grads
+    # vmax = vmax_grads
+    # cnt = -1    
+    # fig,axs = plt.subplots(len(idx_binsToPlot),len(framesToPlot),figsize=(45,12))   # averae video
+    # for b in idx_binsToPlot:
+    #     cnt+=1
     #     for j in range(len(framesToPlot)):
-    #         axs[i,j].imshow(avgMovie_binned_grand[framesToPlot[j],:,:,binsToPlot[i]],cmap='gray',vmin=vmin,vmax=vmax);
+    #         axs[cnt,j].imshow(spatRF_grads_binned_grand[framesToPlot[j],:,:,b],cmap='gray',vmin=vmin,vmax=vmax_grads);
     #         # axs[i,j].plot(cent_x,cent_y,'r.')
     #         # axs[i,j].plot([cent_x,cent_x],[0,win_y[-1]],'r',linewidth=1)
     #         # axs[i,j].plot([0,win_x[-1]],[cent_y,cent_y],'r',linewidth=1)
-    #         axs[i,j].set_xlim(win_x);axs[i,j].set_ylim(win_y);
-    #         axs[i,j].get_xaxis().set_visible(False);axs[i,j].get_yaxis().set_visible(False)
+    #         axs[cnt,j].set_xlim(win_x);axs[cnt,j].set_ylim(win_y);
+    #         axs[cnt,j].get_xaxis().set_visible(False);axs[cnt,j].get_yaxis().set_visible(False)
             
     # plt.plot(avgMovie_binned_grand[:,cent_idx[0],cent_idx[1],binsToPlot]);plt.show()
     
@@ -1205,86 +1214,31 @@ for u in u_arr:
 
 
         
-    # # plot a stim movie
-    # framesToPlot = np.arange(18,27)
-    # stim_idx = idx_sorted[idx_bin_edges[8]+1]
-    # stim_slice = data_alldsets[select_lightLevel]['raw'].X[idx_sampsInFullMat[stim_idx],-temp_window:,:,:]
-    # vmin = np.nanmin(stim_slice)
-    # vmax = np.nanmax(stim_slice)
-    # fig,axs = plt.subplots(1,len(framesToPlot),figsize=(45,25))   # STA_GRADIENTS
-    # axs = np.ravel(axs)
-    # for j in range(len(framesToPlot)):
-    #     axs[j].imshow(stim_slice[framesToPlot[j]],cmap='gray',vmin=vmin,vmax=vmax);
-    #     # axs[i,j].plot(cent_x,cent_y,'r.')
-    #     axs[j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
-    #     axs[j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
-    #     axs[j].set_xlim(winx_plt);axs[j].set_ylim(winy_plt);
-    #     axs[j].get_xaxis().set_visible(False);axs[j].get_yaxis().set_visible(False)
-
-# %% TEMP - Gradient pops test
-"""
-Notes
-- gradients have both positive and negative values
-- Doesnt seem to change so much from float type
-- Can see both positive and negative parts.
-"""
-idx_chunk = np.arange(0,1000)
-grads_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk,:,:,:]
-grads_chunk = grads_chunk.astype('float32')
-grads_chunk_norm = np.zeros(grads_chunk.shape)
-for i in tqdm(range(grads_chunk.shape[0])):
-    rf_coords,rf_fit_img,rf_params,_  = spatRF2DFit(grads_chunk[i,24],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-    rgb = np.nanmean(rf_fit_img)
-    grads_chunk_norm[i] = grads_chunk[i]/rgb
+    # plot a stim movie
+    rgb = sta_real_binned_grand[:,:,:,-1] #f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,:100,:,:,:].astype('float32')
+    framesToPlot = np.arange(13,22)
+    stim_idx = 10
+    stim_slice = rgb#[stim_idx].astype('float32')
+    vmin = np.nanmin(stim_slice)
+    vmax = np.nanmax(stim_slice)
+    fig,axs = plt.subplots(1,len(framesToPlot),figsize=(45,25))   # STA_GRADIENTS
+    axs = np.ravel(axs)
+    for j in range(len(framesToPlot)):
+        axs[j].imshow(stim_slice[framesToPlot[j]],cmap='gray',vmin=vmin,vmax=vmax);
+        # axs[i,j].plot(cent_x,cent_y,'r.')
+        # axs[j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
+        # axs[j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
+        axs[j].set_xlim(win_x);axs[j].set_ylim(win_y);
+        axs[j].get_xaxis().set_visible(False);axs[j].get_yaxis().set_visible(False)
     
-std_grads = np.std(grads_chunk[:,24],axis=(-1,-2))
-idx_std_sorted = np.argsort(std_grads)
-# plt.hist(grads_chunk[0,1,:,:].flatten())
+    # plt.plot(tempRF_chunk[stim_idx])
 
-avg_grads_all = np.mean(grads_chunk,axis=0)
-avg_grads_top = np.mean(grads_chunk[idx_std_sorted[-100:]],axis=0)
-avg_grads_bottom = np.mean(grads_chunk[idx_std_sorted[:100]],axis=0)
 
-idx_std_totake = std_grads>0.00020
-plt.plot(pred_resp[:1000])
-plt.plot(np.where(idx_std_totake)[0],pred_resp[:1000][idx_std_totake],'x')
-
-resp_median = np.median(pred_resp)
-idx_resp_totake = pred_resp>resp_median
-plt.plot(pred_resp[:1000])
-plt.plot(np.where(idx_resp_totake)[0][:480],pred_resp[idx_resp_totake][:480],'x')
-
-# %%
-winx_plt = [45,75]
-winy_plt = [5,35]
-framesToPlot = np.arange(12,30)
-stim_idx = idx_std_sorted[-1]
-
-# rf_coords,rf_fit_img,rf_params,_  = spatRF2DFit(grads_chunk[stim_idx,24],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-# rgb = np.nanmean(rf_fit_img)
-
-grads_select = grads_chunk_norm
-
-vmin = np.nanmin(grads_select)
-vmax = np.nanmax(grads_select)
-fig,axs = plt.subplots(3,6,figsize=(45,25))   # STA_GRADIENTS
-axs = np.ravel(axs)
-for j in range(len(framesToPlot)):
-    axs[j].imshow(grads_select[stim_idx,framesToPlot[j]],cmap='gray',vmin=vmin,vmax=vmax);
-    # axs[j].imshow(grads_select[framesToPlot[j]],cmap='gray',vmin=vmin,vmax=vmax);
-    # axs[j].imshow(avg_grads_bottom[framesToPlot[j]],cmap='gray',vmin=vmin,vmax=vmax);
-    # axs[i,j].plot(cent_x,cent_y,'r.')
-    # axs[j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
-    # axs[j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
-    axs[j].set_xlim(winx_plt);axs[j].set_ylim(winy_plt);
-    axs[j].get_xaxis().set_visible(False);axs[j].get_yaxis().set_visible(False)
-
-# %% STIM dissect
+# %% Gradients PCA
 
 """
 For each cell, bin the images by gradient strength / temporal filter strength and see if we can do this with real data
 """
-from skimage.measure import regionprops
 
 path_save_fig = os.path.join(path_save,'STRFs_new')
 if not os.path.exists(path_save_fig):
@@ -1297,524 +1251,531 @@ select_mdl = 'CNN_2D_RAT' #('PRFR_CNN2D_RAT','CNN_2D_RAT)
 photocurrs = False
 select_lightLevel = dataset_eval[0]
 
-nbins = 15
-temp_window = 30
+nbins = 10
+ONLY_LARGEGRADS = False
+temp_window = 15
 sig_fac = 1.5
 timeBin = 16
-num_samps_toload = 392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
+num_samps_toload = 392000 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
 batch_size = 40000
 if batch_size<num_samps_toload:
     total_batches = int(np.ceil((num_samps_toload/batch_size)))
     idx_batchStart = np.linspace(0,num_samps_toload,total_batches,dtype='int32')
 else:
-    idx_batchStart = np.array([0,idx_batchStart[0]])
+    idx_batchStart = np.array([0,num_samps_toload])
+    total_batches=2
     
 
 labels_rf_params = ['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough','t_peak']
-binning_param_list = ('spatloc',) # [polarity,rfsize,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough,spatcent,spatx,spaty]   sigma is the width of gaussian
-binning_param = 'gain'
+# binning_param_list = ('spatloc',) # [polarity,rfsize,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough,spatcent,spatx,spaty]   sigma is the width of gaussian
+binning_param = 'cent_x'
 
-stim_props_labels = ['density','cent_x','cent_y']
 
 # u_arr = np.arange(0,20) #np.arange(20,len(perf_model['uname_selectedUnits']))
-u_arr = [3] #22
+u_arr = [1] #22
 u = u_arr[0]
+gradFile_suffix = 'u-%d_%s'%(n_units,select_rgctype_toExtract)
 
-# fname_gradsFile = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/grads_'+select_mdl+'_149940.h5'
+USE_SSD = True
+if USE_SSD == True:
+    path_gradFiles = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+else:
+    path_gradFiles = '/home/saad/data_hdd/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+
+fname_gradsFile = 'grads_'+select_mdl+'_393229_'+gradFile_suffix+'.h5' #393229 #149940.
+fname_gradsFile = os.path.join(path_gradFiles,fname_gradsFile)
+
+
+fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/rat/datasets/20121031_STAs_CB_allLightLevels_16ms_sig2.h5' #'/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
 
 if photocurrs==True:
     fname_gradsFile = fname_gradsFile[:-3]+'_photocurrs.h5'
-    idx_tempPeak = -1
-else:
-    idx_tempPeak = 25
+
+print(fname_gradsFile)
+f_grads = h5py.File(fname_gradsFile,'r')
 
 
-
-    # nsamps = data.X.shape[0]
     
 def extractRFProps(idx):
-    params = np.zeros(rf_params_grand.shape[1])
-    params[:] = np.nan
-    rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_chunk[idx],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-    # idx_x = int(np.round(rf_params['x0'])); idx_y = int(np.round(rf_params['y0']))
-    idx_xy = ~np.isnan(rf_fit_img)
-    tempRF_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[idx],:,:,:].astype('float64')
-    tempRF_chunk = tempRF_chunk[:,idx_xy]
-    tempRF_chunk = np.mean(tempRF_chunk,axis=-1)
-    
-    mean_rfCent = np.nanmean(np.abs(rf_fit_img))
-    spatRF_chunk[idx] = spatRF_chunk[idx]/mean_rfCent
-    tempRF_chunk = tempRF_chunk*mean_rfCent
-
-    
-    pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
-    neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
-    biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
     try:
-        t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
-    except:
-        t_zero = np.nan
-    t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk))
-    t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
-    try:
-        t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
-    except:
-        t_zero_peakTrough = np.nan
-    # Collect rf params. Adjust sigm for full width and sig fac
-    #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
-    params[0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
-    params[1] = 180-rf_params['theta']                         # theta
-    params[2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
-    params[3] = rf_params['x0']
-    params[4] = rf_params['y0']
-    params[5] = np.nan
-    params[6] = tempRF_chunk.max()
-    params[7] = biRF
-    params[8] = t_zero
-    params[9] = t_trough
-    params[10] = t_zero_peakTrough
-    params[11] = tempRF_chunk.min()
-    params[12] = t_peak
+        params = np.zeros(rf_params_grand.shape[1])
+        params[:] = np.nan
+        
+        # grads_curr = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[idx],:,:,:].astype('float64')
+        # spatRF_chunk,tempRF_chunk = model.featureMaps.decompose(grads_curr)
+        # rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_chunk,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        # mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        # spatRF_chunk = spatRF_chunk/mean_rfCent
+        # tempRF_chunk = tempRF_chunk*mean_rfCent
     
+        # plt.imshow(spatRF_chunk[idx],'gray');plt.plot(rf_coords[:,0],rf_coords[:,1])
+        
+        rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_chunk[idx],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        idx_xy = ~np.isnan(rf_fit_img)
+        tempRF_chunk = grads_all[idx_chunk[idx],:,:,:]
+        tempRF_chunk = tempRF_chunk[:,idx_xy]
+        tempRF_chunk = np.mean(tempRF_chunk,axis=-1)
+        # plt.plot(tempRF_chunk)
+        sign = np.sign(tempRF_chunk[idx_tempPeak])
+        if sign<0:
+            tempRF_chunk = tempRF_chunk*sign
+        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        if mean_rfCent==0:
+            raise ValueError(idx)
+        spatRF_chunk[idx] = spatRF_chunk[idx]/mean_rfCent
+        tempRF_chunk = tempRF_chunk*mean_rfCent
+    
+        
+        pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
+        neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
+        biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
+        try:
+            t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
+        except:
+            t_zero = np.nan
+        t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk))
+        t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
+        try:
+            t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
+        except:
+            t_zero_peakTrough = np.nan
+        # Collect rf params. Adjust sigm for full width and sig fac
+        #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
+        params[0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
+        params[1] = 180-rf_params['theta']                         # theta
+        params[2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
+        params[3] = rf_params['x0']
+        params[4] = rf_params['y0']
+        params[5] = np.nan
+        params[6] = tempRF_chunk.max()
+        params[7] = biRF
+        params[8] = t_zero
+        params[9] = t_trough
+        params[10] = t_zero_peakTrough
+        params[11] = tempRF_chunk.min()
+        params[12] = t_peak
+    except:
+        tempRF_chunk = np.zeros(temp_window);tempRF_chunk[:] = np.nan
+        rf_coords = np.zeros((629,2));rf_coords[:] = np.nan
+        
     return params,tempRF_chunk,rf_coords
 
-def extractStimProps(idx):
-    params = np.zeros((temp_window,stim_props_grand.shape[-1]))
-    params[:] = np.nan
-    
-    
-    for j in range(stim_chunk_roi.shape[1]):
 
-        rgb_stim = stim_chunk_roi[idx,j]
-        reg_dark = (rgb_stim < 0).astype(int)
-        reg_bright = (rgb_stim > 0).astype(int)
-        props_dark = regionprops(reg_dark,rgb_stim)
-        props_bright = regionprops(reg_bright,rgb_stim)
-
-        dens = rgb_stim.mean()
-        if dens<=0:
-            cm = props_dark[0].centroid
-        else:
-            cm = props_bright[0].centroid
-        cent_y = idx_roi[0][0] + int(np.round(cm[0]))
-        cent_x = idx_roi[1][0] + int(np.round(cm[1]))
-        
-        params[j,0] = dens
-        params[j,1] = cent_x
-        params[j,2] = cent_y
-        
-    return params
 
 for u in u_arr:
     select_rgc = u
-    uname = perf_model['uname_selectedUnits'][idx_unitsToExtract][select_rgc]
+    try:
+        uname_all_grads = np.array(f_grads[select_mdl][select_lightLevel]['unames'],'bytes')
+        uname_all_grads = utils_si.h5_tostring(uname_all_grads)
+        rgb = uname_all_grads == uname_unitsToExtract
+        if np.all(rgb) == False:
+            raise ValueError('gradient dataset and stimulus dataset do not match')
+        else:
+            uname = uname_all_grads[select_rgc]
+    except:
+        uname = uname_unitsToExtract[select_rgc]
+        
+    print(uname)
     idx_sampsInFullMat = idx_samps[:num_samps_toload] #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
+    # idx_sampsInFullMat = idx_sampsInFullMat+40
     
-    spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
+    #---- Load the pre-calculated STA
+    f_stas = h5py.File(fname_stas,'r')
+    spatRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['spatial_feature'])
+    tempRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['temporal_feature'])
+    f_stas.close()  
+    peaksearch_win = np.arange(tempRF_fullSTA.shape[0]-25,tempRF_fullSTA.shape[0])
+    idx_tempPeak = np.argmax(np.abs(tempRF_fullSTA[peaksearch_win]))     # only check for peak in the final 25 time points.
+    idx_tempPeak = idx_tempPeak + peaksearch_win[0]
+    sign = np.sign(tempRF_fullSTA[idx_tempPeak])
+    if sign<0:
+        spatRF_fullSTA = spatRF_fullSTA*sign
+        tempRF_fullSTA = tempRF_fullSTA*sign
+    tempRF_fullSTA = tempRF_fullSTA[-temp_window:]
+    tempRF_fullSTA = tempRF_fullSTA/tempRF_fullSTA.max()
     
+    idx_tempPeak = -1*(temp_window - np.argmax(np.abs(tempRF_fullSTA)))
+    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_fullSTA,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+    rfExtractNPixs = 15
+    RF_midpoint_x = rf_params['x0']
+    RF_midpoint_y = rf_params['y0']
+    rfExtractIdx_x = (np.max((round(RF_midpoint_x-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_x+0.5*rfExtractNPixs),spatRF_fullSTA.shape[1]-1)))
+    rfExtractIdx_y = (np.max((round(RF_midpoint_y-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_y+0.5*rfExtractNPixs),spatRF_fullSTA.shape[0]-1)))
+
+    
+    # spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
+    spat_dims = np.array([rfExtractNPixs,rfExtractNPixs])
+    
+    grads_all = np.zeros((num_samps_toload,temp_window,spat_dims[0],spat_dims[1]),dtype='float16')
     spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]))      # [imgs,y,x,lightlevels,models]
     tempRF_grand = np.zeros((num_samps_toload,temp_window))      # [imgs,time,lightlevels,models]
     rf_params_grand = np.zeros((num_samps_toload,len(labels_rf_params)),dtype='float64') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
     rf_coords_grand = np.zeros((1000,2,num_samps_toload),dtype='float32')    # [points,[x,y],imgs,lightlevel,models]
     rf_coords_grand[:] = np.nan
-    
-    stim_props_grand = np.zeros((num_samps_toload,temp_window,len(stim_props_labels)))
-    stim_props_grand[:] = np.nan
-    
-    # --- calculate complete STA to estimate RF position
-    spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_sampsInFullMat,select_rgc]
-    idx_spikes_totake = np.where(spikes_totake>0)[0]
-    stim_chunk = data_alldsets[select_lightLevel]['raw'].X[idx_sampsInFullMat[idx_spikes_totake],-temp_window:,:,:]
-    stim_grandMean = np.mean(data_alldsets[select_lightLevel]['raw'].X[:,-temp_window:,:,:],axis=0)
-    sta_comp = np.sum(stim_chunk,axis=0)/len(idx_spikes_totake)
-    sta_comp = sta_comp - stim_grandMean
-    spatRF, tempRF = model.featureMaps.decompose(sta_comp)
-    rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF,tempRF=0,sig_fac=1,rot=True,sta=0,tempRF_sig=False)
-    plt.imshow(spatRF,cmap='gray');plt.plot(rf_coords[:,0],rf_coords[:,1],'r');plt.show()
-    x = np.array([np.floor(rf_coords[:,0].min()),np.ceil(rf_coords[:,0].max())],dtype='int32')
-    y = np.array([np.floor(rf_coords[:,1].min()),np.ceil(rf_coords[:,1].max())],dtype='int32')
-    idx_roi = np.array([y,x])   # rows, cols
-    # plt.imshow(spatRF,cmap='gray');plt.plot(idx_roi[1],[idx_roi[0][0],idx_roi[0][0]],'r');plt.plot(idx_roi[1],[idx_roi[0][1],idx_roi[0][1]],'r');plt.plot([idx_roi[1][0],idx_roi[1][0]],idx_roi[0],'r'); plt.plot([idx_roi[1][1],idx_roi[1][1]],idx_roi[0],'r');plt.imshow()
-    
 
     batch=0
     for batch in range(total_batches-1):
         print('Batch %d of %d'%(batch+1,total_batches-1))
         idx_chunk = np.arange(idx_batchStart[batch],idx_batchStart[batch+1])
+        grads_all[idx_chunk] = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
     
-        # ---- stim props
-        stim_chunk = data_alldsets[select_lightLevel]['raw'].X[idx_sampsInFullMat[idx_chunk],-temp_window:,:,:]
-        stim_chunk = (stim_chunk-stim_chunk.mean())/stim_chunk.std()
-        stim_chunk_roi = stim_chunk[:,:,idx_roi[0][0]:idx_roi[0][1],idx_roi[1][0]:idx_roi[1][1]]
-        # stim_props[idx_chunk,0] = np.mean(stim_chunk_roi,axis=(-2,-1)) # density
+        spatRF_chunk = grads_all[idx_chunk,idx_tempPeak,:,:]
+
+        # ---- Gradient STRF each sample
         
+        # Collect rf params. Adjust sigm for full width and sig fac      
         idx_forParallel = np.arange(len(idx_chunk))
         t_start = time.time()
         with multiprocessing.Pool() as pool:
-            results = pool.map(extractStimProps, idx_forParallel)
-        stim_props_chunk = np.asarray(results)
-        stim_props_grand[idx_chunk] = stim_props_chunk
-
+            results = pool.map(extractRFProps, idx_forParallel)
+        rf_params_chunk, tempRF_chunk, rf_coords = zip(*results)
+        rf_params_chunk = np.asarray(rf_params_chunk)
+        tempRF_chunk = np.asarray(tempRF_chunk)
+        if isinstance(spatRF_chunk, tuple)==True:
+            spatRF_chunk = np.asarray(spatRF_chunk)
+        rf_coords = np.moveaxis(np.asarray(rf_coords),0,-1)
         t_end = time.time()-t_start
         print('%0.2f minutes'%(t_end/60))
 
-    # Load gradients
-    """
-    fname_gradsFile = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/grads_CNN_2D_RAT_393189.h5'
-    print(fname_gradsFile)
-    f_grads = h5py.File(fname_gradsFile,'r')
-    grads_totake = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,:num_samps_toload]#,idx_totake_grads,:,:,:]
-    f_grads.close()
-
-    avg_grads = np.mean(grads_totake,axis=0)
-    avg_grads = avg_grads.astype('float32')
-    spatRF_gradscomp,tempRF_gradscomp = model.featureMaps.decompose(avg_grads)
-    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_gradscomp,tempRF=0,sig_fac=1,rot=True,sta=0,tempRF_sig=False)
-    mean_rfCent = np.nanmean(np.abs(rf_fit_img))  #np.nanmean(np.abs(rf_fit_img))
-    spatRF_gradscomp = spatRF_gradscomp/mean_rfCent
-    tempRF_gradscomp = tempRF_gradscomp*mean_rfCent
-    """
+        # idx=0;plt.imshow(spatRF_chunk[idx,:,:]);plt.plot(rf_coords_chunk[:,0,idx],rf_coords_chunk[:,1,idx])
+                        
+        spatRF_grand[idx_chunk,:,:] = spatRF_chunk
+        tempRF_grand[idx_chunk,:] = tempRF_chunk
+        rf_params_grand[idx_chunk,:] = rf_params_chunk
+        rf_coords_grand[:rf_coords.shape[0],:,idx_chunk] = rf_coords
         
-    # ---- analysis
-
-    frames_dr = np.atleast_1d([])
-    thresh_dr = -0.1
+    rf_coords_grand = rf_coords_grand[:rf_coords.shape[0]]
+    # plt.plot(rf_coords_grand[:,0,:10000],rf_coords_grand[:,1,:10000])
     
-    # frames_loop = np.arange(23,25)
-    # for f in frames_loop:
-    frames_br = np.atleast_1d([19,20])
-    thresh_br = 0.05
-    
-    pos_x = np.atleast_1d([]) # 60,61,62
-    pos_y = np.atleast_1d([]) # 18,19,20
-    
-    if frames_dr.shape[0]==0:
-        thresh = thresh_br
-        frames_totake = frames_br
+    #% set NAN gradients that are too small
+    if ONLY_LARGEGRADS==True:
+        grads_spat = grads_all[:num_samps_toload,idx_tempPeak]
+        grads_spat = grads_spat.astype('float64')
+        std_grads = np.std(grads_spat,axis=(-1,-2))
+        plt.hist(std_grads.flatten());plt.show()
+        thresh_std = 0.0004
+        bool_largeGrads = std_grads>thresh_std
+        # spikes_all = data_alldsets[select_lightLevel]['raw'].spikes[:num_samps_toload,select_rgc]
+        # bool_largeGrads = spikes_all>0
     else:
-        thresh = thresh_dr
-        frames_totake = frames_dr
+        bool_largeGrads = np.ones(num_samps_toload,'bool')
     
-    # plt.hist(stim_props_grand[:,idx_tempPeak,0].flatten())
-    idx_totake = np.ones(stim_props_grand.shape[0],'bool')
-    if frames_dr.shape[0]>0:
-        idx_totake = idx_totake & np.all(stim_props_grand[:,frames_dr,0]<thresh_dr,axis=-1)
-    if frames_br.shape[0]>0:
-        idx_totake = idx_totake & np.all(stim_props_grand[:,frames_br,0]>thresh_br,axis=-1) 
-    if pos_x.shape[0]>0:
-        idx_totake = idx_totake & np.all(stim_props_grand[:,frames_br,1]==pos_x,axis=-1) 
-    if pos_y.shape[0]>0:
-        idx_totake = idx_totake & np.all(stim_props_grand[:,frames_br,2]==pos_y,axis=-1) 
-        
-    print(sum(idx_totake))
+    print(bool_largeGrads.sum())
     
-    stim_totake = data_alldsets[select_lightLevel]['raw'].X[idx_sampsInFullMat[idx_totake],-temp_window:,:,:]
-    spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_sampsInFullMat[idx_totake],select_rgc]
-    spikes_nonzero = spikes_totake>0
-    print(spikes_nonzero.sum())
+    _ = gc.collect()
     
-    avgMovie = np.mean(stim_totake,axis=0)
-    # avgMovie = avgMovie-avgMovie.mean()
-    sta = np.sum(stim_totake[spikes_nonzero],axis=0)/sum(spikes_nonzero)
-    sta = sta-avgMovie
-
-    idx_spatPeak = 26
-    spatRF_sta = sta[idx_spatPeak,:,:]
-    cent_idx_min_max = np.array([np.unravel_index(spatRF_sta.argmin(), spatRF_sta.shape),np.unravel_index(spatRF_sta.argmax(), spatRF_sta.shape)])
-    min_max_spatRF = np.argmax(np.abs([spatRF_sta.min(),spatRF_sta.max()]))
-    cent_idx = cent_idx_min_max[min_max_spatRF]
-    tempRF_sta = sta[:,cent_idx[0]-1:cent_idx[0]+1,cent_idx[1]-1:cent_idx[1]+1]
-    tempRF_sta = np.mean(tempRF_sta,axis=(1,2))
-    # spatRF_sta,tempRF_sta = model.featureMaps.decompose(sta)
-    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_sta,tempRF=0,sig_fac=0.5,rot=True,sta=0,tempRF_sig=False)
-    mean_rfCent = np.nanmean(rf_fit_img) #np.nanmean(np.abs(rf_fit_img))
-    spatRF_sta = spatRF_sta/mean_rfCent
-    tempRF_sta = tempRF_sta*mean_rfCent
-        
-    spatRF_stacomp = sta_comp[idx_spatPeak,:,:]
-    cent_idx_min_max = np.array([np.unravel_index(spatRF_stacomp.argmin(), spatRF_stacomp.shape),np.unravel_index(spatRF_stacomp.argmax(), spatRF_stacomp.shape)])
-    min_max_spatRF = np.argmax(np.abs([spatRF_stacomp.min(),spatRF_stacomp.max()]))
-    cent_idx = cent_idx_min_max[min_max_spatRF]
-    # tempRF_stacomp = sta_comp[:,cent_idx[0],cent_idx[1]]
-    tempRF_stacomp = sta_comp[:,cent_idx[0]-1:cent_idx[0]+1,cent_idx[1]-1:cent_idx[1]+1]
-    tempRF_stacomp = np.mean(tempRF_stacomp,axis=(1,2))
-    # spatRF_stacomp,tempRF_stacomp = model.featureMaps.decompose(sta_comp)
-    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_stacomp,tempRF=0,sig_fac=0.5,rot=True,sta=0,tempRF_sig=False)
-    mean_rfCent = np.nanmean(rf_fit_img)  #np.nanmean(np.abs(rf_fit_img))
-    spatRF_stacomp = spatRF_stacomp/mean_rfCent
-    tempRF_stacomp = tempRF_stacomp*mean_rfCent
-    
-    
-    txt_title = 'frame %s | thresh %0.2f'%(np.array2string(frames_totake),thresh)
-    plt.plot(tempRF_stacomp,'-o');plt.plot(tempRF_sta,'-ro');plt.xlabel('Frames');plt.title(txt_title);plt.show()
-
-    framesToPlot = np.arange(15,28)
-    vmin_mov = np.nanmin(avgMovie[framesToPlot])
-    vmax_mov = np.nanmax(avgMovie[framesToPlot])
-    vmin_sta = np.nanmin(sta[framesToPlot])
-    vmax_sta = np.nanmax(sta[framesToPlot])
-    vmin_stacomp = np.nanmin(sta_comp[framesToPlot])
-    vmax_stacomp= np.nanmax(sta_comp[framesToPlot])
-    vmin_sta = np.nanmin((vmin_sta,vmin_stacomp))
-    vmax_sta = np.nanmax((vmax_sta,vmax_stacomp))
-    winx_plt = [win_x[0],win_x[1]]
-    winy_plt = [win_y[0],win_y[1]]
-    cent_x = winx_plt[0]+int(0.5*(winx_plt[1]-winx_plt[0]))
-    cent_y = winy_plt[0]+int(0.5*(winy_plt[1]-winy_plt[0]))
-    
-    fig,axs = plt.subplots(3,int(len(framesToPlot)),figsize=(45,10))   # averae video
-    fig.suptitle(txt_title)
-    for j in range(len(framesToPlot)):
-        i = 0
-        axs[i,j].imshow(avgMovie[framesToPlot[j],:,:],cmap='gray',vmin=vmin_mov,vmax=vmax_mov);
-        # axs[i,j].plot(cent_x,cent_y,'r.')
-        # axs[i,j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
-        # axs[i,j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
-        axs[i,j].set_xlim(winx_plt);axs[i,j].set_ylim(winy_plt);
-        axs[i,j].get_xaxis().set_visible(False);axs[i,j].get_yaxis().set_visible(False)
-        i = 1
-        axs[i,j].imshow(sta[framesToPlot[j],:,:],cmap='gray',vmin=vmin_sta,vmax=vmax_sta)
-        # axs[i,j].plot(cent_x,cent_y,'r.')
-        # axs[i,j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
-        # axs[i,j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
-        axs[i,j].set_xlim(winx_plt);axs[i,j].set_ylim(winy_plt);
-        axs[i,j].get_xaxis().set_visible(False);axs[i,j].get_yaxis().set_visible(False)
-        i = 2
-        axs[i,j].imshow(sta_comp[framesToPlot[j],:,:],cmap='gray',vmin=vmin_sta,vmax=vmax_sta)
-        # axs[i,j].plot(cent_x,cent_y,'r.')
-        # axs[i,j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
-        # axs[i,j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
-        axs[i,j].set_xlim(winx_plt);axs[i,j].set_ylim(winy_plt);
-        axs[i,j].get_xaxis().set_visible(False);axs[i,j].get_yaxis().set_visible(False)
-    plt.show()
-
-    
-
-
-    # %% ---- Calculate STRFs from gradients  
-    # sta_grads = np.sum(grads_totake[idx_totake][spikes_nonzero],axis=0)/(len(spikes_nonzero))
-    # sta_grads_bin = np.mean(grads_totake[idx_totake],axis=0)
-    # sta_grads_bin = sta_grads_bin.astype('float32')
-    sta_grads = np.median(grads_totake[idx_totake],axis=0)
-    sta_grads = sta_grads.astype('float32')
-    # sta_grads = sta_grads - sta_grads_bin
-    # plt.plot(rgb[:,18,62])
-    # a,b = model.featureMaps.decompose(rgb)
-    # c = np.
-       
-    spatRF_grads,tempRF_grads = model.featureMaps.decompose(sta_grads)
-    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_grads,tempRF=0,sig_fac=1,rot=True,sta=0,tempRF_sig=False)
-    mean_rfCent = np.nanmean(np.abs(rf_fit_img))  #np.nanmean(np.abs(rf_fit_img))
-    spatRF_grads = spatRF_grads/mean_rfCent
-    tempRF_grads = tempRF_grads*mean_rfCent
-
-    # plt.imshow(sta_grads[24],cmap='gray')
-    plt.plot(tempRF_gradscomp,'-o'); plt.plot(tempRF_grads,'-ro');plt.show()
-    plt.plot(avg_grads[:,18,62],'-o'); plt.plot(sta_grads[:,18,62],'-ro');plt.show()
-
-winSize_x = 30
-winSize_y = 30
-win_x = (np.max((round(rf_params['x0']-0.5*winSize_x),0)),np.min((round(rf_params['x0']+0.5*winSize_x),spatRF.shape[1]-1)))
-win_y = (np.max((round(rf_params['y0']-0.5*winSize_y),0)),np.min((round(rf_params['y0']+0.5*winSize_y),spatRF.shape[0]-1)))
-
-# %% Characterize STRFs in model
-
-"""
-For each cell, bin the images by gradient strength / temporal filter strength and see if we can do this with real data
-"""
-
-path_save_fig = os.path.join(path_save,'STRFs_new')
-if not os.path.exists(path_save_fig):
-    os.makedirs(path_save_fig)
-
-
-mdls_touse = ('PRFR_CNN2D_RAT',)
-nbins = 3
-temp_window = 30
-sig_fac = 1
-timeBin = 16
-
-
-idx_sampsInFullMat = idx_samps #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
-num_samps = grads_chunk_allUnits.shape[1] #len(idx_sampsInFullMat)
-# idx_samp_rem = np.array([num_samps-1])  # remove the last sample. Somehow its faulty. Weird.
-# num_samps = num_samps-len(idx_samp_rem)
-# idx_sampsInFullMat = idx_sampsInFullMat[np.setdiff1d(np.arange(idx_sampsInFullMat.shape[0]),idx_samp_rem)]
-
-spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
-
-spatRF_grand = np.empty((num_samps,spat_dims[0],spat_dims[1],len(dataset_eval),len(mdls_touse)))      # [y,x,imgs,lightlevels,models]
-tempRF_grand = np.empty((num_samps,temp_window,len(dataset_eval),len(mdls_touse)))      # [y,x,imgs,lightlevels,models]
-rf_params_grand = np.empty((num_samps,10,len(dataset_eval),len(mdls_touse)),dtype='float32') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
-labels_rf_params = ['polarity','rfSize','theta','amp','biphasic','t_zero','t_peak','t_trough','integTime','amp_trough']
-rf_coords_grand = np.empty((1000,2,num_samps,len(dataset_eval),len(mdls_touse)),dtype='float32')    # [imgs,y,x,
-
-
-u_arr = np.arange(0,len(uname_all))
-u_arr = [2]
-u = u_arr[0]
-
-m = 0
-d = 0
-
-f_grads = h5py.File(fname_gradsFile,'r')
-
-
-for u in u_arr:
-    select_rgc = u
-    uname = perf_model['uname_selectedUnits'][idx_unitsToExtract][select_rgc]
-    
-    for m in range(len(mdls_touse)):
-        for d in range(len(dataset_eval)):
-            select_mdl = mdls_touse[m]
-            select_lightLevel = dataset_eval[d]
-            
-            # idx_rgb = np.setdiff1d(np.arange(num_samps),idx_samp_rem)
-            grads_all = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,:,-temp_window:,:,:]    # [rgc,imgs,time,y,x]
-            stim_all = data_alldsets[select_lightLevel]['raw'].X[:,-temp_window:,:,:]     # [imgs,time,y,x]
-            resp_all = data_alldsets[select_lightLevel]['raw'].y[:,select_rgc]     # [imgs,units]
-            
-            
-            spatRF_allImgs = np.empty((grads_all.shape[0],grads_all.shape[2],grads_all.shape[3]))  # [img,y,x]
-            tempRF_allImgs = np.empty((grads_all.shape[0],temp_window))  # [time,img]
-            # mean_spatRF_allImgs = np.empty((num_samps))  # [img]
-            rf_params_allImgs = np.empty((num_samps,10),dtype='float32') #[img,5 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
-            rf_coords_allImgs = np.empty((1000,2,num_samps),dtype='float32')
-            i = 10
-            for i in tqdm(range(num_samps)):
-                # print('evaluating %d of %d sample'%(i,grads_all.shape[0]))
-                select_img = i
-                # spatRF_allImgs[:,:,i],tempRF_allImgs[:,i] = model.featureMaps.get_strf(grads_all[select_rgc,-temp_window:,:,:,select_img])
-                spatRF,tempRF = model.featureMaps.decompose(grads_all[select_img,:,:,:])
-                rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-                mean_rfCent = np.abs(np.nanmean(rf_fit_img))
-                spatRF = spatRF/mean_rfCent
-                tempRF = tempRF*mean_rfCent
-                
-                pos_area = np.trapz(tempRF[tempRF>0])
-                neg_area = np.trapz(tempRF[tempRF<0])
-                piRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
-                
-                try:
-                    t_zero = (tempRF.shape[0]-np.where(tempRF>0)[0][-1]) * timeBin
-                except:
-                    t_zero = np.nan
-                    
-                t_peak = (tempRF.shape[0]-np.argmax(tempRF)) * timeBin
-                t_trough = (tempRF.shape[0]-np.argmin(tempRF)) * timeBin
-                
-                try:
-                    t_zero_peakTrough = (tempRF.shape[0] - np.where(tempRF[:np.argmax(tempRF)]<0)[0][-1]) * timeBin
-                except:
-                    t_zero_peakTrough = np.nan    
-                
-                # Collect rf params. Adjust sigm for full width and sig fac
-                rf_params_allImgs[i,0] = np.sign(rf_params['A'])
-                rf_params_allImgs[i,1] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
-                rf_params_allImgs[i,2] = 180-rf_params['theta']                         # theta
-                rf_params_allImgs[i,3] = tempRF.max()   # amplitude
-                rf_params_allImgs[i,4] = piRF
-                rf_params_allImgs[i,5] = t_zero
-                rf_params_allImgs[i,6] = t_peak
-                rf_params_allImgs[i,7] = t_trough
-                rf_params_allImgs[i,8] = t_zero_peakTrough
-                rf_params_allImgs[i,9] = tempRF.min()
-                
-                spatRF_allImgs[i,:,:] = spatRF
-                tempRF_allImgs[i,:] = tempRF
-                
-                rf_coords_allImgs[:rf_coords.shape[0],:,i] = rf_coords
-            
-            # Normalize parameters that require normalization
-            rf_params_allImgs[:,3] = rf_params_allImgs[:,3]/np.nanmax(rf_params_allImgs[:,3])
-            rf_params_allImgs[:,9] = rf_params_allImgs[:,9]/np.nanmin(rf_params_allImgs[:,9])
-            
-            N_actual = spatRF_allImgs.shape[0]
-            spatRF_grand[:N_actual,:,:,d,m] = spatRF_allImgs
-            tempRF_grand[:N_actual,:,d,m] = tempRF_allImgs
-            rf_params_grand[:rf_params_allImgs.shape[0],:,d,m] = rf_params_allImgs
-            rf_coords_grand[:,:,:rf_params_allImgs.shape[0],d,m] = rf_coords_allImgs[:,:rf_coords.shape[0],:]
-    
-    # idx_dirtyRFs = np.logical_and(rf_coords_allImgs[:629,:,:]>200,axis=0)
-    # plt.plot(rf_coords_allImgs[:629,0,:],rf_coords_allImgs[:629,1,:])
-    
-    txt_title = 'Train: %s\n%s'%(dataset_model,perf_model['uname_selectedUnits'][select_rgc])
-    n_rows = 3
-    plots_idx = np.arange(0,n_rows*len(mdls_touse)*len(dataset_eval))
-    plots_idx = plots_idx.reshape(n_rows,len(dataset_eval),len(mdls_touse),order='C').T
-
-    fig1,axs = plt.subplots(n_rows,len(dataset_eval)*len(mdls_touse),figsize=(20,10))
-    axs = np.ravel(axs)
-    fig1.suptitle(txt_title,size=22)   
-    for m in range(len(mdls_touse)):
-        for d in range(len(dataset_eval)):
-            select_mdl = mdls_touse[m]
-            select_lightLevel = dataset_eval[d]
-
-            p_idx = plots_idx[m,d,0]
-            axs[p_idx].plot(tempRF_grand[:,:,d,m].T)
-            # axs[p_idx].set_ylim((min_lsta,max_lsta))
-            ax_title = '%s | %s\nFEV=%d%%'%(select_lightLevel,select_mdl,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc]*100)
-            axs[p_idx].set_title(ax_title,size=font_title)
-            axs[plots_idx[0,0,0]].set_ylabel('TempRF for all samples',size=font_title)
-            
-    # fname_fig = '%s_characterize' %uname
-    # fname_fig = os.path.join(path_save_fig,fname_fig)
-    # fig1.savefig(fname_fig+'.png',dpi=150)
-    # fig1.savefig(fname_fig+'.svg')
-
-
-# Plot distribution of RF parameters for all light levels and models    
-    params_select = ['rfSize','theta','amp','biphasic','t_peak','integTime']
-    idx_params_select = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] in params_select]
-        
-    txt_title = ''#'Train: %s\n%s|%d%%|%d%%|%d%%|%d%%'%(dataset_model,perf_model['uname_selectedUnits'][select_rgc],
-                                             # perf_datasets[mdls_touse[0]][dataset_eval[0]]['fev_allUnits'][select_rgc]*100,
-                                             # perf_datasets[mdls_touse[0]][dataset_eval[1]]['fev_allUnits'][select_rgc]*100,
-                                             # perf_datasets[mdls_touse[1]][dataset_eval[0]]['fev_allUnits'][select_rgc]*100,
-                                             # perf_datasets[mdls_touse[1]][dataset_eval[1]]['fev_allUnits'][select_rgc]*100)
-                                             
-    n_cols = 3
-    n_rows = int(np.ceil(len(params_select)/n_cols))
+    params_plot = ['spatloc','gain','biphasic','t_peak','cent_x','cent_y']
+    idx_params_select = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] in params_plot]
+    n_cols = 2;n_rows = int(np.ceil(len(idx_params_select)/n_cols))
     plots_idx = np.arange(0,n_rows*n_cols)
-
+    txt_title = '%s - properties distribution'%uname
     fig2,axs = plt.subplots(n_rows,n_cols,figsize=(20,10))
     axs = np.ravel(axs)
     fig2.suptitle(txt_title,size=22)   
-    
     cnt = -1
     for param in idx_params_select:
         cnt+=1
-        data_stack = np.zeros(N_actual)
-        label_stack = []
-        
-        for d in range(len(dataset_eval)):
-
-            for m in range(len(mdls_touse)):
-                
-                select_mdl = mdls_touse[m]
-                select_lightLevel = dataset_eval[d]
-                
-                data_stack = np.vstack((data_stack,rf_params_grand[:,param,d,m]))
-                label_stack.append('%s\n%s '%(select_lightLevel,select_mdl[:4]))
-                
-        data_stack = data_stack[1:].T
-        seaborn.boxplot(data=data_stack,ax=axs[cnt])
-        axs[cnt].set_xticklabels(label_stack)
-
-        # axs[cnt].boxplot(data_stack,label_stack)
-        # axs[p_idx].set_ylim((min_lsta,max_lsta))
+        axs[cnt].hist(rf_params_grand[:,param])
+        axs[cnt].hist(rf_params_grand[bool_largeGrads,param])
         ax_title = '%s'%labels_rf_params[param]
-        axs[cnt].set_title(ax_title,size=font_title)
+        axs[cnt].set_title(ax_title,size=12)
         # axs[cnt].set_ylabel('TempRF for all samples',size=font_title)
-            
-    # fname_fig = '%s_modelDist.png' %uname
-    # fname_fig = os.path.join(path_save_fig,fname_fig)
-    # fig2.savefig(fname_fig,dpi=150)
+
+    # Plot RF position as function of time
+    idx_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == 'cent_y'][0]
+    rgb = rf_params_grand[:,idx_param].copy()
+    rgb = rgb - rgb.mean()
+    t = np.arange(0,rf_params_grand.shape[0])*timeBin/1000
+    idx_datapoints = np.arange(4500,5500)
+    fontsize=12
+    fig,axs = plt.subplots(1,1,figsize=(15,5))
+    axs.plot(t[idx_datapoints],rgb[idx_datapoints])
+    axs.set_xlabel('Time (s)',fontsize=fontsize)
+    axs.set_ylabel(labels_rf_params[idx_param]+' (pixels)',fontsize=fontsize)
     
-   
-    _ = gc.collect()
-# %% BINNING
+    # %%
+    # ---- Eig vecs
+    grads_all_vec = grads_all.reshape(grads_all.shape[0],-1)
+    M = np.mean(grads_all_vec,axis=0)
+    grads_all_vec = grads_all_vec-M
+    grads_all_vec_cov = np.cov(grads_all_vec.T)
+    vals,eigvecs = np.linalg.eig(grads_all_vec_cov)
+    pc1_grads_all = np.real(np.dot(eigvecs[:,0],grads_all_vec.T))
+    pc2_grads_all = np.real(np.dot(eigvecs[:,1],grads_all_vec.T))
+    
+
+    # ---- bin PCA
+    nbins_pca = 10
+    n_perbin = int(np.floor(len(pc1_grads_all)/nbins_pca))
+    pc1_sort = np.sort(pc1_grads_all)
+    xedges = pc1_sort[::n_perbin]
+    if xedges.shape[0]==nbins_pca:
+        xedges = np.append(xedges,pc1_sort[-1])
+    else:
+        xedges[-1] = pc1_sort[-1]
+    pc2_sort = np.sort(pc2_grads_all)
+    yedges = pc2_sort[::n_perbin]
+    if yedges.shape[0]==nbins_pca:
+        yedges = np.append(yedges,pc2_sort[-1])
+    else:
+        yedges[-1] = pc2_sort[-1]
+
+    bins_2d = nbins_pca #nbins_pca #(xedges,yedges)
+    _,xedges,yedges,idx_bins_pca = scipy.stats.binned_statistic_2d(pc1_grads_all,pc2_grads_all,None,'count',bins=bins_2d,expand_binnumbers=True)
+    idx_bins_pca = idx_bins_pca-1
+    pc_binned = np.zeros((nbins_pca,nbins_pca))
+    idxOfSampsInBin = np.zeros((nbins_pca,nbins_pca),dtype='object')
+    
+    count_pc_binned=np.zeros((nbins_pca,nbins_pca))
+    
+    idx_bins_pca_un = np.unique(idx_bins_pca,axis=1)
+    i=9;j=4;
+    for i in range(nbins_pca):
+        for j in range(nbins_pca):
+            idx = np.logical_and(idx_bins_pca[0,:]==i,idx_bins_pca[1,:]==j)
+            rgb = np.where(idx)[0]
+            if len(rgb) != 0:
+                pc_binned[i,j] += len(rgb) 
+                idxOfSampsInBin[i,j] = rgb
+    
+    idxOfSampsInBin = idxOfSampsInBin.flatten()
+    
+    # %%--- Avg grads and STA per bin
+    offset_probe = np.array([1,2,3,4,5,6,7,8,9,40])
+    offset_steady = offset_probe[-1]
+    
+    sta_grads_state_binned = np.empty((idxOfSampsInBin.shape[0],temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_state_binned[:] = np.nan
+    sta_grads_probe_binned = np.empty((idxOfSampsInBin.shape[0],len(offset_probe),temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_probe_binned[:] = np.nan
+    sta_grads_steady_binned = np.empty((idxOfSampsInBin.shape[0],temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_state_binned[:] = np.nan
+    sta_real_state_binned = np.empty((idxOfSampsInBin.shape[0],temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_state_binned[:] = np.nan
+    sta_real_probe_binned = np.empty((idxOfSampsInBin.shape[0],len(offset_probe),temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_probe_binned[:] = np.nan
+    sta_real_steady_binned = np.empty((idxOfSampsInBin.shape[0],temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_state_binned[:] = np.nan
+    
+    
+    pc1_real_probe_binned = np.empty((idxOfSampsInBin.shape[0],len(offset_probe)),dtype='float32');pc1_real_probe_binned[:]=np.nan
+    pc2_real_probe_binned = np.empty((idxOfSampsInBin.shape[0],len(offset_probe)),dtype='float32');pc2_real_probe_binned[:]=np.nan
+    
+    pc1_grads_probe_binned = np.empty((idxOfSampsInBin.shape[0],len(offset_probe)),dtype='float32');pc1_grads_probe_binned[:]=np.nan
+    pc2_grads_probe_binned = np.empty((idxOfSampsInBin.shape[0],len(offset_probe)),dtype='float32');pc2_grads_probe_binned[:]=np.nan
+    
+    pc1_grads_perbin = np.empty((idxOfSampsInBin.shape[0],idxOfSampsInBin.shape[0]),dtype='object');#pc1_grads_perbin[:]=np.nan
+    pc2_grads_perbin = np.empty((idxOfSampsInBin.shape[0],idxOfSampsInBin.shape[0]),dtype='object');#pc2_grads_perbin[:]=np.nan
+    
+    i=9;j=4;
+    for i in range(idxOfSampsInBin.shape[0]):
+        rgb = np.atleast_1d(idxOfSampsInBin[i])
+        if len(rgb)>1:
+            # STATE
+            idx_totake_state = rgb[rgb<(num_samps_toload-offset_steady)]
+            
+            stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_state,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+            spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_state,select_rgc]
+            resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_state,select_rgc]
+            print('Num spikes in bin %d: %d'%(i,np.sum(spikes_totake>0)))
+            
+            if np.sum(spikes_totake)>0:
+                sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+                scaleFac = np.nanmean(resp_totake)/np.var(stim)
+                sta_data = sta_data * scaleFac
+                sta_real_state_binned[i,:,:,:] = sta_data
+                
+                sta_grads_state_binned[i,:,:,:] = np.mean(grads_all[idx_totake_state][spikes_totake>0],axis=0).astype('float32')
+                
+                # grads_rgb = grads_all[idx_totake_state][spikes_totake>0].astype('float32')
+                # grads_rgb_vec = grads_rgb.reshape(grads_rgb.shape[0],-1)
+                # grads_rgb_vec = grads_rgb_vec - np.nanmean(grads_rgb_vec,axis=0)
+                # pc1_grads_perbin[i] = np.real(np.dot(eigvecs[:,0],grads_rgb_vec.T))
+                # pc2_grads_perbin[i] = np.real(np.dot(eigvecs[:,1],grads_rgb_vec.T))
+                
+                # PROBE
+                for j in range(len(offset_probe)):
+                    idx_totake_probe = idx_totake_state+offset_probe[j]
+                    
+                    stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_probe,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+                    spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_probe,select_rgc]
+                    resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_probe,select_rgc]
+            
+                    sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+                    scaleFac = np.nanmean(resp_totake)/np.var(stim)
+                    sta_data = sta_data * scaleFac
+                    sta_real_probe_binned[i,j,:,:,:] = sta_data
+                    
+                    sta_grads_probe_binned[i,j,:,:,:] = np.mean(grads_all[idx_totake_probe][spikes_totake>0],axis=0).astype('float32')
+            
+                # STEADY-STATE
+                idx_totake_steady = idx_totake_state+offset_steady
+                
+                stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_steady,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+                spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_steady,select_rgc]
+                resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_steady,select_rgc]
+            
+                sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+                scaleFac = np.nanmean(resp_totake)/np.var(stim)
+                sta_data = sta_data * scaleFac
+                sta_real_steady_binned[i,:,:,:] = sta_data
+                
+                sta_grads_steady_binned[i,:,:,:] = np.mean(grads_all[idx_totake_steady][spikes_totake>0],axis=0).astype('float32')
+    
+        
+        _ = gc.collect()
+        
+    sta_real_state_binned_vec = sta_real_state_binned.reshape(sta_real_state_binned.shape[0],-1)
+    sta_real_state_binned_vec = sta_real_state_binned_vec - np.nanmean(sta_real_state_binned_vec,axis=0)
+    pc1_real_state_binned = np.real(np.dot(eigvecs[:,0],sta_real_state_binned_vec.T))
+    pc2_real_state_binned = np.real(np.dot(eigvecs[:,1],sta_real_state_binned_vec.T))
+    
+    j = 0
+    for j in range(len(offset_probe)):
+        sta_real_probe_binned_vec = sta_real_probe_binned[:,j].reshape(sta_real_probe_binned.shape[0],-1)
+        sta_real_probe_binned_vec = sta_real_probe_binned_vec - np.nanmean(sta_real_probe_binned_vec,axis=0)
+        pc1_real_probe_binned[:,j] = np.real(np.dot(eigvecs[:,0],sta_real_probe_binned_vec.T))
+        pc2_real_probe_binned[:,j] = np.real(np.dot(eigvecs[:,1],sta_real_probe_binned_vec.T))
+    
+    sta_real_steady_binned_vec = sta_real_steady_binned.reshape(sta_real_steady_binned.shape[0],-1)
+    sta_real_steady_binned_vec = sta_real_steady_binned_vec - np.nanmean(sta_real_steady_binned_vec,axis=0)
+    pc1_real_steady_binned = np.real(np.dot(eigvecs[:,0],sta_real_steady_binned_vec.T))
+    pc2_real_steady_binned = np.real(np.dot(eigvecs[:,1],sta_real_steady_binned_vec.T))
+    
+    
+    sta_grads_state_vec = sta_grads_state_binned.reshape(sta_grads_state_binned.shape[0],-1)
+    sta_grads_state_vec = sta_grads_state_vec - M#np.nanmean(sta_grads_state_vec,axis=0)
+    pc1_grads_state_binned = np.real(np.dot(eigvecs[:,0],sta_grads_state_vec.T))
+    pc2_grads_state_binned = np.real(np.dot(eigvecs[:,1],sta_grads_state_vec.T))
+    
+    j = 0
+    for j in range(len(offset_probe)):
+        sta_grads_probe_vec = sta_grads_probe_binned[:,j].reshape(sta_grads_probe_binned.shape[0],-1)
+        sta_grads_probe_vec = sta_grads_probe_vec - M#np.nanmean(sta_grads_probe_vec,axis=0)
+        pc1_grads_probe_binned[:,j] = np.real(np.dot(eigvecs[:,0],sta_grads_probe_vec.T))
+        pc2_grads_probe_binned[:,j] = np.real(np.dot(eigvecs[:,1],sta_grads_probe_vec.T))
+    
+    sta_grads_steady_vec = sta_grads_steady_binned.reshape(sta_grads_steady_binned.shape[0],-1)
+    sta_grads_steady_vec = sta_grads_steady_vec - M#np.nanmean(sta_grads_steady_vec,axis=0)
+    pc1_grads_steady_binned = np.real(np.dot(eigvecs[:,0],sta_grads_steady_vec.T))
+    pc2_grads_steady_binned = np.real(np.dot(eigvecs[:,1],sta_grads_steady_vec.T))
+    
+    sta_grads_avg = np.nanmean(grads_all,axis=0)
+    sta_grads_avg_vec = sta_grads_avg.flatten()
+    pc1_grads_avg = np.real(np.dot(eigvecs[:,0],sta_grads_avg_vec.T))
+    pc2_grads_avg = np.real(np.dot(eigvecs[:,1],sta_grads_avg_vec.T))
+    
+    U_real_probe = pc1_real_probe_binned - pc1_real_state_binned[:,None]
+    V_real_probe = pc2_real_probe_binned - pc2_real_state_binned[:,None]
+    U_grads_probe = pc1_grads_probe_binned - pc1_grads_state_binned[:,None]
+    V_grads_probe = pc2_grads_probe_binned - pc2_grads_state_binned[:,None]
+    
+    U_real_steady = pc1_real_steady_binned - pc1_real_state_binned
+    V_real_steady = pc2_real_steady_binned - pc2_real_state_binned
+    U_grads_steady = pc1_grads_steady_binned - pc1_grads_state_binned
+    V_grads_steady = pc2_grads_steady_binned - pc2_grads_state_binned
+    
+    UV_real_probe = np.concatenate((U_real_probe[:,None,:],V_real_probe[:,None,:]),axis=1)
+    rgb = np.sqrt(np.sum(UV_real_probe**2,axis=1))
+    UV_real_probe_norm = UV_real_probe/rgb[:,None,:]
+    
+    UV_grads_probe = np.concatenate((U_grads_probe[:,None,:],V_grads_probe[:,None,:]),axis=1)
+    idx_small = np.abs(UV_grads_probe)<np.abs(UV_grads_probe[:,:,-1][:,:,None]/3)
+    rgb = np.sqrt(np.sum(UV_grads_probe**2,axis=1))
+    UV_grads_probe_norm = UV_grads_probe/rgb[:,None,:]
+    UV_grads_probe_norm[idx_small] = np.nan
+
+
+
+    
+    # %% states which show large sensitivity changes
+    UV_grads_steady = np.array([U_grads_steady,V_grads_steady]).T
+    UV_grads_probe = np.concatenate((U_grads_probe[:,None,:],V_grads_probe[:,None,:]),axis=1)
+    
+    UV_grads_steadyProbeAng = np.zeros((UV_grads_probe.shape[0],UV_grads_probe.shape[-1]))
+    i=5;j=0;
+    for i in range(UV_grads_probe.shape[0]):
+        for j in range(UV_grads_probe.shape[-1]):
+            a = UV_grads_steady[i,:]/np.linalg.norm(UV_grads_steady[i,:])
+            b = UV_grads_probe[i,:,j]/np.linalg.norm(UV_grads_probe[i,:,j])
+            rgb = np.dot(a,b)
+            ang = np.arccos(rgb)
+            UV_grads_steadyProbeAng[i,j] = np.degrees(ang)
+    
+    UV_grads_steadyProbeAng[np.all(idx_small,axis=1)] = 0
+    UV_grads_steadyProbeAngSort_idx = np.argsort(-1*UV_grads_steadyProbeAng,0)
+    
+    framesToPlot = np.array([9])
+    offsetsToPlot = np.array([4]) #np.arange(0,40,2) #np.array([0,1,2,3,4,5,6])
+    binsToPlot = UV_grads_steadyProbeAngSort_idx[60:65,offsetsToPlot[0]]
+    vmin_real = np.nanmin((np.nanmin(sta_real_probe_binned[binsToPlot][:,offsetsToPlot,framesToPlot,:,:]),np.nanmin(sta_real_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmax_real = np.nanmax((np.nanmax(sta_real_probe_binned[binsToPlot][:,offsetsToPlot,framesToPlot,:,:]),np.nanmax(sta_real_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmin_grads = np.nanmin((np.nanmin(sta_grads_probe_binned[binsToPlot][:,offsetsToPlot,framesToPlot,:,:]),np.nanmin(sta_grads_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmax_grads = np.nanmax((np.nanmax(sta_grads_probe_binned[binsToPlot][:,offsetsToPlot,framesToPlot,:,:]),np.nanmax(sta_grads_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    
+    nrows = 1
+    ncols = int(len(binsToPlot)/nrows)
+    fig,axs = plt.subplots(nrows,ncols,figsize=(20,10))   # STA_DATA
+    axs = np.ravel(axs)
+    for i in range(len(binsToPlot)):
+        for j in range(len(framesToPlot)):
+            # axs[i,j].imshow(sta_real_probe_binned[binsToPlot[i],offsetsToPlot[0],framesToPlot[j],:,:],cmap='gray',vmin=vmin_real,vmax=vmax_real);
+            # axs[i].imshow(sta_grads_probe_binned[binsToPlot[i],offsetsToPlot[0],framesToPlot[j],:,:],cmap='gray')#,vmin=vmin_grads,vmax=vmax_grads);
+            axs[i].imshow(sta_grads_state_binned[binsToPlot[i],framesToPlot[j],:,:],cmap='gray')#,vmin=vmin_grads,vmax=vmax_grads);
+            # axs[i,j].plot(cent_x,cent_y,'r.')
+            # axs[i,j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
+            # axs[i,j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
+            # axs[i,j].set_xlim(winx_plt);axs[i,j].set_ylim(winy_plt);
+            axs[i].get_xaxis().set_visible(False);axs[i].get_yaxis().set_visible(False)
+    
+    # %%
+    offsetsToPlot = np.array([0])
+    Umax_real = 1#np.nanmax(U_real_probe)
+    Vmax_real = 1#np.nanmax(V_real_probe)
+    Umax_grads_probe = 1#np.nanmax(U_grads_probe)
+    Vmax_grads_probe = 1#np.nanmax(V_grads_probe)
+    Umax_grads_steady = 1#np.nanmax(U_grads_steady)
+    Vmax_grads_steady = 1#np.nanmax(V_grads_steady)
+
+
+    markersize = 20
+    # scale_steady = 0.3
+    scale_probe = 200 #0.15
+    nrows = 1
+    ncols = int(len(offsetsToPlot)/nrows)
+    fig,axs = plt.subplots(nrows,ncols,figsize=(30,15))
+    axs=np.ravel(axs)
+    axs = axs[None,:]
+    # axs.plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+    for j in range(len(offsetsToPlot)):
+        # axs[0,j].plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+        # axs[0,j].plot(pc1_real_state_binned,pc2_real_state_binned,'.b',markersize=markersize)
+        # axs[0,j].plot(pc1_real_state_binned[0],pc2_real_state_binned[0],'.b',markersize=markersize+10)
+        # axs[0,j].quiver(pc1_real_state_binned,pc2_real_state_binned,U_real_steady/Umax_real,V_real_steady/Vmax_real,color='k',scale=scale_steady)
+        # axs[0,j].quiver(pc1_real_state_binned,pc2_real_state_binned,U_real_probe[:,offsetsToPlot[j]]/Umax_real,V_real_probe[:,offsetsToPlot[j]]/Vmax_real,color='r',scale=scale_probe)
+        # axs[0,j].axis('square')
+        # axs[0,j].get_xaxis().set_visible(False);axs[0,j].get_yaxis().set_visible(False)
+        axs[0,j].plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+        axs[0,j].plot(pc1_grads_state_binned,pc2_grads_state_binned,'.b',markersize=markersize)
+        # idx=45;axs[0,j].plot(pc1_grads_state_binned[idx],pc2_grads_state_binned[idx],'.b',markersize=markersize+10)
+        axs[0,j].quiver(pc1_grads_state_binned,pc2_grads_state_binned,UV_grads_probe_norm[:,0,-1],UV_grads_probe_norm[:,1,-1],color='k',scale=scale_probe)
+        axs[0,j].quiver(pc1_grads_state_binned,pc2_grads_state_binned,UV_grads_probe_norm[:,0,offsetsToPlot[j]],UV_grads_probe_norm[:,1,offsetsToPlot[j]],color='r',scale=scale_probe)
+        axs[0,j].plot(pc1_grads_avg,pc2_grads_avg,'.m',markersize=markersize)
+        # idx = UV_grads_steadyProbeAngSort_idx[:5,offsetsToPlot[j]];axs[0,j].plot(pc1_grads_state_binned[idx],pc2_grads_state_binned[idx],'.',color='orange',markersize=markersize)
+        axs[0,j].axis('square')
+        axs[0,j].set_title('probe_offset: %d'%offset_probe[offsetsToPlot[j]])
+        axs[0,j].get_xaxis().set_visible(False);axs[0,j].get_yaxis().set_visible(False)
+
+    # fig,axs = plt.subplots(1,2,figsize=(20,5))   # STA_DATA
+    # axs = np.ravel(axs)
+    # axs[0].plot(pc1_real_probe_binned.T)
+    # axs[0].set_ylabel('pc1_probe')
+    # axs[0].set_xlabel('probe offset')
+    # # axs[0].legend(('0','1','2','3','4','5','6','7','8','9'))
+    # axs[1].plot(pc2_real_probe_binned.T)
+    # axs[1].set_ylabel('pc2_probe')
+    # axs[1].set_xlabel('probe offset')
+    
+
+    
+    
+
+    
+# %% STA VS GRAD PCA
 
 """
 For each cell, bin the images by gradient strength / temporal filter strength and see if we can do this with real data
@@ -1827,732 +1788,1522 @@ if not os.path.exists(path_save_fig):
 DEBUG = 1
 SAVE_FIGS = False
 
-mdls_touse = ('PRFR_CNN2D_RAT',) #('PRFR_CNN2D_RAT','CNN_2D_NORM')
-nbins = 10
-temp_window = 30
-sig_fac = 2
-timeBin = 16
-num_samps_toload = 149888
+select_mdl = 'CNN_2D_RAT' #('PRFR_CNN2D_RAT','CNN_2D_RAT)
+photocurrs = False
+select_lightLevel = dataset_eval[0]
 
-labels_rf_params = ['polarity','rfSize','rfAngle','amp','biphasic','t_zero','t_peak','t_trough','integTime','amp_trough','spatloc','cent_x','cent_y']
-binning_param_list = ('amp',) # [polarity,rfsize,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough,spatcent,spatx,spaty]   sigma is the width of gaussian
+nbins = 10
+ONLY_LARGEGRADS = False
+temp_window = 15
+sig_fac = 1.5
+timeBin = 16
+num_samps_toload = 392000 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
+batch_size = 40000
+if batch_size<num_samps_toload:
+    total_batches = int(np.ceil((num_samps_toload/batch_size)))
+    idx_batchStart = np.linspace(0,num_samps_toload,total_batches,dtype='int32')
+else:
+    idx_batchStart = np.array([0,num_samps_toload])
+    total_batches=2
+    
+
+labels_rf_params = ['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough','t_peak']
+# binning_param_list = ('spatloc',) # [polarity,rfsize,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough,spatcent,spatx,spaty]   sigma is the width of gaussian
 binning_param = 'cent_x'
 
 
 # u_arr = np.arange(0,20) #np.arange(20,len(perf_model['uname_selectedUnits']))
-u_arr = [3] #22
+u_arr = [1] #22
 u = u_arr[0]
+gradFile_suffix = 'u-%d_%s'%(n_units,select_rgctype_toExtract)
 
-m = 0
-d = 0
+USE_SSD = True
+if USE_SSD == True:
+    path_gradFiles = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+else:
+    path_gradFiles = '/home/saad/data_hdd/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+
+fname_gradsFile = 'grads_'+select_mdl+'_393229_'+gradFile_suffix+'.h5' #393229 #149940.
+fname_gradsFile = os.path.join(path_gradFiles,fname_gradsFile)
+
+
+fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/rat/datasets/20121031_STAs_CB_allLightLevels_16ms_sig2.h5' #'/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
+
+if photocurrs==True:
+    fname_gradsFile = fname_gradsFile[:-3]+'_photocurrs.h5'
+
+print(fname_gradsFile)
 f_grads = h5py.File(fname_gradsFile,'r')
+
+
+    
+def extractRFProps(idx):
+    try:
+        params = np.zeros(rf_params_grand.shape[1])
+        params[:] = np.nan
+        
+        # grads_curr = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[idx],:,:,:].astype('float64')
+        # spatRF_chunk,tempRF_chunk = model.featureMaps.decompose(grads_curr)
+        # rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_chunk,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        # mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        # spatRF_chunk = spatRF_chunk/mean_rfCent
+        # tempRF_chunk = tempRF_chunk*mean_rfCent
+    
+        # plt.imshow(spatRF_chunk[idx],'gray');plt.plot(rf_coords[:,0],rf_coords[:,1])
+        
+        rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_chunk[idx],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        idx_xy = ~np.isnan(rf_fit_img)
+        tempRF_chunk = grads_all[idx_chunk[idx],:,:,:]
+        tempRF_chunk = tempRF_chunk[:,idx_xy]
+        tempRF_chunk = np.mean(tempRF_chunk,axis=-1)
+        # plt.plot(tempRF_chunk)
+        sign = np.sign(tempRF_chunk[idx_tempPeak])
+        if sign<0:
+            tempRF_chunk = tempRF_chunk*sign
+        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        if mean_rfCent==0:
+            raise ValueError(idx)
+        spatRF_chunk[idx] = spatRF_chunk[idx]/mean_rfCent
+        tempRF_chunk = tempRF_chunk*mean_rfCent
+    
+        
+        pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
+        neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
+        biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
+        try:
+            t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
+        except:
+            t_zero = np.nan
+        t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk))
+        t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
+        try:
+            t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
+        except:
+            t_zero_peakTrough = np.nan
+        # Collect rf params. Adjust sigm for full width and sig fac
+        #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
+        params[0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
+        params[1] = 180-rf_params['theta']                         # theta
+        params[2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
+        params[3] = rf_params['x0']
+        params[4] = rf_params['y0']
+        params[5] = np.nan
+        params[6] = tempRF_chunk.max()
+        params[7] = biRF
+        params[8] = t_zero
+        params[9] = t_trough
+        params[10] = t_zero_peakTrough
+        params[11] = tempRF_chunk.min()
+        params[12] = t_peak
+    except:
+        tempRF_chunk = np.zeros(temp_window);tempRF_chunk[:] = np.nan
+        rf_coords = np.zeros((629,2));rf_coords[:] = np.nan
+        
+    return params,tempRF_chunk,rf_coords
 
 
 for u in u_arr:
     select_rgc = u
-    uname = perf_model['uname_selectedUnits'][idx_unitsToExtract][select_rgc]
-
-    for binning_param in binning_param_list:
+    try:
+        uname_all_grads = np.array(f_grads[select_mdl][select_lightLevel]['unames'],'bytes')
+        uname_all_grads = utils_si.h5_tostring(uname_all_grads)
+        rgb = uname_all_grads == uname_unitsToExtract
+        if np.all(rgb) == False:
+            raise ValueError('gradient dataset and stimulus dataset do not match')
+        else:
+            uname = uname_all_grads[select_rgc]
+    except:
+        uname = uname_unitsToExtract[select_rgc]
         
-        try:
+    print(uname)
+    idx_sampsInFullMat = idx_samps[:num_samps_toload] #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
+    # idx_sampsInFullMat = idx_sampsInFullMat+40
+    
+    #---- Load the pre-calculated STA
+    f_stas = h5py.File(fname_stas,'r')
+    spatRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['spatial_feature'])
+    tempRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['temporal_feature'])
+    f_stas.close()  
+    peaksearch_win = np.arange(tempRF_fullSTA.shape[0]-25,tempRF_fullSTA.shape[0])
+    idx_tempPeak = np.argmax(np.abs(tempRF_fullSTA[peaksearch_win]))     # only check for peak in the final 25 time points.
+    idx_tempPeak = idx_tempPeak + peaksearch_win[0]
+    sign = np.sign(tempRF_fullSTA[idx_tempPeak])
+    if sign<0:
+        spatRF_fullSTA = spatRF_fullSTA*sign
+        tempRF_fullSTA = tempRF_fullSTA*sign
+    tempRF_fullSTA = tempRF_fullSTA[-temp_window:]
+    tempRF_fullSTA = tempRF_fullSTA/tempRF_fullSTA.max()
+    
+    idx_tempPeak = -1*(temp_window - np.argmax(np.abs(tempRF_fullSTA)))
+    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_fullSTA,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+    rfExtractNPixs = 15
+    RF_midpoint_x = rf_params['x0']
+    RF_midpoint_y = rf_params['y0']
+    rfExtractIdx_x = (np.max((round(RF_midpoint_x-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_x+0.5*rfExtractNPixs),spatRF_fullSTA.shape[1]-1)))
+    rfExtractIdx_y = (np.max((round(RF_midpoint_y-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_y+0.5*rfExtractNPixs),spatRF_fullSTA.shape[0]-1)))
 
-            idx_sampsInFullMat = idx_samps #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
-            num_samps = num_samps_toload #len(idx_sampsInFullMat)
-            # idx_samp_rem = np.array([num_samps-1])  # remove the last sample. Somehow its faulty. Weird.
-            # num_samps = num_samps-len(idx_samp_rem)
-            # idx_sampsInFullMat = idx_sampsInFullMat[np.setdiff1d(np.arange(idx_sampsInFullMat.shape[0]),idx_samp_rem)]
-            
-            spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
-            
-            spatRF_grand = np.zeros((num_samps,spat_dims[0],spat_dims[1],len(dataset_eval),len(mdls_touse)))      # [imgs,y,x,lightlevels,models]
-            tempRF_grand = np.zeros((num_samps,temp_window,len(dataset_eval),len(mdls_touse)))      # [imgs,y,x,lightlevels,models]
-            rf_params_grand = np.zeros((num_samps,13,len(dataset_eval),len(mdls_touse)),dtype='float64') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
-            rf_coords_grand = np.zeros((1000,2,num_samps,len(dataset_eval),len(mdls_touse)),dtype='float32')    # [points,[x,y],imgs,lightlevel,models]
-            rf_coords_grand[:] = np.nan
-            
-            data_grads_binned_grand = np.zeros((nbins,len(dataset_eval),len(mdls_touse)))
-            curves_grads_binned_grand = np.zeros((temp_window,nbins,len(dataset_eval),len(mdls_touse)))
-            spatRF_grads_binned_grand = np.zeros((spat_dims[0],spat_dims[1],nbins,len(dataset_eval),len(mdls_touse)))
-            rf_params_grads_binned_grand = np.zeros((nbins,*rf_params_grand.shape[1:]),dtype='float64')
-            rf_coords_grads_binned_grand = np.zeros((629,2,nbins,len(dataset_eval),len(mdls_touse)),dtype='float64')
-            
-            data_real_binned_grand = np.zeros((nbins,len(dataset_eval),len(mdls_touse)))
-            curves_real_binned_grand = np.zeros((temp_window,nbins,len(dataset_eval),len(mdls_touse)))
-            spatRF_real_binned_grand = np.empty((spat_dims[0],spat_dims[1],nbins,len(dataset_eval),len(mdls_touse)))
-            rf_params_real_binned_grand = np.zeros((nbins,*rf_params_grand.shape[1:]),dtype='float64')
-            rf_coords_real_binned_grand = np.zeros((629,2,nbins,len(dataset_eval),len(mdls_touse)),dtype='float64')
-            
-            
-            if DEBUG==1:
-                m_range = np.arange(1)
-                d_range = np.arange(1)
-                SAVE_FIGS = False
-            else:
-                m_range = np.arange(len(mdls_touse))
-                d_range = np.arange(len(dataset_eval))
-            
+    
+    # spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
+    spat_dims = np.array([rfExtractNPixs,rfExtractNPixs])
+    
+    grads_all = np.zeros((num_samps_toload,temp_window,spat_dims[0],spat_dims[1]),dtype='float16')
+    spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]))      # [imgs,y,x,lightlevels,models]
+    tempRF_grand = np.zeros((num_samps_toload,temp_window))      # [imgs,time,lightlevels,models]
+    rf_params_grand = np.zeros((num_samps_toload,len(labels_rf_params)),dtype='float64') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
+    rf_coords_grand = np.zeros((1000,2,num_samps_toload),dtype='float32')    # [points,[x,y],imgs,lightlevel,models]
+    rf_coords_grand[:] = np.nan
+
+    batch=0
+    for batch in range(total_batches-1):
+        print('Batch %d of %d'%(batch+1,total_batches-1))
+        idx_chunk = np.arange(idx_batchStart[batch],idx_batchStart[batch+1])
+        grads_all[idx_chunk] = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
+    
+        spatRF_chunk = grads_all[idx_chunk,idx_tempPeak,:,:]
+
+        # ---- Gradient STRF each sample
         
-            
-            for m in m_range:
-                for d in d_range:
-                    select_mdl = mdls_touse[m]
-                    select_lightLevel = dataset_eval[d]
-                    
-                    # idx_rgb = np.setdiff1d(np.arange(num_samps),idx_samp_rem)
-                    grads_all = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,:,-temp_window:,:,:]    # [rgc,imgs,time,y,x]   
-                    grads_all = grads_all.astype('float64')
-                    stim_all = data_alldsets[select_lightLevel]['raw'].X[:,-temp_window:,:,:]     # [imgs,time,y,x]
-                    # resp_all = data_alldsets[select_lightLevel]['raw'].y[:,select_rgc]     # [imgs,units]
-                    spikes_all = data_alldsets[select_lightLevel]['raw'].spikes[:,select_rgc]     # [imgs,units]
-                    # spikes_all = resp_all*8 > np.random.rand(resp_all.shape[0])
-                    # spikes_all = spikes_all.astype('int')
+        # Collect rf params. Adjust sigm for full width and sig fac      
+        idx_forParallel = np.arange(len(idx_chunk))
+        t_start = time.time()
+        with multiprocessing.Pool() as pool:
+            results = pool.map(extractRFProps, idx_forParallel)
+        rf_params_chunk, tempRF_chunk, rf_coords = zip(*results)
+        rf_params_chunk = np.asarray(rf_params_chunk)
+        tempRF_chunk = np.asarray(tempRF_chunk)
+        if isinstance(spatRF_chunk, tuple)==True:
+            spatRF_chunk = np.asarray(spatRF_chunk)
+        rf_coords = np.moveaxis(np.asarray(rf_coords),0,-1)
+        t_end = time.time()-t_start
+        print('%0.2f minutes'%(t_end/60))
+
+        # idx=0;plt.imshow(spatRF_chunk[idx,:,:]);plt.plot(rf_coords_chunk[:,0,idx],rf_coords_chunk[:,1,idx])
+                        
+        spatRF_grand[idx_chunk,:,:] = spatRF_chunk
+        tempRF_grand[idx_chunk,:] = tempRF_chunk
+        rf_params_grand[idx_chunk,:] = rf_params_chunk
+        rf_coords_grand[:rf_coords.shape[0],:,idx_chunk] = rf_coords
         
-                    
-                    # ---- Gradient STRF each sample
-                    N_actual = grads_all.shape[0]
-                    spatRF_allImgs = np.empty((N_actual,grads_all.shape[2],grads_all.shape[3]))  # [img,y,x]
-                    tempRF_allImgs = np.empty((N_actual,temp_window))  # [img,time]
-                    rf_params_allImgs = np.empty((N_actual,rf_params_grand.shape[1]),dtype='float64') #[img,5 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
-                    rf_coords_allImgs = np.empty((1000,2,N_actual),dtype='float32')
-                    rf_coords_allImgs[:]=np.nan
-                    i = 5
-                    for i in tqdm(range(N_actual)):
-                        select_img = i
-                        spatRF,tempRF = model.featureMaps.decompose(grads_all[select_img,:,:,:])
-                        spatRF_mean = np.mean(grads_all[select_img,:,:,:],axis=0);plt.imshow(spatRF_mean);plt.imshow()
-                        spatRF_std = np.std(grads_all[select_img,:,:,:],axis=0);plt.imshow(spatRF_std);plt.imshow(spatRF_std)
-                        rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-                        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
-                        spatRF = spatRF/mean_rfCent
-                        tempRF = tempRF*mean_rfCent
-                        
-                        pos_area = np.trapz(tempRF[tempRF>0])
-                        neg_area = np.trapz(tempRF[tempRF<0])
-                        piRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
-                        
-                        try:
-                            t_zero = (tempRF.shape[0]-np.where(tempRF>0)[0][-1]) * timeBin
-                        except:
-                            t_zero = np.nan
-                        t_peak = (tempRF.shape[0]-np.argmax(tempRF)) * timeBin
-                        t_trough = (tempRF.shape[0]-np.argmin(tempRF)) * timeBin
-                        try:
-                            t_zero_peakTrough = (tempRF.shape[0] - np.where(tempRF[:np.argmax(tempRF)]<0)[0][-1]) * timeBin
-                        except:
-                            t_zero_peakTrough = np.nan
-                        
-                        # Collect rf params. Adjust sigm for full width and sig fac
-                        rf_params_allImgs[i,0] = np.sign(rf_params['A'])
-                        rf_params_allImgs[i,1] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
-                        rf_params_allImgs[i,2] = 180-rf_params['theta']                         # theta
-                        rf_params_allImgs[i,3] = tempRF.max()   # amplitude
-                        rf_params_allImgs[i,4] = piRF
-                        rf_params_allImgs[i,5] = t_zero
-                        rf_params_allImgs[i,6] = t_peak
-                        rf_params_allImgs[i,7] = t_trough
-                        rf_params_allImgs[i,8] = t_zero_peakTrough
-                        rf_params_allImgs[i,9] = tempRF.min()
-                        rf_params_allImgs[i,10] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
-                        rf_params_allImgs[i,11] = rf_params['x0']
-                        rf_params_allImgs[i,12] = rf_params['y0']
-                        
-                        spatRF_allImgs[i,:,:] = spatRF
-                        tempRF_allImgs[i,:] = tempRF
-                        
-                        rf_coords_allImgs[:rf_coords.shape[0],:,i] = rf_coords
-                        
-                        # idx=5;plt.imshow(spatRF_allImgs[idx,:,:]);plt.plot(rf_coords_allImgs[:,0,idx],rf_coords_allImgs[:,1,idx])
-                                    
-                    # Normalize parameters that require normalization
-                    rf_params_allImgs[:,3] = rf_params_allImgs[:,3]/np.nanmax(rf_params_allImgs[:,3])
-                    rf_params_allImgs[:,9] = rf_params_allImgs[:,9]/np.nanmin(rf_params_allImgs[:,9])
-                    
-                    
-                    spatRF_grand[:N_actual,:,:,d,m] = spatRF_allImgs[:N_actual]
-                    tempRF_grand[:N_actual,:,d,m] = tempRF_allImgs[:N_actual]
-                    rf_params_grand[:N_actual,:,d,m] = rf_params_allImgs[:N_actual]
-                    rf_coords_grand[:rf_coords.shape[0],:,:N_actual,d,m] = rf_coords_allImgs[:rf_coords.shape[0],:,:N_actual]
-                    # plt.plot(rf_coords_grand[:,0,:N_actual,0,0],rf_coords_grand[:,1,:N_actual,0,0])
-                    
-                    idx_todel = np.arange(N_actual,spatRF_grand.shape[0])
-                    if idx_todel.shape[0]!=0:
-                        spatRF_grand = np.delete(spatRF_grand,idx_todel,axis=0)
-                        tempRF_grand = np.delete(tempRF_grand,idx_todel,axis=0)
-                        rf_params_grand = np.delete(rf_params_grand,idx_todel,axis=0)
-                        rf_coords_grand = np.delete(rf_coords_grand,idx_todel,axis=2)
-                    
+    rf_coords_grand = rf_coords_grand[:rf_coords.shape[0]]
+    # plt.plot(rf_coords_grand[:,0,:10000],rf_coords_grand[:,1,:10000])
+    
+    #% set NAN gradients that are too small
+    if ONLY_LARGEGRADS==True:
+        grads_spat = grads_all[:num_samps_toload,idx_tempPeak]
+        grads_spat = grads_spat.astype('float64')
+        std_grads = np.std(grads_spat,axis=(-1,-2))
+        plt.hist(std_grads.flatten());plt.show()
+        thresh_std = 0.0004
+        bool_largeGrads = std_grads>thresh_std
+        # spikes_all = data_alldsets[select_lightLevel]['raw'].spikes[:num_samps_toload,select_rgc]
+        # bool_largeGrads = spikes_all>0
+    else:
+        bool_largeGrads = np.ones(num_samps_toload,'bool')
+    
+    print(bool_largeGrads.sum())
+    
+    _ = gc.collect()
+    
+    params_plot = ['spatloc','gain','biphasic','t_peak','cent_x','cent_y']
+    idx_params_select = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] in params_plot]
+    n_cols = 2;n_rows = int(np.ceil(len(idx_params_select)/n_cols))
+    plots_idx = np.arange(0,n_rows*n_cols)
+    txt_title = '%s - properties distribution'%uname
+    fig2,axs = plt.subplots(n_rows,n_cols,figsize=(20,10))
+    axs = np.ravel(axs)
+    fig2.suptitle(txt_title,size=22)   
+    cnt = -1
+    for param in idx_params_select:
+        cnt+=1
+        axs[cnt].hist(rf_params_grand[:,param])
+        axs[cnt].hist(rf_params_grand[bool_largeGrads,param])
+        ax_title = '%s'%labels_rf_params[param]
+        axs[cnt].set_title(ax_title,size=12)
+        # axs[cnt].set_ylabel('TempRF for all samples',size=font_title)
 
-                    params_plot = ['polarity','rfSize','amp','biphasic','t_peak','integTime','spatloc','cent_x','cent_y']
-                    idx_params_select = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] in params_plot]
-                    n_cols = 3;n_rows = int(np.ceil(len(idx_params_select)/n_cols))
-                    plots_idx = np.arange(0,n_rows*n_cols)
-                    txt_title = '%s - properties distribution'%uname
-                    fig2,axs = plt.subplots(n_rows,n_cols,figsize=(20,10))
-                    axs = np.ravel(axs)
-                    fig2.suptitle(txt_title,size=22)   
-                    
-                    cnt = -1
-                    for param in idx_params_select:
-                        cnt+=1
-                        axs[cnt].hist(rf_params_grand[:,param,d,m])
-                        ax_title = '%s'%labels_rf_params[param]
-                        axs[cnt].set_title(ax_title,size=12)
-                        # axs[cnt].set_ylabel('TempRF for all samples',size=font_title)
-
-                    """
-                    rgb = rf_params_grand[:N_actual,10,d,m]
-                    idx_min = np.argmin(rgb)
-                    idx_max = np.argmax(rgb)
-
-                    plt.plot(rf_coords_grand[:,0,idx_min,0,0],rf_coords_grand[:,1,idx_min,0,0]);plt.plot(rf_coords_grand[:,0,idx_max,0,0],rf_coords_grand[:,1,idx_max,0,0]);plt.gca().invert_yaxis()
-                    idx=idx_min;plt.imshow(spatRF_allImgs[idx,:,:]);plt.plot(rf_coords_allImgs[:,0,idx],rf_coords_allImgs[:,1,idx])
-                    idx=idx_max;plt.imshow(spatRF_allImgs[idx,:,:]);plt.plot(rf_coords_allImgs[:,0,idx],rf_coords_allImgs[:,1,idx],'orange')
-                    
-                    # v = rf_params_grand[:N_actual,11:13,d,m]
-                    # dist = scipy.spatial.distance.pdist(v,metric='euclidean')
-                    # dist = scipy.spatial.distance.squareform(dist)
-                    # dist = np.triu(dist)
-                    # ind_maxdist = np.unravel_index(np.argmax(dist, axis=None), dist.shape)
-                    """
-                    
-                    # ---- Find binning edges
-                    idx_binning_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == binning_param][0]
-                    data_tobin = rf_params_grand[:,idx_binning_param,d,m]
-                    idx_sorted = np.argsort(data_tobin)
-                    idx_sorted_flip = np.argsort(-1*data_tobin)
-                    data_sorted = data_tobin[idx_sorted]
-                    idx_bin_edges = np.arange(0,idx_sorted.shape[0],np.floor(idx_sorted.shape[0]/nbins),dtype='int')
-                    if len(idx_bin_edges)<nbins+1:
-                        idx_bin_edges = np.concatenate((idx_bin_edges,np.array([idx_sorted.shape[0]])))
-                    else:
-                        idx_bin_edges[-1] = idx_sorted.shape[0]-1
-                        
-                    
-                    # ---- Gradients STRF binning
-                    i = 4
-                    for i in tqdm(range(len(idx_bin_edges)-1)):
-                        idx_totake = idx_sorted[idx_bin_edges[i]:idx_bin_edges[i+1]]
-                        # idx_totake = idx_sorted_flip[idx_bin_edges[i]:idx_bin_edges[i+1]]
-                        data_tobin = rf_params_grand[:,idx_binning_param,d,m]
-                        data_binned = data_tobin[idx_totake]
-                        data_binned = np.mean(data_binned,axis=0)
-                        rf_curves_binned = tempRF_grand[idx_totake,:,d,m]
-                        rf_curves_binned = np.nanmean(rf_curves_binned,axis=0)
-                    
-                        data_grads_binned_grand[i,d,m] = data_binned
-                        curves_grads_binned_grand[:,i,d,m] = rf_curves_binned
-                        
-                        # metrics for binned grads
-                        rf_params_grads_binned_grand[i,:,d,m] = np.nanmean(rf_params_grand[idx_totake,:,d,m],axis=0,keepdims=True)
-                        
-                        # Grads binned and then compute STRF
-                        grads_binned = np.nanmean(grads_all[idx_totake,:,:,:],axis=0)
-                        spatRF,tempRF = model.featureMaps.decompose(grads_binned)
-                        rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-                        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
-                        spatRF = spatRF/mean_rfCent
-                        tempRF = tempRF*mean_rfCent
-                        
-                        rf_coords_grads_binned_grand[:,:,i,d,m] = rf_coords
-                        spatRF_grads_binned_grand[:,:,i,d,m] = spatRF
-                    
-                    winSize_x = 40
-                    winSize_y = 30
-                    win_x = (np.max((round(rf_params['x0']-0.5*winSize_x),0)),np.min((round(rf_params['x0']+0.5*winSize_x),spatRF.shape[1]-1)))
-                    win_y = (np.max((round(rf_params['y0']-0.5*winSize_y),0)),np.min((round(rf_params['y0']+0.5*winSize_y),spatRF.shape[0]-1)))
-                    # plt.imshow(spatRF);plt.plot(rf_coords[:,0],rf_coords[:,1],'r');plt.show()
-                    # plt.plot(curves_grads_binned_grand[:,:,d,m])
-                    b=4;plt.imshow(spatRF_grads_binned_grand[:,:,b,d,m]);plt.plot(rf_coords_grads_binned_grand[:,0,b,d,m],rf_coords_grads_binned_grand[:,1,b,d,m],'r');plt.xlim(win_x);plt.ylim(win_y)
-                    # idx=np.array([0,4]);plt.plot(rf_coords_grads_binned_grand[:,0,idx,d,m],rf_coords_grads_binned_grand[:,1,idx,d,m],'r')
-                    # idx=np.array([0,4]);plt.plot(curves_grads_binned_grand[:,idx,d,m]);plt.show()
+    # ---- get eigen vectors from grads
+    grads_all_vec = grads_all.reshape(grads_all.shape[0],-1)
+    M = np.mean(grads_all_vec,axis=0)
+    grads_all_vec = grads_all_vec-M
+    grads_all_vec_cov = np.cov(grads_all_vec.T)
+    vals,eigvecs = np.linalg.eig(grads_all_vec_cov)
+    pc1_grads_all = np.real(np.dot(eigvecs[:,0],grads_all_vec.T))
+    pc2_grads_all = np.real(np.dot(eigvecs[:,1],grads_all_vec.T))
 
 
-                    # ---- Real STRF binning
-                    i = 0
-                    idx_tracker = np.zeros(idx_sorted.shape[0])
-                    for i in range(len(idx_bin_edges)-1):
-                        idx_totake = idx_sorted[idx_bin_edges[i]:idx_bin_edges[i+1]]
-                        # idx_totake = np.arange(idx_bin_edges[i],idx_bin_edges[i+1])
-                        # idx_tracker[idx_totake] = i+1
-                        # plt.plot(idx_tracker[:500],'.')                        
-                        # idx_totake = idx_sorted[:-1]
 
-                        norm_stim = stim_all[idx_totake]#.astype('float64')
-                        resp_totake = resp_all[idx_totake]#.astype('float64')
-                        resp_totake = resp_totake/resp_totake.max()
-                        spikes_totake = spikes_all[idx_totake]
-                                                
+    
+    # ---- Find binning edges
+    idx_binning_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == binning_param][0]
+    data_tobin = rf_params_grand[:,idx_binning_param]
+    idx_sorted = np.argsort(data_tobin)
+    a = bool_largeGrads[idx_sorted]
+    b = np.where(a)[0]
+    c = idx_sorted[b]
+    idx_sorted = c
+    data_sorted = data_tobin[idx_sorted]
+    idx_bin_edges = np.arange(0,idx_sorted.shape[0],np.floor(idx_sorted.shape[0]/nbins),dtype='int')
+    if len(idx_bin_edges)<nbins+1:
+        idx_bin_edges = np.concatenate((idx_bin_edges,np.array([idx_sorted.shape[0]])))
+    else:
+        idx_bin_edges[-1] = idx_sorted.shape[0]-1
+     # plt.plot(data_sorted)  
+    
+    # ---- initialize binning variables
+    sta_grads_binned_grand = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32')
+    sta_grads_binned_grand[:] = np.nan
+    sta_real_binned_grand = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32')
+    sta_real_binned_grand[:] = np.nan
+    
+    pc1_real_binned = np.empty((nbins),dtype='float32');pc1_real_binned[:]=np.nan
+    pc2_real_binned = np.empty((nbins),dtype='float32');pc2_real_binned[:]=np.nan
+    pc1_grads_binned = np.empty((nbins),dtype='float32');pc1_grads_binned[:]=np.nan
+    pc2_grads_binned = np.empty((nbins),dtype='float32');pc2_grads_binned[:]=np.nan
 
-                        sta,spatRF,tempRF = model.featureMaps.getSTA_spikeTrain(norm_stim,spikes_totake,N_trials=0,timeBin=timeBin,REV_CORR=True)                        
-                        rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-                        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
-                        spatRF = spatRF/mean_rfCent
-                        tempRF = tempRF*mean_rfCent
-                        # tempRF = tempRF*scaleFac
-                        # plt.plot(tempRF)
-                        plt.imshow(spatRF,cmap='winter');plt.plot(rf_coords[:,0],rf_coords[:,1],'r');plt.xlim(win_x);plt.ylim(win_y);plt.show()
-                        
-                        if np.sum(np.isfinite(spatRF))>0:
-                            pos_area = np.trapz(tempRF[tempRF>0])
-                            neg_area = np.trapz(tempRF[tempRF<0])
-                            piRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
-                            
-                            t_zero = (tempRF.shape[0]-np.where(tempRF>0)[0][-1]) * timeBin
-                            t_peak = (tempRF.shape[0]-np.argmax(tempRF)) * timeBin
-                            t_trough = (tempRF.shape[0]-np.argmin(tempRF)) * timeBin
-                            try:
-                                t_zero_peakTrough = (tempRF.shape[0] - np.where(tempRF[:np.argmax(tempRF)]<0)[0][-1]) * timeBin
-                            except:
-                                t_zero_peakTrough = 0
-                            
-                            # Collect rf params. Adjust sigm for full width and sig fac
-                            rf_params_real_binned_grand[i,0,d,m] = np.sign(rf_params['A'])
-                            rf_params_real_binned_grand[i,1,d,m] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
-                            rf_params_real_binned_grand[i,2,d,m] = 180-rf_params['theta']                         # theta
-                            rf_params_real_binned_grand[i,3,d,m] = tempRF.max()   # amplitude
-                            rf_params_real_binned_grand[i,4,d,m] = piRF
-                            rf_params_real_binned_grand[i,5,d,m] = t_zero
-                            rf_params_real_binned_grand[i,6,d,m] = t_peak
-                            rf_params_real_binned_grand[i,7,d,m] = t_trough
-                            rf_params_real_binned_grand[i,8,d,m] = t_zero_peakTrough
-                            rf_params_real_binned_grand[i,9,d,m] = tempRF.min()
-                            rf_params_real_binned_grand[i,10,d,m] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
-                            rf_params_real_binned_grand[i,11,d,m] = rf_params['x0']
-                            rf_params_real_binned_grand[i,12,d,m] = rf_params['y0']
+    n_perbin = idx_bin_edges[1]-idx_bin_edges[0]
+    pc1_grads_perbin = np.empty((n_perbin,nbins),dtype='float32');pc1_grads_perbin[:]=np.nan
+    pc2_grads_perbin = np.empty((n_perbin,nbins),dtype='float32');pc2_grads_perbin[:]=np.nan
+    
+    # ---- Grads and LSTA binning
+    i = 0
+    for i in tqdm(range(len(idx_bin_edges)-1),desc='Data STA'):
+        idx_totake = idx_sorted[idx_bin_edges[i]:idx_bin_edges[i+1]]
         
-                        curves_real_binned_grand[:,i,d,m] = tempRF
-                        data_real_binned_grand[i,d,m] = rf_params_real_binned_grand[i,idx_binning_param,d,m]
-                        rf_coords_real_binned_grand[:,:,i,d,m] = rf_coords
-                        spatRF_real_binned_grand[:,:,i,d,m] = spatRF
-                        
-                    # plt.plot(curves_real_binned_grand[:,:,d,m])
-                    idx=np.array([0,4]);plt.plot(rf_coords_real_binned_grand[:,0,idx,d,m],rf_coords_real_binned_grand[:,1,idx,d,m]);plt.xlim(win_x);plt.ylim(win_y);plt.show()
-                    idx = np.array([1,4]);plt.plot(curves_real_binned_grand[:,idx,d,m]);plt.show()
+        stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+        spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake,select_rgc]
+        resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake,select_rgc]
+        print('Num spikes in bin %d: %d'%(i,np.sum(spikes_totake>0)))
 
-            
-            rf_coords_grand = rf_coords_grand[:rf_coords.shape[0]]
-            
-            
-            # Normalize
-            curves_grads_binned_grand = curves_grads_binned_grand/np.max(curves_grads_binned_grand,axis=(0,1),keepdims=True)
-            curves_real_binned_grand = curves_real_binned_grand/np.max(curves_real_binned_grand,axis=(0,1),keepdims=True)
-            rf_params_grand = rf_params_grand/np.max(rf_params_grand,axis=0,keepdims=True)
-            rf_params_grads_binned_grand = rf_params_grads_binned_grand/np.max(rf_params_grads_binned_grand,axis=0,keepdims=True)
-            rf_params_real_binned_grand = rf_params_real_binned_grand/np.max(rf_params_real_binned_grand,axis=0,keepdims=True)
-            
-            
-            #---- PLOT: tempRFs
-            font_tick = 14
-            font_title = 16
-            
-            
-    
-            txt_title = 'Train: %s | %s'%(dataset_model,perf_model['uname_selectedUnits'][select_rgc])
-            n_rows = 3
-            plots_idx = np.arange(0,n_rows*len(mdls_touse)*len(dataset_eval))
-            plots_idx = plots_idx.reshape(n_rows,len(dataset_eval),len(mdls_touse),order='C').T
-    
-            fig1,axs = plt.subplots(n_rows,len(dataset_eval)*len(mdls_touse),figsize=(20,10))
-            axs = np.ravel(axs)
-            fig1.suptitle(txt_title,size=22)   
-            m = 0
-            d = 0
-            for m in m_range:
-                for d in d_range:
-                    select_mdl = mdls_touse[m]
-                    select_lightLevel = dataset_eval[d]
-    
-                    p_idx = plots_idx[m,d,0]
-                    idx_tempRF_grand = np.argsort(np.max(tempRF_grand[-40:-1,:,d,m],axis=0),axis=0)
-                    idx_tempRF_grand = idx_tempRF_grand[::50]
-                                                  
-                    axs[p_idx].plot(tempRF_grand[:,idx_tempRF_grand,d,m])
-                    # axs[p_idx].set_ylim((min_lsta,max_lsta))
-                    ax_title = '%s | %s\nFEV=%d%%'%(select_lightLevel,select_mdl,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc]*100)
-                    axs[p_idx].set_title(ax_title,size=font_title)
-                    axs[plots_idx[0,0,0]].set_ylabel('TempRF for all samples',size=font_title)
-                    
-                    p_idx = plots_idx[m,d,1]
-                    axs[p_idx].plot(curves_grads_binned_grand[:,:,d,m])
-                    # axs[p_idx].set_ylim((min_lsta,max_lsta))
-                    ax_title = '%s | %s\nFEV=%d%%'%(select_lightLevel,select_mdl,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc]*100)
-                    # axs[p_idx].set_title(ax_title,size=font_title)
-                    axs[plots_idx[0,0,0]].set_ylabel('TempRF for all samples',size=font_title)
-                    
-                    p_idx = plots_idx[m,d,2]
-                    axs[p_idx].plot(curves_real_binned_grand[:,:,d,m])
-                    # axs[p_idx].set_ylim((min_lsta,max_lsta))
-                    ax_title = '%s | %s\nFEV=%d%%'%(select_lightLevel,select_mdl,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc]*100)
-                    # axs[p_idx].set_title(ax_title,size=font_title)
-                    axs[plots_idx[0,0,0]].set_ylabel('TempRF for all samples',size=font_title)
-                    
-            plt.show()
-            
-            
-            fname_fig1 = '%s_%s_tempRF' %(uname,binning_param)
-            fname_fig1 = os.path.join(path_save_fig,fname_fig1)
-            if SAVE_FIGS==True:
-                fig1.savefig(fname_fig1+'.png',dpi=150)
-                fig1.savefig(fname_fig1+'.svg')
-                plt.close(fig1) 
-    
-    
-            #---- PLOT: spatRFs
-            txt_title = 'Train: %s | %s'%(dataset_model,perf_model['uname_selectedUnits'][select_rgc])
-            n_rows = 2
-            plots_idx = np.arange(0,n_rows*len(mdls_touse)*len(dataset_eval))
-            plots_idx = plots_idx.reshape(n_rows,len(dataset_eval),len(mdls_touse),order='C').T
-    
-            fig2,axs = plt.subplots(n_rows,len(dataset_eval)*len(mdls_touse),figsize=(20,10))
-            axs = np.ravel(axs)
-            fig2.suptitle(txt_title,size=22)   
-            m = 0
-            d = 0
-            for m in m_range:
-                for d in d_range:
-                    select_mdl = mdls_touse[m]
-                    select_lightLevel = dataset_eval[d]
-    
-                    p_idx = plots_idx[m,d,0]
-                    axs[p_idx].imshow(spatRF_grads_binned_grand[:,:,2,d,m],cmap = 'winter')
-                    axs[p_idx].plot(rf_coords_grads_binned_grand[:,0,:,d,m],rf_coords_grads_binned_grand[:,1,:,d,m],'r')
-                    # axs[p_idx].set_ylim((min_lsta,max_lsta))
-                    ax_title = '%s | %s\nFEV=%d%%'%(select_lightLevel,select_mdl,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc]*100)
-                    axs[p_idx].set_title(ax_title,size=font_title)
-                    
-                    p_idx = plots_idx[m,d,1]
-                    axs[p_idx].imshow(spatRF_real_binned_grand[:,:,2,d,m],cmap = 'winter')
-                    axs[p_idx].plot(rf_coords_real_binned_grand[:,0,:,d,m],rf_coords_grads_binned_grand[:,1,:,d,m],'r')
-                    # axs[p_idx].set_ylim((min_lsta,max_lsta))
-                    # ax_title = '%s | %s\nFEV=%d%%'%(select_lightLevel,select_mdl,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc]*100)
-                    axs[p_idx].set_title(ax_title,size=font_title)
-            plt.show()
-            
-            fname_fig2 = '%s_%s_spatRF.png' %(uname,binning_param)
-            fname_fig2 = os.path.join(path_save_fig,fname_fig2)
-            if SAVE_FIGS==True:
-                fig2.savefig(fname_fig2,dpi=150)
-                plt.close(fig2) 
-    
-            
-            
-            #---- PLOT: parameter comparison
-            txt_title = '%s | Train: %s\n%s'%(perf_model['uname_selectedUnits'][select_rgc],dataset_model,labels_rf_params[idx_binning_param])
-            n_rows = 2
-            n_cols = 1
-            plots_idx = np.arange(0,n_rows*n_cols)
-            plots_idx = plots_idx.reshape(n_rows*n_cols,order='C').T
-    
-            fig3,axs = plt.subplots(n_rows,n_cols,figsize=(15,12))
-            axs = np.ravel(axs)
-            fig3.suptitle(txt_title,size=font_title)   
-            df_list_grads = []
-            df_list_real = []
-            for b in range(nbins):
-                for d in range(len(dataset_eval)):
-                    for m in range(len(mdls_touse)):
-                        
-                        # cnt = cnt+1
-                        
-                        select_mdl = mdls_touse[m]
-                        select_lightLevel = dataset_eval[d]
-                        
-                        label = '%s\n%s '%(select_lightLevel,select_mdl[:4])
-                        rgb = (rf_params_grads_binned_grand[b,idx_binning_param,d,m],b,label)
-                        df_list_grads.append(rgb)
-                        
-                        rgb = (rf_params_real_binned_grand[b,idx_binning_param,d,m],b,label)
-                        df_list_real.append(rgb)
-                        
-                        
-            
-            p_idx = 0
-            df = pd.DataFrame(data=df_list_grads,columns=['value','bin','label'])
-            seaborn.barplot(ax=axs[p_idx],data=df,x='label',y='value',hue='bin')
-            ax_title = 'Gradients'
-            axs[p_idx].set_title(ax_title,size=font_title)
-            axs[p_idx].set_ylabel('Normalized value',size=font_tick)
-            axs[p_idx].tick_params(axis='both', labelsize=font_tick)
-            
-            p_idx = 1
-            df = pd.DataFrame(data=df_list_real,columns=['value','bin','label'])
-            seaborn.barplot(ax=axs[p_idx],data=df,x='label',y='value',hue='bin')
-            ax_title = 'Real Data'
-            axs[p_idx].set_title(ax_title,size=font_title)
-            axs[p_idx].set_ylabel('Normalized value',size=font_tick)
-            axs[p_idx].tick_params(axis='both', labelsize=font_tick)
-            plt.show()
-            
-            fname_fig3 = '%s_%s_bars.png' %(uname,binning_param)
-            fname_fig3 = os.path.join(path_save_fig,fname_fig3)
-    
-            if SAVE_FIGS==True:
-                fig3.savefig(fname_fig3,dpi=150)
-                plt.close(fig3) 
-            
-        except:
-            pass
+        sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+        scaleFac = np.nanmean(resp_totake)/np.var(stim)
+        sta_data = sta_data * scaleFac
+        sta_real_binned_grand[i,:,:,:] = sta_data
         
+        sta_grads_binned_grand[i,:,:,:] = np.mean(grads_all[idx_totake][spikes_totake>0],axis=0).astype('float32')
         
-        
+        grads_rgb = grads_all[idx_totake][spikes_totake>0].astype('float32')
+        grads_rgb_vec = grads_rgb.reshape(grads_rgb.shape[0],-1)
+        grads_rgb_vec = grads_rgb_vec - M#np.nanmean(grads_rgb_vec,axis=0)
+        pc1_grads_perbin[:grads_rgb_vec.shape[0],i] = np.real(np.dot(eigvecs[:,0],grads_rgb_vec.T))
+        pc2_grads_perbin[:grads_rgb_vec.shape[0],i] = np.real(np.dot(eigvecs[:,1],grads_rgb_vec.T))
 
-# %% Plot STAs
+    _ = gc.collect()
+    
+    
+    idx_totake = np.arange(num_samps_toload)
+    stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
+    spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake,select_rgc]
+    resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake,select_rgc]
+
+    sta_data_all = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+    scaleFac = np.nanmean(resp_totake)/np.var(stim)
+    sta_data_all = sta_data_all * scaleFac
+    sta_data_all_vec = sta_data_all.flatten()
+    # sta_data_all_vec = sta_data_all_vec-np.mean(sta_data_all_vec)
+    pc1_sta_avg = np.real(np.dot(eigvecs[:,0],sta_data_all_vec.T))
+    pc2_sta_avg = np.real(np.dot(eigvecs[:,1],sta_data_all_vec.T))
+
+    sta_grads_all = np.mean(grads_all[spikes_totake>0],axis=0).astype('float32')
+    sta_grads_all_vec = sta_grads_all.flatten()
+    pc1_grads_avg = np.real(np.dot(eigvecs[:,0],sta_grads_all_vec.T))
+    pc2_grads_avg = np.real(np.dot(eigvecs[:,1],sta_grads_all_vec.T))
+
+
+    sta_real_binned_scaled = sta_real_binned_grand/1
+    
+    sta_real_binned_vec = sta_real_binned_scaled.reshape(sta_real_binned_scaled.shape[0],-1)
+    sta_real_binned_vec = sta_real_binned_vec - M#np.mean(sta_real_binned_vec,axis=0)
+    pc1_real_binned = np.real(np.dot(eigvecs[:,0],sta_real_binned_vec.T))
+    pc2_real_binned = np.real(np.dot(eigvecs[:,1],sta_real_binned_vec.T))
+    
+    sta_grads_vec = sta_grads_binned_grand.reshape(sta_grads_binned_grand.shape[0],-1)
+    sta_grads_vec = sta_grads_vec - M#np.mean(sta_grads_vec,axis=0)
+    pc1_grads_binned = np.real(np.dot(eigvecs[:,0],sta_grads_vec.T))
+    pc2_grads_binned = np.real(np.dot(eigvecs[:,1],sta_grads_vec.T))
+
+
+    binsToPlot = np.array([0,2,4,5,7,9])
+    fig,axs = plt.subplots(2,3,figsize=(20,10))
+    axs = np.ravel(axs)
+    idx_toPlot = np.arange(0,pc1_grads_all.shape[0],100)
+    for i in range(len(binsToPlot)):
+        b = binsToPlot[i]
+        axs[i].plot(pc1_grads_all[:],pc2_grads_all[:],'.',color='gray')
+        axs[i].plot(pc1_grads_perbin[:,b],pc2_grads_perbin[:,b],'.k')
+        axs[i].plot(pc1_grads_binned[b],pc2_grads_binned[b],'.m',markersize=10)
+        axs[i].plot(pc1_real_binned[b],pc2_real_binned[b],'xr',markersize=10)
+        axs[i].plot(pc1_grads_avg,pc2_grads_avg,'om',markersize=15)
+        axs[i].plot(pc1_sta_avg,pc2_sta_avg,'Xr',markersize=15)
+    
+
+    binsToPlot = np.array([0,2,4,5,7,9])
+    vmin_grads = np.min(sta_grads_binned_grand[:,idx_tempPeak])
+    vmax_grads = np.max(sta_grads_binned_grand[:,idx_tempPeak])
+    fig,axs = plt.subplots(2,3,figsize=(20,10))
+    axs = np.ravel(axs)
+    idx_toPlot = np.arange(0,pc1_grads_all.shape[0],100)
+    for i in range(len(binsToPlot)):
+        b = binsToPlot[i]
+        axs[i].imshow(sta_grads_binned_grand[b,idx_tempPeak],cmap='gray',vmin=vmin_grads,vmax=vmax_grads)
+    
+    
+    
+    # b = 1
+    # idx_totake = idx_sorted[idx_bin_edges[b]:idx_bin_edges[b+1]]
+    # spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake,select_rgc]
+
+    # grads_rgb = grads_all[idx_totake][spikes_totake>0].astype('float32')
+    # grads_rgb_vec = grads_rgb.reshape(grads_rgb.shape[0],-1)
+    # grads_rgb_vec = grads_rgb_vec - M#np.nanmean(grads_rgb_vec,axis=0)
+    # pc1_grads_perbin = np.real(np.dot(eigvecs[:,0],grads_rgb_vec.T))
+    # pc2_grads_perbin = np.real(np.dot(eigvecs[:,1],grads_rgb_vec.T))
+
+    # idx_toPlot = np.arange(0,pc1_grads_all.shape[0],100)
+    # plt.plot(pc1_grads_all[:],pc2_grads_all[:],'.k')
+    # plt.plot(pc1_grads_perbin[::10],pc2_grads_perbin[::10],'.')
+    
+    # plt.plot(pc1_grads_all[idx_totake],pc2_grads_all[idx_totake],'.k')
+    # plt.plot(pc1_grads_perbin[:],pc2_grads_perbin[:],'.')
+    
+    
+    
+
+    # for i in range(len(pc1_grads_binned)):
+    #     a = plt.plot(pc1_grads_binned[i],pc2_grads_binned[i],'.')
+    #     col = a[0].get_color()
+    #     plt.plot(pc1_real_binned[i],pc2_real_binned[i],'x',color=col)
+    
+
+# %% STA PROJECTIONS
+
+"""
+For each cell, bin the images by gradient strength / temporal filter strength and see if we can do this with real data
+"""
+
+path_save_fig = os.path.join(path_save,'STRFs_new')
+if not os.path.exists(path_save_fig):
+    os.makedirs(path_save_fig)
+
+DEBUG = 1
+SAVE_FIGS = False
+
+select_mdl = 'CNN_2D_RAT' #('PRFR_CNN2D_RAT','CNN_2D_RAT)
+photocurrs = False
+select_lightLevel = dataset_eval[0]
+
+nbins = 10
+ONLY_LARGEGRADS = False
+temp_window = 15
+sig_fac = 1.5
+timeBin = 16
+num_samps_toload = 392000 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
+batch_size = 40000
+if batch_size<num_samps_toload:
+    total_batches = int(np.ceil((num_samps_toload/batch_size)))
+    idx_batchStart = np.linspace(0,num_samps_toload,total_batches,dtype='int32')
+else:
+    idx_batchStart = np.array([0,num_samps_toload])
+    total_batches=2
+    
+
+labels_rf_params = ['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough','t_peak']
+# binning_param_list = ('spatloc',) # [polarity,rfsize,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough,spatcent,spatx,spaty]   sigma is the width of gaussian
+binning_param = 'cent_x'
+
+
+# u_arr = np.arange(0,20) #np.arange(20,len(perf_model['uname_selectedUnits']))
+u_arr = [1] #22
+u = u_arr[0]
+gradFile_suffix = 'u-%d_%s'%(n_units,select_rgctype_toExtract)
+
+USE_SSD = True
+if USE_SSD == True:
+    path_gradFiles = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+else:
+    path_gradFiles = '/home/saad/data_hdd/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+
+fname_gradsFile = 'grads_'+select_mdl+'_393229_'+gradFile_suffix+'.h5' #393229 #149940.
+fname_gradsFile = os.path.join(path_gradFiles,fname_gradsFile)
+
+
 fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/rat/datasets/20121031_STAs_CB_allLightLevels_16ms_sig2.h5' #'/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
 
-frametime = 1#8
-temp_window = 35
-sig_fac = 1
-range_tempFilt = np.arange(temporal_width_grads-temp_window,temporal_width_grads)
+if photocurrs==True:
+    fname_gradsFile = fname_gradsFile[:-3]+'_photocurrs.h5'
 
-# u_arr = np.array([0,1,2,3,4,5,6,30,31,32,33,34,35,36])
-u_arr = [0]
-u = u_arr[0]
+print(fname_gradsFile)
+f_grads = h5py.File(fname_gradsFile,'r')
 
- 
-m = 0
-num_samps = nsamps #grads_dict[mdl_select][datasets_plot[0]]['grads_all'].shape[4]
 
-for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
-    select_rgc = u  # 1, 5
-    uname = perf_model['uname_selectedUnits'][idx_unitsToExtract][select_rgc]
+    
+def extractRFProps(idx):
+    try:
+        params = np.zeros(rf_params_grand.shape[1])
+        params[:] = np.nan
+        
+        rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_chunk[idx],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        idx_xy = ~np.isnan(rf_fit_img)
+        tempRF_chunk = grads_all[idx_chunk[idx],:,:,:]
+        tempRF_chunk = tempRF_chunk[:,idx_xy]
+        tempRF_chunk = np.mean(tempRF_chunk,axis=-1)
+        # plt.plot(tempRF_chunk)
+        sign = np.sign(tempRF_chunk[idx_tempPeak])
+        if sign<0:
+            tempRF_chunk = tempRF_chunk*sign
+        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        if mean_rfCent==0:
+            raise ValueError(idx)
+        spatRF_chunk[idx] = spatRF_chunk[idx]/mean_rfCent
+        tempRF_chunk = tempRF_chunk*mean_rfCent
+    
+        
+        pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
+        neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
+        biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
+        try:
+            t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
+        except:
+            t_zero = np.nan
+        t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk))
+        t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
+        try:
+            t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
+        except:
+            t_zero_peakTrough = np.nan
+        # Collect rf params. Adjust sigm for full width and sig fac
+        #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
+        params[0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
+        params[1] = 180-rf_params['theta']                         # theta
+        params[2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
+        params[3] = rf_params['x0']
+        params[4] = rf_params['y0']
+        params[5] = np.nan
+        params[6] = tempRF_chunk.max()
+        params[7] = biRF
+        params[8] = t_zero
+        params[9] = t_trough
+        params[10] = t_zero_peakTrough
+        params[11] = tempRF_chunk.min()
+        params[12] = t_peak
+    except:
+        tempRF_chunk = np.zeros(temp_window);tempRF_chunk[:] = np.nan
+        rf_coords = np.zeros((629,2));rf_coords[:] = np.nan
+        
+    return params,tempRF_chunk,rf_coords
+
+
+for u in u_arr:
+    select_rgc = u
+    try:
+        uname_all_grads = np.array(f_grads[select_mdl][select_lightLevel]['unames'],'bytes')
+        uname_all_grads = utils_si.h5_tostring(uname_all_grads)
+        rgb = uname_all_grads == uname_unitsToExtract
+        if np.all(rgb) == False:
+            raise ValueError('gradient dataset and stimulus dataset do not match')
+        else:
+            uname = uname_all_grads[select_rgc]
+    except:
+        uname = uname_unitsToExtract[select_rgc]
+        
     print(uname)
+    idx_sampsInFullMat = idx_samps[:num_samps_toload] #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
+    # idx_sampsInFullMat = idx_sampsInFullMat+40
+    
+    #---- Load the pre-calculated STA
+    f_stas = h5py.File(fname_stas,'r')
+    spatRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['spatial_feature'])
+    tempRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['temporal_feature'])
+    f_stas.close()  
+    peaksearch_win = np.arange(tempRF_fullSTA.shape[0]-25,tempRF_fullSTA.shape[0])
+    idx_tempPeak = np.argmax(np.abs(tempRF_fullSTA[peaksearch_win]))     # only check for peak in the final 25 time points.
+    idx_tempPeak = idx_tempPeak + peaksearch_win[0]
+    sign = np.sign(tempRF_fullSTA[idx_tempPeak])
+    if sign<0:
+        spatRF_fullSTA = spatRF_fullSTA*sign
+        tempRF_fullSTA = tempRF_fullSTA*sign
+    tempRF_fullSTA = tempRF_fullSTA[-temp_window:]
+    tempRF_fullSTA = tempRF_fullSTA/tempRF_fullSTA.max()
+    
+    idx_tempPeak = -1*(temp_window - np.argmax(np.abs(tempRF_fullSTA)))
+    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_fullSTA,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+    rfExtractNPixs = 15
+    RF_midpoint_x = rf_params['x0']
+    RF_midpoint_y = rf_params['y0']
+    rfExtractIdx_x = (np.max((round(RF_midpoint_x-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_x+0.5*rfExtractNPixs),spatRF_fullSTA.shape[1]-1)))
+    rfExtractIdx_y = (np.max((round(RF_midpoint_y-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_y+0.5*rfExtractNPixs),spatRF_fullSTA.shape[0]-1)))
 
-    spatRF_sta = np.zeros((data_alldsets['spat_dims'][0],data_alldsets['spat_dims'][1],len(datasets_plot),len(mdl_names)))
-    tempRF_sta = np.zeros((range_tempFilt.shape[0],len(datasets_plot),len(mdl_names)))
+    
+    # spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
+    spat_dims = np.array([rfExtractNPixs,rfExtractNPixs])
+    
+    grads_all = np.zeros((num_samps_toload,temp_window,spat_dims[0],spat_dims[1]),dtype='float16')
+    spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]))      # [imgs,y,x,lightlevels,models]
+    tempRF_grand = np.zeros((num_samps_toload,temp_window))      # [imgs,time,lightlevels,models]
+    rf_params_grand = np.zeros((num_samps_toload,len(labels_rf_params)),dtype='float64') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
+    rf_coords_grand = np.zeros((1000,2,num_samps_toload),dtype='float32')    # [points,[x,y],imgs,lightlevel,models]
+    rf_coords_grand[:] = np.nan
 
+    batch=0
+    for batch in range(total_batches-1):
+        print('Batch %d of %d'%(batch+1,total_batches-1))
+        idx_chunk = np.arange(idx_batchStart[batch],idx_batchStart[batch+1])
+        grads_all[idx_chunk] = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
+    
+        spatRF_chunk = grads_all[idx_chunk,idx_tempPeak,:,:]
+
+        # ---- Gradient STRF each sample
+        
+        # Collect rf params. Adjust sigm for full width and sig fac      
+        idx_forParallel = np.arange(len(idx_chunk))
+        t_start = time.time()
+        with multiprocessing.Pool() as pool:
+            results = pool.map(extractRFProps, idx_forParallel)
+        rf_params_chunk, tempRF_chunk, rf_coords = zip(*results)
+        rf_params_chunk = np.asarray(rf_params_chunk)
+        tempRF_chunk = np.asarray(tempRF_chunk)
+        if isinstance(spatRF_chunk, tuple)==True:
+            spatRF_chunk = np.asarray(spatRF_chunk)
+        rf_coords = np.moveaxis(np.asarray(rf_coords),0,-1)
+        t_end = time.time()-t_start
+        print('%0.2f minutes'%(t_end/60))
+
+        # idx=0;plt.imshow(spatRF_chunk[idx,:,:]);plt.plot(rf_coords_chunk[:,0,idx],rf_coords_chunk[:,1,idx])
+                        
+        spatRF_grand[idx_chunk,:,:] = spatRF_chunk
+        tempRF_grand[idx_chunk,:] = tempRF_chunk
+        rf_params_grand[idx_chunk,:] = rf_params_chunk
+        rf_coords_grand[:rf_coords.shape[0],:,idx_chunk] = rf_coords
+        
+    rf_coords_grand = rf_coords_grand[:rf_coords.shape[0]]
+    # plt.plot(rf_coords_grand[:,0,:10000],rf_coords_grand[:,1,:10000])
+    
+    #% set NAN gradients that are too small
+    if ONLY_LARGEGRADS==True:
+        grads_spat = grads_all[:num_samps_toload,idx_tempPeak]
+        grads_spat = grads_spat.astype('float64')
+        std_grads = np.std(grads_spat,axis=(-1,-2))
+        plt.hist(std_grads.flatten());plt.show()
+        thresh_std = 0.0004
+        bool_largeGrads = std_grads>thresh_std
+        # spikes_all = data_alldsets[select_lightLevel]['raw'].spikes[:num_samps_toload,select_rgc]
+        # bool_largeGrads = spikes_all>0
+    else:
+        bool_largeGrads = np.ones(num_samps_toload,'bool')
+    
+    print(bool_largeGrads.sum())
+    
+    _ = gc.collect()
+    
+    params_plot = ['spatloc','gain','biphasic','t_peak','cent_x','cent_y']
+    idx_params_select = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] in params_plot]
+    n_cols = 2;n_rows = int(np.ceil(len(idx_params_select)/n_cols))
+    plots_idx = np.arange(0,n_rows*n_cols)
+    txt_title = '%s - properties distribution'%uname
+    fig2,axs = plt.subplots(n_rows,n_cols,figsize=(20,10))
+    axs = np.ravel(axs)
+    fig2.suptitle(txt_title,size=22)   
+    cnt = -1
+    for param in idx_params_select:
+        cnt+=1
+        axs[cnt].hist(rf_params_grand[:,param])
+        axs[cnt].hist(rf_params_grand[bool_largeGrads,param])
+        ax_title = '%s'%labels_rf_params[param]
+        axs[cnt].set_title(ax_title,size=12)
+        # axs[cnt].set_ylabel('TempRF for all samples',size=font_title)
+
+    # ---- get eigen vectors from grads
+    grads_all_vec = grads_all.reshape(grads_all.shape[0],-1)
+    M = np.mean(grads_all_vec,axis=0)
+    grads_all_vec = grads_all_vec-M
+    grads_all_vec_cov = np.cov(grads_all_vec.T)
+    vals,eigvecs = np.linalg.eig(grads_all_vec_cov)
+    pc1_grads_all = np.real(np.dot(eigvecs[:,0],grads_all_vec.T))
+    pc2_grads_all = np.real(np.dot(eigvecs[:,1],grads_all_vec.T))
+
+
+    # ---- Find binning edges
+    idx_binning_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == binning_param][0]
+    data_tobin = rf_params_grand[:,idx_binning_param]
+    idx_sorted = np.argsort(data_tobin)
+    a = bool_largeGrads[idx_sorted]
+    b = np.where(a)[0]
+    c = idx_sorted[b]
+    idx_sorted = c
+    data_sorted = data_tobin[idx_sorted]
+    idx_bin_edges = np.arange(0,idx_sorted.shape[0],np.floor(idx_sorted.shape[0]/nbins),dtype='int')
+    if len(idx_bin_edges)<nbins+1:
+        idx_bin_edges = np.concatenate((idx_bin_edges,np.array([idx_sorted.shape[0]])))
+    else:
+        idx_bin_edges[-1] = idx_sorted.shape[0]-1
+     # plt.plot(data_sorted)  
+    
+
+    # ---- BIN AND PCA
+    offset_probe = np.arange(0,40) #np.array([0,1,2,3,4,5,6,7,8,9,10,50])
+    offset_steady = offset_probe[-1]
+
+    sta_grads_state_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_state_binned[:] = np.nan
+    sta_grads_probe_binned = np.empty((nbins,len(offset_probe),temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_probe_binned[:] = np.nan
+    sta_grads_steady_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_state_binned[:] = np.nan
+    sta_real_state_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_state_binned[:] = np.nan
+    sta_real_probe_binned = np.empty((nbins,len(offset_probe),temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_probe_binned[:] = np.nan
+    sta_real_steady_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_state_binned[:] = np.nan
+
+    
+    pc1_real_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc1_real_probe_binned[:]=np.nan
+    pc2_real_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc2_real_probe_binned[:]=np.nan
+
+    pc1_grads_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc1_grads_probe_binned[:]=np.nan
+    pc2_grads_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc2_grads_probe_binned[:]=np.nan
+
+    n_perbin = idx_bin_edges[1]-idx_bin_edges[0]
+    pc1_grads_perbin = np.empty((n_perbin,nbins),dtype='float32');pc1_grads_perbin[:]=np.nan
+    pc2_grads_perbin = np.empty((n_perbin,nbins),dtype='float32');pc2_grads_perbin[:]=np.nan
+    
+    
+    # ---- Grads and LSTA binning
+    i = 0
+    for i in tqdm(range(len(idx_bin_edges)-1),desc='Data STA'):
+        # STATE
+        # idx_sorted_minusLast = idx_sorted[idx_sorted<len(idx_sorted)-50]
+        idx_sorted_minusLast = np.arange(0,num_samps_toload-50)
+        idx_totake_state = idx_sorted_minusLast[idx_bin_edges[i]:idx_bin_edges[i+1]]
+        # idx_totake_state = idx_sorted[idx_bin_edges[i]:idx_bin_edges[i+1]]
+        
+        stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_state,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+        spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_state,select_rgc]
+        resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_state,select_rgc]
+        print('Num spikes in bin %d: %d'%(i,np.sum(spikes_totake>0)))
+
+        sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+        scaleFac = np.nanmean(resp_totake)/np.var(stim)
+        sta_data = sta_data * scaleFac
+        sta_real_state_binned[i,:,:,:] = sta_data
+        
+        sta_grads_state_binned[i,:,:,:] = np.mean(grads_all[idx_totake_state][spikes_totake>0],axis=0).astype('float32')
+        
+        grads_rgb = grads_all[idx_totake_state][spikes_totake>0].astype('float32')
+        grads_rgb_vec = grads_rgb.reshape(grads_rgb.shape[0],-1)
+        grads_rgb_vec = grads_rgb_vec - M#np.nanmean(grads_rgb_vec,axis=0)
+        pc1_grads_perbin[:grads_rgb_vec.shape[0],i] = np.real(np.dot(eigvecs[:,0],grads_rgb_vec.T))
+        pc2_grads_perbin[:grads_rgb_vec.shape[0],i] = np.real(np.dot(eigvecs[:,1],grads_rgb_vec.T))
+        
+        # PROBE
+        for j in range(len(offset_probe)):
+            idx_totake_probe = idx_totake_state+offset_probe[j]
+            
+            stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_probe,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+            spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_probe,select_rgc]
+            resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_probe,select_rgc]
+    
+            sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+            scaleFac = np.nanmean(resp_totake)/np.var(stim)
+            sta_data = sta_data * scaleFac
+            sta_real_probe_binned[i,j,:,:,:] = sta_data
+            
+            sta_grads_probe_binned[i,j,:,:,:] = np.mean(grads_all[idx_totake_probe][spikes_totake>0],axis=0).astype('float32')
+
+
+        # STEADY-STATE
+        idx_totake_steady = idx_totake_state+offset_steady
+        
+        stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_steady,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+        spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_steady,select_rgc]
+        resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_steady,select_rgc]
+
+        sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+        scaleFac = np.nanmean(resp_totake)/np.var(stim)
+        sta_data = sta_data * scaleFac
+        sta_real_steady_binned[i,:,:,:] = sta_data
+        
+        sta_grads_steady_binned[i,:,:,:] = np.mean(grads_all[idx_totake_steady][spikes_totake>0],axis=0).astype('float32')
+
+        
+    _ = gc.collect()
+    
+    
+    sta_real_state_binned_vec = sta_real_state_binned.reshape(sta_real_state_binned.shape[0],-1)
+    sta_real_state_binned_vec = sta_real_state_binned_vec - M#np.mean(sta_real_state_binned_vec,axis=0)
+    pc1_real_state_binned = np.real(np.dot(eigvecs[:,0],sta_real_state_binned_vec.T))
+    pc2_real_state_binned = np.real(np.dot(eigvecs[:,1],sta_real_state_binned_vec.T))
+    
+    j = 0
+    for j in range(len(offset_probe)):
+        sta_real_probe_binned_vec = sta_real_probe_binned[:,j].reshape(sta_real_probe_binned.shape[0],-1)
+        sta_real_probe_binned_vec = sta_real_probe_binned_vec - M#np.mean(sta_real_probe_binned_vec,axis=0)
+        pc1_real_probe_binned[:,j] = np.real(np.dot(eigvecs[:,0],sta_real_probe_binned_vec.T))
+        pc2_real_probe_binned[:,j] = np.real(np.dot(eigvecs[:,1],sta_real_probe_binned_vec.T))
+
+    sta_real_steady_binned_vec = sta_real_steady_binned.reshape(sta_real_steady_binned.shape[0],-1)
+    sta_real_steady_binned_vec = sta_real_steady_binned_vec - M#np.mean(sta_real_steady_binned_vec,axis=0)
+    pc1_real_steady_binned = np.real(np.dot(eigvecs[:,0],sta_real_steady_binned_vec.T))
+    pc2_real_steady_binned = np.real(np.dot(eigvecs[:,1],sta_real_steady_binned_vec.T))
+    
+
+    sta_grads_state_vec = sta_grads_state_binned.reshape(sta_grads_state_binned.shape[0],-1)
+    sta_grads_state_vec = sta_grads_state_vec - M#np.mean(sta_grads_state_vec,axis=0)
+    pc1_grads_state_binned = np.real(np.dot(eigvecs[:,0],sta_grads_state_vec.T))
+    pc2_grads_state_binned = np.real(np.dot(eigvecs[:,1],sta_grads_state_vec.T))
+
+    j = 0
+    for j in range(len(offset_probe)):
+        sta_grads_probe_vec = sta_grads_probe_binned[:,j].reshape(sta_grads_probe_binned.shape[0],-1)
+        sta_grads_probe_vec = sta_grads_probe_vec - M#np.mean(sta_grads_probe_vec,axis=0)
+        pc1_grads_probe_binned[:,j] = np.real(np.dot(eigvecs[:,0],sta_grads_probe_vec.T))
+        pc2_grads_probe_binned[:,j] = np.real(np.dot(eigvecs[:,1],sta_grads_probe_vec.T))
+    
+    sta_grads_steady_vec = sta_grads_steady_binned.reshape(sta_grads_steady_binned.shape[0],-1)
+    sta_grads_steady_vec = sta_grads_steady_vec - M#np.mean(sta_grads_steady_vec,axis=0)
+    pc1_grads_steady_binned = np.real(np.dot(eigvecs[:,0],sta_grads_steady_vec.T))
+    pc2_grads_steady_binned = np.real(np.dot(eigvecs[:,1],sta_grads_steady_vec.T))
+    
+    
+    U_real_probe = pc1_real_probe_binned - pc1_real_state_binned[:,None]
+    V_real_probe = pc2_real_probe_binned - pc2_real_state_binned[:,None]
+    U_grads_probe = pc1_grads_probe_binned - pc1_grads_state_binned[:,None]
+    V_grads_probe = pc2_grads_probe_binned - pc2_grads_state_binned[:,None]
+    
+    UV_real_probe = np.concatenate((U_real_probe[:,None,:],V_real_probe[:,None,:]),axis=1)
+    rgb = np.sqrt(np.sum(UV_real_probe**2,axis=1))
+    UV_real_probe_norm = UV_real_probe/rgb[:,None,:]
+    
+    U_real_steady = pc1_real_steady_binned - pc1_real_state_binned
+    V_real_steady = pc2_real_steady_binned - pc2_real_state_binned
+    U_grads_steady = pc1_grads_steady_binned - pc1_grads_state_binned
+    V_grads_steady = pc2_grads_steady_binned - pc2_grads_state_binned
+
+    offsetsToPlot = np.arange(1,40,4) #np.array([1,2,3,4,5,6,10,11])
+    Umax_real = np.max(U_real_probe,axis=0)
+    Vmax_real = np.max(V_real_probe,axis=0)
+    Umax_grads = 1#U_grads_probe.max()
+    Vmax_grads = 1#V_grads_probe.max()
+
+    markersize = 10
+    scale_real = 8
+    nrows = 2
+    ncols = int(np.ceil(len(offsetsToPlot)/nrows))
+    fig,axs = plt.subplots(nrows,ncols,figsize=(20,5))
+    axs=np.ravel(axs)
+    axs = axs[None,:]
+    # axs.plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+    for j in range(len(offsetsToPlot)):
+        # axs[0,j].plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+        axs[0,j].plot(pc1_real_state_binned,pc2_real_state_binned,'.b',markersize=markersize)
+        # axs[0,j].plot(pc1_real_state_binned[0],pc2_real_state_binned[0],'.b',markersize=markersize+10)
+        axs[0,j].quiver(pc1_real_state_binned,pc2_real_state_binned,UV_real_probe_norm[:,0,-1],UV_real_probe_norm[:,1,-1],color='k', scale=scale_real) #,angles='xy', scale_units='xy'
+        axs[0,j].quiver(pc1_real_state_binned,pc2_real_state_binned,UV_real_probe_norm[:,0,offsetsToPlot[j]],UV_real_probe_norm[:,1,offsetsToPlot[j]],color='r', scale=scale_real) #,angles='xy', scale_units='xy'
+        axs[0,j].axis('square')
+        axs[0,j].get_xaxis().set_visible(False);axs[0,j].get_yaxis().set_visible(False)
+        axs[0,j].set_xlim(pc1_real_state_binned.min()-0.001,pc1_real_state_binned.max()+0.0025)
+        axs[0,j].set_ylim(pc2_real_state_binned.min()-0.002,pc2_real_state_binned.max()+0.0025)
+        axs[0,j].set_title('probe_offset: %d'%offsetsToPlot[j])
+        
+        # axs[0,j].plot(pc1_real_steady_binned,pc2_real_steady_binned,'.k',markersize=markersize)
+
+    fig,axs = plt.subplots(nrows,ncols,figsize=(20,5))
+    axs=np.ravel(axs)
+    axs = axs[None,:]
+    # axs.plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+    for j in range(len(offsetsToPlot)):
+        axs[0,j].plot(pc1_grads_state_binned,pc2_grads_state_binned,'.k',markersize=markersize)
+        axs[0,j].quiver(pc1_grads_state_binned,pc2_grads_state_binned,U_grads_steady/Umax_real,V_grads_steady/Vmax_real,color='k',angles='xy', scale_units='xy', scale=1)
+        axs[0,j].quiver(pc1_grads_state_binned,pc2_grads_state_binned,U_grads_probe[:,offsetsToPlot[j]]/Umax_real,V_grads_probe[:,offsetsToPlot[j]]/Vmax_real,color='r',angles='xy', scale_units='xy', scale=1)
+        axs[0,j].axis('square')
+        axs[0,j].get_xaxis().set_visible(False);axs[0,j].get_yaxis().set_visible(False)
+
+    fig,axs = plt.subplots(1,2,figsize=(20,5))   # STA_DATA
+    axs = np.ravel(axs)
+    axs[0].plot(pc1_real_probe_binned.T)
+    axs[0].set_ylabel('pc1_probe')
+    axs[0].set_xlabel('probe offset')
+    axs[0].legend(('0','1','2','3','4','5','6','7','8','9'))
+    axs[1].plot(pc2_real_probe_binned.T)
+    axs[1].set_ylabel('pc2_probe')
+    axs[1].set_xlabel('probe offset')
+    # axs[1].legend(('0','1','2','3','4','5','6','7','8','9'))
+    
+    # plt.plot(b.T,'--')
+    # plt.plot(pc1_real_probe_binned[:,39],pc1_real_steady_binned,'.')
+
+    framesToPlot = np.array([5,6,7,8,9,10,11,12])
+    offsetsToPlot = np.array([0,1,2,3,4,5,10,39]) #np.arange(0,40,2) #np.array([0,1,2,3,4,5,6])
+    binsToPlot = np.array([2])
+    vmin_real = np.nanmin((np.nanmin(sta_real_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmin(sta_real_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmax_real = np.nanmax((np.nanmax(sta_real_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmax(sta_real_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmin_grads = np.nanmin((np.nanmin(sta_grads_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmin(sta_grads_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmax_grads = np.nanmax((np.nanmax(sta_grads_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmax(sta_grads_state_binned[binsToPlot][:,framesToPlot,:,:])))
+    
+    fig,axs = plt.subplots(len(offsetsToPlot),len(framesToPlot),figsize=(20,20))   # STA_DATA
+    for i in range(len(offsetsToPlot)):
+        for j in range(len(framesToPlot)):
+            # axs[i,j].imshow(sta_real_probe_binned[binsToPlot[0],offsetsToPlot[i],framesToPlot[j],:,:],cmap='gray',vmin=vmin_real,vmax=vmax_real);
+            axs[i,j].imshow(sta_grads_probe_binned[binsToPlot[0],offsetsToPlot[i],framesToPlot[j],:,:],cmap='gray',vmin=vmin_grads,vmax=vmax_grads);
+            # axs[i,j].plot(cent_x,cent_y,'r.')
+            # axs[i,j].plot([cent_x,cent_x],[0,winy_plt[-1]],'r',linewidth=1)
+            # axs[i,j].plot([0,winx_plt[-1]],[cent_y,cent_y],'r',linewidth=1)
+            # axs[i,j].set_xlim(winx_plt);axs[i,j].set_ylim(winy_plt);
+            axs[i,j].get_xaxis().set_visible(False);axs[i,j].get_yaxis().set_visible(False)
+
+    
+# %% STIM PROJECTIONS
+
+"""
+For each cell, bin the images by gradient strength / temporal filter strength and see if we can do this with real data
+"""
+
+path_save_fig = os.path.join(path_save,'STRFs_new')
+if not os.path.exists(path_save_fig):
+    os.makedirs(path_save_fig)
+
+DEBUG = 1
+SAVE_FIGS = False
+
+select_mdl = 'CNN_2D_RAT' #('PRFR_CNN2D_RAT','CNN_2D_RAT)
+photocurrs = False
+select_lightLevel = dataset_eval[0]
+
+nbins = 10
+ONLY_LARGEGRADS = False
+temp_window = 15
+sig_fac = 1.5
+timeBin = 16
+num_samps_toload = 392000 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
+batch_size = 40000
+if batch_size<num_samps_toload:
+    total_batches = int(np.ceil((num_samps_toload/batch_size)))
+    idx_batchStart = np.linspace(0,num_samps_toload,total_batches,dtype='int32')
+else:
+    idx_batchStart = np.array([0,num_samps_toload])
+    total_batches=2
+    
+
+labels_rf_params = ['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough','t_peak']
+# binning_param_list = ('spatloc',) # [polarity,rfsize,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough,spatcent,spatx,spaty]   sigma is the width of gaussian
+binning_param = 'cent_x'
+
+
+# u_arr = np.arange(0,20) #np.arange(20,len(perf_model['uname_selectedUnits']))
+u_arr = [1] #22
+u = u_arr[0]
+gradFile_suffix = 'u-%d_%s'%(n_units,select_rgctype_toExtract)
+
+USE_SSD = True
+if USE_SSD == True:
+    path_gradFiles = '/home/saad/postdoc_db/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+else:
+    path_gradFiles = '/home/saad/data_hdd/analyses/data_kiersten/rat/gradient_analysis/gradients/'
+
+fname_gradsFile = 'grads_'+select_mdl+'_393229_'+gradFile_suffix+'.h5' #393229 #149940.
+fname_gradsFile = os.path.join(path_gradFiles,fname_gradsFile)
+
+
+fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/rat/datasets/20121031_STAs_CB_allLightLevels_16ms_sig2.h5' #'/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
+
+if photocurrs==True:
+    fname_gradsFile = fname_gradsFile[:-3]+'_photocurrs.h5'
+
+print(fname_gradsFile)
+f_grads = h5py.File(fname_gradsFile,'r')
+
+
+    
+def extractRFProps(idx):
+    try:
+        params = np.zeros(rf_params_grand.shape[1])
+        params[:] = np.nan
+        
+        rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_chunk[idx],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+        idx_xy = ~np.isnan(rf_fit_img)
+        tempRF_chunk = grads_all[idx_chunk[idx],:,:,:]
+        tempRF_chunk = tempRF_chunk[:,idx_xy]
+        tempRF_chunk = np.mean(tempRF_chunk,axis=-1)
+        # plt.plot(tempRF_chunk)
+        sign = np.sign(tempRF_chunk[idx_tempPeak])
+        if sign<0:
+            tempRF_chunk = tempRF_chunk*sign
+        mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+        if mean_rfCent==0:
+            raise ValueError(idx)
+        spatRF_chunk[idx] = spatRF_chunk[idx]/mean_rfCent
+        tempRF_chunk = tempRF_chunk*mean_rfCent
+    
+        
+        pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
+        neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
+        biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
+        try:
+            t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
+        except:
+            t_zero = np.nan
+        t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk))
+        t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
+        try:
+            t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
+        except:
+            t_zero_peakTrough = np.nan
+        # Collect rf params. Adjust sigm for full width and sig fac
+        #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
+        params[0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
+        params[1] = 180-rf_params['theta']                         # theta
+        params[2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
+        params[3] = rf_params['x0']
+        params[4] = rf_params['y0']
+        params[5] = np.nan
+        params[6] = tempRF_chunk.max()
+        params[7] = biRF
+        params[8] = t_zero
+        params[9] = t_trough
+        params[10] = t_zero_peakTrough
+        params[11] = tempRF_chunk.min()
+        params[12] = t_peak
+    except:
+        tempRF_chunk = np.zeros(temp_window);tempRF_chunk[:] = np.nan
+        rf_coords = np.zeros((629,2));rf_coords[:] = np.nan
+        
+    return params,tempRF_chunk,rf_coords
+
+
+for u in u_arr:
+    select_rgc = u
+    try:
+        uname_all_grads = np.array(f_grads[select_mdl][select_lightLevel]['unames'],'bytes')
+        uname_all_grads = utils_si.h5_tostring(uname_all_grads)
+        rgb = uname_all_grads == uname_unitsToExtract
+        if np.all(rgb) == False:
+            raise ValueError('gradient dataset and stimulus dataset do not match')
+        else:
+            uname = uname_all_grads[select_rgc]
+    except:
+        uname = uname_unitsToExtract[select_rgc]
+        
+    print(uname)
+    idx_sampsInFullMat = idx_samps[:num_samps_toload] #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
+    # idx_sampsInFullMat = idx_sampsInFullMat+40
+    
+    #---- Load the pre-calculated STA
+    f_stas = h5py.File(fname_stas,'r')
+    spatRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['spatial_feature'])
+    tempRF_fullSTA = np.array(f_stas[select_lightLevel[-9:]][uname]['temporal_feature'])
+    f_stas.close()  
+    peaksearch_win = np.arange(tempRF_fullSTA.shape[0]-25,tempRF_fullSTA.shape[0])
+    idx_tempPeak = np.argmax(np.abs(tempRF_fullSTA[peaksearch_win]))     # only check for peak in the final 25 time points.
+    idx_tempPeak = idx_tempPeak + peaksearch_win[0]
+    sign = np.sign(tempRF_fullSTA[idx_tempPeak])
+    if sign<0:
+        spatRF_fullSTA = spatRF_fullSTA*sign
+        tempRF_fullSTA = tempRF_fullSTA*sign
+    tempRF_fullSTA = tempRF_fullSTA[-temp_window:]
+    tempRF_fullSTA = tempRF_fullSTA/tempRF_fullSTA.max()
+    
+    idx_tempPeak = -1*(temp_window - np.argmax(np.abs(tempRF_fullSTA)))
+    rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_fullSTA,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+    rfExtractNPixs = 15
+    RF_midpoint_x = rf_params['x0']
+    RF_midpoint_y = rf_params['y0']
+    rfExtractIdx_x = (np.max((round(RF_midpoint_x-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_x+0.5*rfExtractNPixs),spatRF_fullSTA.shape[1]-1)))
+    rfExtractIdx_y = (np.max((round(RF_midpoint_y-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_y+0.5*rfExtractNPixs),spatRF_fullSTA.shape[0]-1)))
+
+    
+    # spat_dims = data_alldsets[dataset_eval[0]]['raw'].X.shape[-2:]
+    spat_dims = np.array([rfExtractNPixs,rfExtractNPixs])
+    
+    grads_all = np.zeros((num_samps_toload,temp_window,spat_dims[0],spat_dims[1]),dtype='float16')
+    spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]))      # [imgs,y,x,lightlevels,models]
+    tempRF_grand = np.zeros((num_samps_toload,temp_window))      # [imgs,time,lightlevels,models]
+    rf_params_grand = np.zeros((num_samps_toload,len(labels_rf_params)),dtype='float64') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
+    rf_coords_grand = np.zeros((1000,2,num_samps_toload),dtype='float32')    # [points,[x,y],imgs,lightlevel,models]
+    rf_coords_grand[:] = np.nan
+
+    batch=0
+    for batch in range(total_batches-1):
+        print('Batch %d of %d'%(batch+1,total_batches-1))
+        idx_chunk = np.arange(idx_batchStart[batch],idx_batchStart[batch+1])
+        grads_all[idx_chunk] = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
+    
+        spatRF_chunk = grads_all[idx_chunk,idx_tempPeak,:,:]
+
+        # ---- Gradient STRF each sample
+        
+        # Collect rf params. Adjust sigm for full width and sig fac      
+        idx_forParallel = np.arange(len(idx_chunk))
+        t_start = time.time()
+        with multiprocessing.Pool() as pool:
+            results = pool.map(extractRFProps, idx_forParallel)
+        rf_params_chunk, tempRF_chunk, rf_coords = zip(*results)
+        rf_params_chunk = np.asarray(rf_params_chunk)
+        tempRF_chunk = np.asarray(tempRF_chunk)
+        if isinstance(spatRF_chunk, tuple)==True:
+            spatRF_chunk = np.asarray(spatRF_chunk)
+        rf_coords = np.moveaxis(np.asarray(rf_coords),0,-1)
+        t_end = time.time()-t_start
+        print('%0.2f minutes'%(t_end/60))
+
+        # idx=0;plt.imshow(spatRF_chunk[idx,:,:]);plt.plot(rf_coords_chunk[:,0,idx],rf_coords_chunk[:,1,idx])
+                        
+        spatRF_grand[idx_chunk,:,:] = spatRF_chunk
+        tempRF_grand[idx_chunk,:] = tempRF_chunk
+        rf_params_grand[idx_chunk,:] = rf_params_chunk
+        rf_coords_grand[:rf_coords.shape[0],:,idx_chunk] = rf_coords
+        
+    rf_coords_grand = rf_coords_grand[:rf_coords.shape[0]]
+    # plt.plot(rf_coords_grand[:,0,:10000],rf_coords_grand[:,1,:10000])
+    
+    #% set NAN gradients that are too small
+    if ONLY_LARGEGRADS==True:
+        grads_spat = grads_all[:num_samps_toload,idx_tempPeak]
+        grads_spat = grads_spat.astype('float64')
+        std_grads = np.std(grads_spat,axis=(-1,-2))
+        plt.hist(std_grads.flatten());plt.show()
+        thresh_std = 0.0004
+        bool_largeGrads = std_grads>thresh_std
+        # spikes_all = data_alldsets[select_lightLevel]['raw'].spikes[:num_samps_toload,select_rgc]
+        # bool_largeGrads = spikes_all>0
+    else:
+        bool_largeGrads = np.ones(num_samps_toload,'bool')
+    
+    print(bool_largeGrads.sum())
+    
+    _ = gc.collect()
+    
+    params_plot = ['spatloc','gain','biphasic','t_peak','cent_x','cent_y']
+    idx_params_select = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] in params_plot]
+    n_cols = 2;n_rows = int(np.ceil(len(idx_params_select)/n_cols))
+    plots_idx = np.arange(0,n_rows*n_cols)
+    txt_title = '%s - properties distribution'%uname
+    fig2,axs = plt.subplots(n_rows,n_cols,figsize=(20,10))
+    axs = np.ravel(axs)
+    fig2.suptitle(txt_title,size=22)   
+    cnt = -1
+    for param in idx_params_select:
+        cnt+=1
+        axs[cnt].hist(rf_params_grand[:,param])
+        axs[cnt].hist(rf_params_grand[bool_largeGrads,param])
+        ax_title = '%s'%labels_rf_params[param]
+        axs[cnt].set_title(ax_title,size=12)
+        # axs[cnt].set_ylabel('TempRF for all samples',size=font_title)
+
+    # ---- get eigen vectors from grads
+    grads_all_vec = grads_all.reshape(grads_all.shape[0],-1)
+    M = np.mean(grads_all_vec,axis=0)
+    grads_all_vec = grads_all_vec-M
+    grads_all_vec_cov = np.cov(grads_all_vec.T)
+    vals,eigvecs = np.linalg.eig(grads_all_vec_cov)
+    pc1_grads_all = np.real(np.dot(eigvecs[:,0],grads_all_vec.T))
+    pc2_grads_all = np.real(np.dot(eigvecs[:,1],grads_all_vec.T))
+    
+    # ---- EIGs STIM
+    stim = data_alldsets[select_lightLevel]['raw'].X[:num_samps_toload,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
+    stim = stim.reshape(stim.shape[0],-1)
+    stim = (stim-stim.mean())/np.std(stim)
+    M_stim = np.mean(stim,axis=0)
+    stim = stim-M_stim
+    stim_cov = np.cov(stim.T)
+    vals,eigvecs_stim = np.linalg.eig(stim_cov)
+    pc1_stim_all = np.real(np.dot(eigvecs_stim[:,0],stim.T))
+    pc2_stim_all = np.real(np.dot(eigvecs_stim[:,1],stim.T))
+
+
+    # ---- Find binning edges
+    idx_binning_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == binning_param][0]
+    data_tobin = rf_params_grand[:,idx_binning_param]
+    idx_sorted = np.argsort(data_tobin)
+    a = bool_largeGrads[idx_sorted]
+    b = np.where(a)[0]
+    c = idx_sorted[b]
+    idx_sorted = c
+    data_sorted = data_tobin[idx_sorted]
+    idx_bin_edges = np.arange(0,idx_sorted.shape[0],np.floor(idx_sorted.shape[0]/nbins),dtype='int')
+    if len(idx_bin_edges)<nbins+1:
+        idx_bin_edges = np.concatenate((idx_bin_edges,np.array([idx_sorted.shape[0]])))
+    else:
+        idx_bin_edges[-1] = idx_sorted.shape[0]-1
+     # plt.plot(data_sorted)  
+    
+
+    # ---- BIN AND PCA
+    offset_probe = np.arange(-10,17) #np.arange(0,40) #np.array([0,1,2,3,4,5,6,7,8,9,10,50])
+    offset_steady = offset_probe[-1]
+
+    sta_grads_state_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_state_binned[:] = np.nan
+    sta_grads_probe_binned = np.empty((nbins,len(offset_probe),temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_probe_binned[:] = np.nan
+    sta_grads_steady_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_grads_state_binned[:] = np.nan
+    sta_real_state_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_state_binned[:] = np.nan
+    sta_real_probe_binned = np.empty((nbins,len(offset_probe),temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_probe_binned[:] = np.nan
+    sta_real_steady_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');sta_real_state_binned[:] = np.nan
+    mov_state_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');mov_state_binned[:] = np.nan
+    mov_probe_binned = np.empty((nbins,len(offset_probe),temp_window,spat_dims[0],spat_dims[1]),dtype='float32');mov_probe_binned[:] = np.nan
+    mov_steady_binned = np.empty((nbins,temp_window,spat_dims[0],spat_dims[1]),dtype='float32');mov_steady_binned[:] = np.nan
+    resp_state_binned = np.empty(nbins);resp_state_binned[:] = np.nan
+    resp_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');resp_probe_binned[:] = np.nan
+    resp_steady_binned = np.empty(nbins);resp_steady_binned[:] = np.nan
+
+    tempRF_real_probe_binned = np.empty((nbins,len(offset_probe),temp_window),dtype='float32');tempRF_real_probe_binned[:] = np.nan
+    tempRF_grads_probe_binned = np.empty((nbins,len(offset_probe),temp_window),dtype='float32');tempRF_grads_probe_binned[:] = np.nan
+    
+    pc1_real_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc1_real_probe_binned[:]=np.nan
+    pc2_real_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc2_real_probe_binned[:]=np.nan
+
+    pc1_grads_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc1_grads_probe_binned[:]=np.nan
+    pc2_grads_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc2_grads_probe_binned[:]=np.nan
+
+    pc1_mov_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc1_mov_probe_binned[:]=np.nan
+    pc2_mov_probe_binned = np.empty((nbins,len(offset_probe)),dtype='float32');pc2_mov_probe_binned[:]=np.nan
+
+    n_perbin = idx_bin_edges[1]-idx_bin_edges[0]
+    pc1_grads_perbin = np.empty((n_perbin,nbins),dtype='float32');pc1_grads_perbin[:]=np.nan
+    pc2_grads_perbin = np.empty((n_perbin,nbins),dtype='float32');pc2_grads_perbin[:]=np.nan
+    
+    
+    # ---- Grads and LSTA binning
+    i = 0
+    for i in tqdm(range(len(idx_bin_edges)-1),desc='Data STA'):
+        # STATE
+        idx_sorted_minusLast = idx_sorted[(idx_sorted<len(idx_sorted)-50)&(idx_sorted>20)]
+        # idx_sorted_minusLast = np.arange(0,num_samps_toload-50)
+        idx_totake_state = idx_sorted_minusLast[idx_bin_edges[i]:idx_bin_edges[i+1]]
+        # idx_totake_state = idx_sorted[idx_bin_edges[i]:idx_bin_edges[i+1]]
+        
+        stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_state,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+        spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_state,select_rgc]
+        resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_state,select_rgc]
+        print('Num spikes in bin %d: %d'%(i,np.sum(spikes_totake>0)))
+
+        sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+        scaleFac = np.nanmean(resp_totake)/np.var(stim)
+        sta_data = sta_data * scaleFac
+        sta_real_state_binned[i,:,:,:] = sta_data
+        
+        sta_grads_state_binned[i,:,:,:] = np.mean(grads_all[idx_totake_state][spikes_totake>0],axis=0).astype('float32')
+        
+        rgb_stim = stim.copy()
+        rgb_stim = (rgb_stim-rgb_stim.mean())/np.std(rgb_stim)
+        mov_state_binned[i,:,:,:] = np.mean(rgb_stim,axis=0,dtype='float32')
+        resp_state_binned[i] = np.mean(resp_totake)
+        
+        grads_rgb = grads_all[idx_totake_state][spikes_totake>0].astype('float32')
+        grads_rgb_vec = grads_rgb.reshape(grads_rgb.shape[0],-1)
+        grads_rgb_vec = grads_rgb_vec - M#np.nanmean(grads_rgb_vec,axis=0)
+        pc1_grads_perbin[:grads_rgb_vec.shape[0],i] = np.real(np.dot(eigvecs[:,0],grads_rgb_vec.T))
+        pc2_grads_perbin[:grads_rgb_vec.shape[0],i] = np.real(np.dot(eigvecs[:,1],grads_rgb_vec.T))
+        
+        # PROBE
+        for j in range(len(offset_probe)):
+            idx_totake_probe = idx_totake_state+offset_probe[j]
+            
+            stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_probe,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+            spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_probe,select_rgc]
+            resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_probe,select_rgc]
+    
+            sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+            scaleFac = np.nanmean(resp_totake)/np.var(stim)
+            sta_data = sta_data * scaleFac
+            sta_real_probe_binned[i,j,:,:,:] = sta_data
+            
+            spatRF = sta_data[idx_tempPeak,:,:]
+            rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+            cent_idx_min_max = np.array([np.unravel_index(spatRF.argmin(), spatRF.shape),np.unravel_index(spatRF.argmax(), spatRF.shape)])
+            min_max_spatRF = np.argmax(np.abs([spatRF.min(),spatRF.max()]))
+            cent_idx = cent_idx_min_max[min_max_spatRF]
+            tempRF = sta_data[:,cent_idx[0],cent_idx[1]]
+            sign = np.sign(tempRF[idx_tempPeak])
+            if sign<0:      
+                tempRF = tempRF*sign
+            mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+            spatRF = spatRF/mean_rfCent
+            tempRF = tempRF*mean_rfCent
+            tempRF_real_probe_binned[i,j,:] = tempRF
 
             
-    # Method 1: Compute STA by taking Response Weighted Average of the stimulus (model independent)
-    
-    f = h5py.File(fname_stas,'r')
-    spatial_feat = np.array(f[d[-9:]][uname]['spatial_feature'])
-    temporal_feat = np.array(f[d[-9:]][uname]['temporal_feature'])
-    f.close()  
+            sta_grads_probe_binned[i,j,:,:,:] = np.mean(grads_all[idx_totake_probe][spikes_totake>0],axis=0).astype('float32')
+            
+            spatRF = sta_grads_probe_binned[i,j,idx_tempPeak,:,:]
+            rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
+            cent_idx_min_max = np.array([np.unravel_index(spatRF.argmin(), spatRF.shape),np.unravel_index(spatRF.argmax(), spatRF.shape)])
+            min_max_spatRF = np.argmax(np.abs([spatRF.min(),spatRF.max()]))
+            cent_idx = cent_idx_min_max[min_max_spatRF]
+            tempRF = sta_grads_probe_binned[i,j,:,cent_idx[0],cent_idx[1]]
+            sign = np.sign(tempRF[idx_tempPeak])
+            if sign<0:      
+                tempRF = tempRF*sign
+            mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+            spatRF = spatRF/mean_rfCent
+            tempRF = tempRF*mean_rfCent
+            tempRF_grads_probe_binned[i,j,:] = tempRF
 
-    peaksearch_win = np.arange(temporal_feat.shape[0]-25,temporal_feat.shape[0])
-    idx_tempPeak = np.argmax(np.abs(temporal_feat[peaksearch_win]))     # only check for peak in the final 25 time points.
-    idx_tempPeak = idx_tempPeak + peaksearch_win[0]
-    sign = np.sign(temporal_feat[idx_tempPeak])
-    if sign<0:
-        spatial_feat = spatial_feat*sign
-        temporal_feat = temporal_feat*sign
-    
-    spatRF_sta = spatial_feat
-    tempRF_sta  = temporal_feat[-temp_window:]
-    tempRF_sta  = tempRF_sta/tempRF_sta.max()
-    
-    plt.imshow(spatRF_sta);plt.show()
-    plt.plot(tempRF_sta);plt.show()
-    
-    
-    
-# %% GRADIENTS OLD 
-"""
- Because extracting gradients require gpu memory, we have to extract gradients
- in batches. Each batch is of batch_size. For efficient processing, we first
- calculate gradients for each batch, then those gradients are stored in a list.
- The list iterates over batches. Then when we have iterated over all the batches
- i.e. we have a list the same size as total_batches, we concatenate everything into
- a single large matrix.
+            
+            rgb_stim = stim.copy()
+            rgb_stim = (rgb_stim-rgb_stim.mean())/np.std(rgb_stim)
+            mov_probe_binned[i,j,:,:,:] = np.mean(rgb_stim,axis=0,dtype='float32')
+            resp_probe_binned[i,j] = np.mean(resp_totake)
+            
+            
 
- This section outputs data_alldsets. Structure is:
-     data_alldsets
-         ----- dataset_name
-             ------ grads_all --> [n_outputUnits,temporal_width,pixels_y,pixels_x,samples]
-             ------ stim_mat -->  [x_samples,temporal_width,pixels_y,pixels_x]
-             
- Gradients are computed within GradientTape framework. This allows TF to 'record'
- relevant operations in the forward pass. Then during backward pass, TF traverses
- this list of operations in reverse order to compute gradients.
- """
- 
-temporal_width_grads = 30
-mdl_select = 'PRFR_CNN2D_RAT' # 'CNN_2D_RAT' 'PRFR_CNN2D_RAT'
-partialModel = False
-startLayer = 5
-endLayer = -1
-save_grads = True
 
-if partialModel==True:
-    mdl_totake = tf.keras.models.Model(inputs=mdl_dict[mdl_select].layers[startLayer].input,
-                                       outputs=mdl_dict[mdl_select].layers[endLayer].output)
-    
-else:
-    mdl_totake = mdl_dict[mdl_select]
-mdl_totake.summary()
-tempWidth_inp = mdl_totake.input.shape[1]
-
-d = dataset_eval[0]
-
-if save_grads==True:
-    fname_gradsFile = os.path.join(path_save,'grads_'+mdl_select+'_'+str(nsamps)+'.h5')
-    if os.path.exists(fname_gradsFile):
-        fname_gradsFile = fname_gradsFile[:-3]+'_1.h5'
-
-for d in dataset_eval:
-    data = data_alldsets[d]['raw']
-    if mdl_select[:6] == 'CNN_2D':#_NORM':
-        data = Exptdata(data.X[:,-temporal_width:,:,:],data.y)
-        batch_size = 32
-    else:
-        batch_size = 8
-
-    # nsamps = data.X.shape[0]
-    total_batches = int(np.floor((nsamps/batch_size)))
-    
-    i = 0
-    grads_shape = (data.y.shape[-1],None,temporal_width_grads,data.X.shape[2],data.X.shape[3])
-    stim_shape = (None,temporal_width_grads,data.X.shape[2],data.X.shape[3])
-    
-    t_start = time.time()
-    if save_grads==True:
-        f_grads = h5py.File(fname_gradsFile,'a')
-        grp = model.gradient_tools.init_GradDataset(f_grads,mdl_select,d,grads_shape,stim_shape,batchsize=batch_size)
-
-    for i in range(total_batches):
-        print (' List: Batch %d of %d'%(i+1,total_batches))
-        idx_chunk = np.arange(i*batch_size,(i+1)*batch_size)
-        idx_write = np.arange(i*batch_size,(i+1)*batch_size)
-        data_select_X = data.X[idx_chunk][:,-tempWidth_inp:]
-        # stim_list[i] = np.array(data_select_X).astype('float16')
-        stim_chunk = np.array(data_select_X).astype('float16')
+        # STEADY-STATE
+        idx_totake_steady = idx_totake_state+offset_steady
         
-        inp = tf.Variable(data_select_X, dtype=tf.float32, name='input')
+        stim = data_alldsets[select_lightLevel]['raw'].X[idx_totake_steady,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]#.astype('float64')
+        spikes_totake = data_alldsets[select_lightLevel]['raw'].spikes[idx_totake_steady,select_rgc]
+        resp_totake = data_alldsets[select_lightLevel]['raw'].y[idx_totake_steady,select_rgc]
+
+        sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+        scaleFac = np.nanmean(resp_totake)/np.var(stim)
+        sta_data = sta_data * scaleFac
+        sta_real_steady_binned[i,:,:,:] = sta_data
         
-        t_batch_start = time.time()
-        with tf.GradientTape(persistent=True,watch_accessed_variables=True) as tape:
-            out = mdl_totake(inp,training=True)
-        # out = new_mdl(inp)
-        grads_chunk = tape.batch_jacobian(out, inp)
-            # grads_chunk = tape.gradient(out[0,0,22,22], inp)
-        # _ = gc.collect()
-        # grads_chunk = np.squeeze(np.array(grads_chunk))
-        # if batch_size>1:
-        #     grads_chunk = grads_chunk.diagonal(axis1=0,axis2=2)
-        grads_chunk = grads_chunk[:,:,-temporal_width_grads:,:,:]
-        grads_chunk = np.array(grads_chunk,dtype='float16')
-        grads_chunk = grads_chunk[:,idx_unitsToExtract]
-        grads_chunk = np.moveaxis(grads_chunk,1,0)
+        sta_grads_steady_binned[i,:,:,:] = np.mean(grads_all[idx_totake_steady][spikes_totake>0],axis=0).astype('float32')
         
+        rgb_stim = stim.copy()
+        rgb_stim = (rgb_stim-rgb_stim.mean())/np.std(rgb_stim)
+        mov_steady_binned[i,:,:,:] = np.mean(rgb_stim,axis=0,dtype='float32')
+        resp_steady_binned[i] = np.mean(resp_totake)
+
         
-        if save_grads==True:
-            model.gradient_tools.append_GradDataset(f_grads,grp,grads_chunk,stim_chunk)
-        
-        t_batch = time.time()-t_batch_start
-        print(t_batch/60)
+    _ = gc.collect()
+    
+    # ---- project on PCA
+    sta_real_state_binned_vec = sta_real_state_binned.reshape(sta_real_state_binned.shape[0],-1)
+    sta_real_state_binned_vec = sta_real_state_binned_vec - M#np.mean(sta_real_state_binned_vec,axis=0)
+    pc1_real_state_binned = np.real(np.dot(eigvecs[:,0],sta_real_state_binned_vec.T))
+    pc2_real_state_binned = np.real(np.dot(eigvecs[:,1],sta_real_state_binned_vec.T))
+    
+    sta_grads_state_vec = sta_grads_state_binned.reshape(sta_grads_state_binned.shape[0],-1)
+    sta_grads_state_vec = sta_grads_state_vec - M#np.mean(sta_grads_state_vec,axis=0)
+    pc1_grads_state_binned = np.real(np.dot(eigvecs[:,0],sta_grads_state_vec.T))
+    pc2_grads_state_binned = np.real(np.dot(eigvecs[:,1],sta_grads_state_vec.T))
+    
+
+    mov_state_vec = mov_state_binned.reshape(mov_state_binned.shape[0],-1)
+    mov_state_vec = mov_state_vec - np.mean(mov_state_vec,axis=0) #M_stim
+    pc1_mov_state_binned = np.real(np.dot(eigvecs_stim[:,0],mov_state_vec.T))
+    pc2_mov_state_binned = np.real(np.dot(eigvecs_stim[:,1],mov_state_vec.T))
 
 
-    t_dur = time.time()-t_start
-    print(t_dur/60)
+    j = 0
+    for j in range(len(offset_probe)):
+        sta_real_probe_binned_vec = sta_real_probe_binned[:,j].reshape(sta_real_probe_binned.shape[0],-1)
+        sta_real_probe_binned_vec = sta_real_probe_binned_vec - M#np.mean(sta_real_probe_binned_vec,axis=0)
+        pc1_real_probe_binned[:,j] = np.real(np.dot(eigvecs[:,0],sta_real_probe_binned_vec.T))
+        pc2_real_probe_binned[:,j] = np.real(np.dot(eigvecs[:,1],sta_real_probe_binned_vec.T))
+        
+        sta_grads_probe_vec = sta_grads_probe_binned[:,j].reshape(sta_grads_probe_binned.shape[0],-1)
+        sta_grads_probe_vec = sta_grads_probe_vec - M#np.mean(sta_grads_probe_vec,axis=0)
+        pc1_grads_probe_binned[:,j] = np.real(np.dot(eigvecs[:,0],sta_grads_probe_vec.T))
+        pc2_grads_probe_binned[:,j] = np.real(np.dot(eigvecs[:,1],sta_grads_probe_vec.T))
 
-    f_grads.close()
+        mov_probe_vec = mov_probe_binned[:,j].reshape(mov_probe_binned.shape[0],-1)
+        mov_probe_vec = mov_probe_vec - M_stim
+        pc1_mov_probe_binned[:,j] = np.real(np.dot(eigvecs_stim[:,0],mov_probe_vec.T))
+        pc2_mov_probe_binned[:,j] = np.real(np.dot(eigvecs_stim[:,1],mov_probe_vec.T))
+
+
+    sta_real_steady_binned_vec = sta_real_steady_binned.reshape(sta_real_steady_binned.shape[0],-1)
+    sta_real_steady_binned_vec = sta_real_steady_binned_vec - M#np.mean(sta_real_steady_binned_vec,axis=0)
+    pc1_real_steady_binned = np.real(np.dot(eigvecs[:,0],sta_real_steady_binned_vec.T))
+    pc2_real_steady_binned = np.real(np.dot(eigvecs[:,1],sta_real_steady_binned_vec.T))
+    
+    sta_grads_steady_vec = sta_grads_steady_binned.reshape(sta_grads_steady_binned.shape[0],-1)
+    sta_grads_steady_vec = sta_grads_steady_vec - M#np.mean(sta_grads_steady_vec,axis=0)
+    pc1_grads_steady_binned = np.real(np.dot(eigvecs[:,0],sta_grads_steady_vec.T))
+    pc2_grads_steady_binned = np.real(np.dot(eigvecs[:,1],sta_grads_steady_vec.T))
+    
+    mov_steady_vec = mov_steady_binned.reshape(mov_steady_binned.shape[0],-1)
+    mov_steady_vec = mov_steady_vec - M_stim#np.mean(sta_grads_steady_vec,axis=0)
+    pc1_mov_steady_binned = np.real(np.dot(eigvecs_stim[:,0],mov_steady_vec.T))
+    pc2_mov_steady_binned = np.real(np.dot(eigvecs_stim[:,1],mov_steady_vec.T))
+
     
     
-# %% Test
-
-colormap = 'gray'
-select_img = 175
-grads_img = grads_all[select_img,:,5:35,45:75].copy()
-spatRF = grads_img[24];plt.imshow(spatRF,cmap=colormap)
-spatRF,tempRF = model.featureMaps.decompose(grads_img);plt.imshow(spatRF,cmap=colormap);plt.show()
-spatRF_mean = np.mean(grads_img,axis=0);plt.imshow(spatRF_mean,cmap=colormap);plt.show()
-# rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_mean,tempRF=0,sig_fac=3,rot=True,sta=0,tempRF_sig=False)
-# plt.imshow(spatRF_mean,cmap=colormap);plt.plot(rf_coords[:,0],rf_coords[:,1],'r');plt.show()
-
-# # spatRF_std = np.std(grads_all[select_img,:,:,:],axis=0);plt.imshow(spatRF_std);plt.imshow(spatRF_std);plt.show()
-
-vmin = rgb.min()
-vmax = rgb.max()
-fig,axs = plt.subplots(5,6,figsize=(10,5))
-axs = np.ravel(axs)
-cnt=-1
-for i in range(0,30):
-    cnt+=1
-    axs[cnt].imshow(rgb[i,:,:],cmap = 'gray',vmin=vmin,vmax=vmax)
-plt.show()
-
-spatRF_new = np.mean(grads_img,axis=0) * spatRF
-plt.imshow(spatRF_new,cmap=colormap);plt.show()
-
-# spatRF_mean_new = spatRF_mean*np.std(grads_img,axis=0);plt.imshow(spatRF_mean_new,cmap=colormap);plt.show()
-# rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_mean_new,tempRF=0,sig_fac=3,rot=True,sta=0,tempRF_sig=False)
-# plt.imshow(spatRF_mean_new,cmap=colormap);plt.plot(rf_coords[:,0],rf_coords[:,1],'r');plt.show()
+    U_real_probe = pc1_real_probe_binned - pc1_real_state_binned[:,None]
+    V_real_probe = pc2_real_probe_binned - pc2_real_state_binned[:,None]
+    U_grads_probe = pc1_grads_probe_binned - pc1_grads_state_binned[:,None]
+    V_grads_probe = pc2_grads_probe_binned - pc2_grads_state_binned[:,None]
+    U_mov_probe = pc1_mov_probe_binned - pc1_mov_state_binned[:,None]
+    V_mov_probe = pc2_mov_probe_binned - pc2_mov_state_binned[:,None]
     
-# %%
+    UV_real_probe = np.concatenate((U_real_probe[:,None,:],V_real_probe[:,None,:]),axis=1)
+    rgb = np.sqrt(np.sum(UV_real_probe**2,axis=1))
+    UV_real_probe_norm = UV_real_probe/rgb[:,None,:]
+    
+    UV_mov_probe = np.concatenate((U_mov_probe[:,None,:],V_mov_probe[:,None,:]),axis=1)
+    rgb = np.sqrt(np.sum(UV_mov_probe**2,axis=1))
+    UV_mov_probe_norm = UV_mov_probe/rgb[:,None,:]
 
-k = 1
-sta = grads_img
-sta_meansub = (sta - sta.mean())/sta.std()
+    
+    U_real_steady = pc1_real_steady_binned - pc1_real_state_binned
+    V_real_steady = pc2_real_steady_binned - pc2_real_state_binned
+    U_grads_steady = pc1_grads_steady_binned - pc1_grads_state_binned
+    V_grads_steady = pc2_grads_steady_binned - pc2_grads_state_binned
+    
+    
+    from distinctipy import distinctipy
 
-sta_flat2d = sta_meansub.reshape(sta_meansub.shape[0],-1)#.astype('float32')
-u, s, v = np.linalg.svd(sta_flat2d, full_matrices=False)
-# u, s, v = linalg.svd(sta_flat2d, full_matrices=False)
+    offsetsToPlot = np.arange(len(offset_probe)) #np.array([1,2,3,4,5,6,10,11]) #offset_probe
+    colors = distinctipy.get_colors(len(offsetsToPlot))
+    
+    resp_probe_binned_scaled = (resp_probe_binned-np.min(resp_probe_binned,axis=1)[:,None])/(np.max(resp_probe_binned,axis=1)-np.min(resp_probe_binned,axis=1))[:,None]
+    UV_mov_probe_respScaled = UV_mov_probe_norm*resp_probe_binned_scaled[:,None,:]
+
+    markersize = 20
+    scale_real = 8
+    nrows = 1
+    ncols = 1#int(np.ceil(len(offsetsToPlot)/nrows))
+    fig,axs = plt.subplots(nrows,ncols,figsize=(10,10))
+    axs=np.ravel(axs)
+    axs = axs[None,:]
+    # axs.plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+    # axs[0,j].plot(pc1_grads_all,pc2_grads_all,'.',color='gray')
+    axs[0,0].plot(pc1_mov_state_binned,pc2_mov_state_binned,'.b',markersize=markersize)
+    axs[0,0].quiver(pc1_mov_state_binned,pc2_mov_state_binned,UV_mov_probe_respScaled[:,0,-1],UV_mov_probe_respScaled[:,1,-1],color='k', scale=scale_real) #,angles='xy', scale_units='xy'
+    for j in range(len(offsetsToPlot)):
+        axs[0,0].quiver(pc1_mov_state_binned,pc2_mov_state_binned,UV_mov_probe_respScaled[:,0,offsetsToPlot[j]],UV_mov_probe_respScaled[:,1,offsetsToPlot[j]],scale=scale_real,color=colors[j]) #,angles='xy', scale_units='xy'
+        axs[0,0].axis('square')
+        # axs[0,0].get_xaxis().set_visible(False);axs[0,0].get_yaxis().set_visible(False)
+        axs[0,0].set_xlim(pc1_mov_state_binned.min()-0.01,pc1_mov_state_binned.max()+0.01)
+        axs[0,0].set_ylim(pc2_mov_state_binned.min()-0.01,pc2_mov_state_binned.max()+0.01)
+        axs[0,0].set_xlabel('pc1_stim');axs[0,0].set_ylabel('pc2_stim')
+        # axs[0,0].set_title('probe_offset: %d'%offset_probe[offsetsToPlot[j]])
+            
+
+    
+    # plt.plot(b.T,'--')
+    # plt.plot(pc1_real_probe_binned[:,39],pc1_real_steady_binned,'.')
+    # %%
+    framesToPlot = np.array([4,5,6,7,8,9,10,11,12])
+    offsetsToPlot = np.array([-10,-4,-3,-2,-1,0,1,2,3,4,10])#np.arange(0,28,2) #np.arange(0,40,2) #np.array([0,1,2,3,4,5,6])
+    offsetsToPlot = np.intersect1d(offset_probe,offsetsToPlot,return_indices=True)[1]
+    binsToPlot = np.array([8])
+    vmin_mov = np.nanmin((np.nanmin(mov_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmin(mov_probe_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmax_mov = np.nanmax((np.nanmax(mov_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmax(mov_probe_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmin_sta= np.nanmin((np.nanmin(sta_real_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmin(sta_real_probe_binned[binsToPlot][:,framesToPlot,:,:])))
+    vmax_sta = np.nanmax((np.nanmax(sta_real_probe_binned[binsToPlot][:,:,framesToPlot,:,:]),np.nanmax(sta_real_probe_binned[binsToPlot][:,framesToPlot,:,:])))
+   
+    fig,axs = plt.subplots(len(offsetsToPlot)*2,len(framesToPlot),figsize=(5,10))   # STA_DATA
+    plots_idx = np.array([np.arange(0,len(offsetsToPlot)*2,2),np.arange(1,len(offsetsToPlot)*2,2)])
+    for i in range(0,len(offsetsToPlot)):
+        for j in range(len(framesToPlot)):
+            axs[plots_idx[0,i],j].imshow(sta_real_probe_binned[binsToPlot[0],offsetsToPlot[i],framesToPlot[j],:,:],cmap='gray',vmin=vmin_sta,vmax=vmax_sta);
+            axs[plots_idx[0,i],j].get_xaxis().set_visible(False);axs[plots_idx[0,i],j].get_yaxis().set_visible(False)
+            axs[plots_idx[1,i],j].imshow(mov_probe_binned[binsToPlot[0],offsetsToPlot[i],framesToPlot[j],:,:],cmap='gray',vmin=vmin_mov,vmax=vmax_mov);
+            axs[plots_idx[1,i],j].get_xaxis().set_visible(False);axs[plots_idx[1,i],j].get_yaxis().set_visible(False)
+
+        
+    
+    # %%
+    cmap = matplotlib.cm.cool
+
+    binsToPlot = np.array([1,3,6,8])
+    framesToPlot = np.array([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14])
+    norm = matplotlib.colors.Normalize(vmin=0, vmax=len(framesToPlot))
+    colors = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap).to_rgba(np.arange(0,len(framesToPlot)))
+    # plt.set_cmap(colors)
+    fig,axs = plt.subplots(2,2,figsize=(20,10))   # STA_DATA
+    axs = np.ravel(axs)
+    for i in range(len(binsToPlot)):
+        # plt.set_cmap(cmap)
+        plt.sca(axs[i])
+        plt.gca().set_prop_cycle(cycler('color', colors)) 
+        axs[i].plot(tempRF_grads_probe_binned[binsToPlot[i],framesToPlot,:].T)
+        axs[i].set_ylabel('')
+        axs[i].set_xlabel('Time (frames)')
+        axs[i].set_title('bin: %d'%binsToPlot[i])
+        axs[0].legend(('0','1','2','3','4','5','6','7','8','9','10','11','12','13','14'))
 
 
-# Keep the top k components
-k = np.min([k, s.size])
-u = u[:, :k]
-s = s[:k]
-v = v[:k, :]
+# %% Get index of the top common units across all models to be analyzed
+# n_units = 5
+# fev_stack = np.zeros(len(perf_model['uname_selectedUnits'] ))
+# idx_fev_stack = np.zeros(len(perf_model['uname_selectedUnits'] ))
 
-# # Compute the rank-k STA
-sk = (u.dot(np.diag(s).dot(v))).reshape(sta_meansub.shape)
+# for select_mdl in mdl_names:
+#     fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,select_mdl,paramName_mdl[select_mdl])
+#     fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[select_mdl]+'.h5')
 
-# peaksearch_win = np.arange(sta.shape[0]-25,sta.shape[0])
-# idx_tempPeak = np.argmax(np.abs(u[peaksearch_win,0]))     # only check for peak in the final 25 time points.
-# idx_tempPeak = idx_tempPeak + peaksearch_win[0]
-# sign = np.sign(u[idx_tempPeak,0])
-# if sign<0:
-#     u = u*sign
-#     v = v*sign
+#     f = h5py.File(fname_performanceFile,'r')
+#     fev_allUnits_bestEpoch = np.array(f['model_performance']['fev_allUnits_bestEpoch'])
+#     uname_all = np.array(f['uname_selectedUnits'],dtype='bytes')
+#     uname_all = np.asarray(list(model.utils_si.h5_tostring(uname_all)))
+#     f.close()
+#     idx_fev_sorted = np.argsort(-1*fev_allUnits_bestEpoch)  # descending order
+#     fev_stack = np.vstack((fev_stack,fev_allUnits_bestEpoch))
+#     idx_fev_stack = np.vstack((idx_fev_stack,idx_fev_sorted))
+# fev_stack = fev_stack[1:].T
+# idx_fev_stack = idx_fev_stack[1:].T
 
-# Return the rank-k approximate STA, and the SVD components
-spat = v[0].reshape(sta.shape[1:])
-temp = u[:,0]
-plt.imshow(spat);plt.show()
+# n_search = 20
+# idx_fev = idx_fev_stack[:n_search]
+# rgb = np.intersect1d(idx_fev[:,0],idx_fev[:,1]).astype('int32')
+# # idx_unitsToExtract = rgb[:n_units]
+# # idx_unitsToExtract = np.array([37, 42, 43, 55,89,90])
+# idx_unitsToExtract = np.array([121,55,103])
+# fev_unitsToExtract = fev_stack[idx_unitsToExtract]
+# uname_unitsToExtract = uname_all[idx_unitsToExtract]
+# print(uname_unitsToExtract)
 
-# vmin = vv.min()
-# vmax = vv.max()
-# fig,axs = plt.subplots(5,6,figsize=(20,10))
-# axs = np.ravel(axs)
-# for i in range(30):
-#     axs[i].imshow(vv[i,:,:],cmap = 'gray',vmin=vmin,vmax=vmax)
+# idx_unitsToExtract = np.array([37,55])# OFF RGCs
 
-# %% OLD CODE
+# %% Extract performance for each model at each dataset
+perf_datasets = {}
+for select_mdl in mdl_names:
+    perf_datasets[select_mdl] = {}
+    
+    for d in dataset_eval:
+        perf_datasets[select_mdl][d] = {}
+        
+        name_datasetFile = expDate+'_dataset_train_val_test_'+d+'.h5'
+        fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
 
-                        # i = 0
-                        # for i in tqdm(range(len(idx_chunk)),desc='chunk'):
-                        #     rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF_chunk[i],tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-                        #     idx_x = int(np.round(rf_params['x0'])); idx_y = int(np.round(rf_params['y0']))
-                        #     tempRF_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk[i],:,idx_y,idx_x].astype('float64')
-                        #     pos_area = np.trapz(tempRF_chunk[tempRF_chunk>0])
-                        #     neg_area = np.trapz(tempRF_chunk[tempRF_chunk<0])
-                        #     biRF = (pos_area+neg_area)/(np.abs(pos_area)+np.abs(neg_area))
-                        #     try:
-                        #         t_zero = (tempRF_chunk.shape[0]-np.where(tempRF_chunk>0)[0][-1]) * timeBin
-                        #     except:
-                        #         t_zero = np.nan
-                        #     t_peak = (tempRF_chunk.shape[0]-np.argmax(tempRF_chunk)) * timeBin
-                        #     t_trough = (tempRF_chunk.shape[0]-np.argmin(tempRF_chunk)) * timeBin
-                        #     try:
-                        #         t_zero_peakTrough = (tempRF_chunk.shape[0] - np.where(tempRF_chunk[:np.argmax(tempRF_chunk)]<0)[0][-1]) * timeBin
-                        #     except:
-                        #         t_zero_peakTrough = np.nan
-                        #     # Collect rf params. Adjust sigm for full width and sig fac
-                        #     #['rfSize','rfAngle','spatloc','cent_x','cent_y','polarity','gain','biphasic','t_zero','t_trough','t_zero_peakTrough','amp_trough']
-                        #     rf_params_chunk[i,0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
-                        #     rf_params_chunk[i,1] = 180-rf_params['theta']                         # theta
-                        #     rf_params_chunk[i,2] = np.sqrt(rf_params['x0']**2 + rf_params['y0']**2)   # spatial rf location (distance from origin)
-                        #     rf_params_chunk[i,3] = rf_params['x0']
-                        #     rf_params_chunk[i,4] = rf_params['y0']
-                        #     rf_params_chunk[i,5] = np.nan
-                        #     rf_params_chunk[i,6] = tempRF_chunk.max()
-                        #     rf_params_chunk[i,7] = biRF
-                        #     rf_params_chunk[i,8] = t_zero
-                        #     rf_params_chunk[i,9] = t_trough
-                        #     rf_params_chunk[i,10] = t_zero_peakTrough
-                        #     rf_params_chunk[i,11] = tempRF_chunk.min()
+        # _,data_val,_,_,dataset_rr,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False)
+        # obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val']
+        # idx_unitsToTake = np.arange(data_val.y.shape[1])
+        
 
-                        #     rf_coords_chunk[:rf_coords.shape[0],:,i] = rf_coords
+        # Load model information that we need to arrange the data
+        fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,select_mdl,paramName_mdl[select_mdl])
+        fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[select_mdl]+'.h5')
 
+        params_model = getModelParams(os.path.split(fname_performanceFile)[-1])
+        temporal_width = params_model['T']
+        pr_temporal_width = params_model['P']
+        if pr_temporal_width<10:
+            pr_temporal_width = temporal_width+50
+              
+        
+        
+        # get info about training, testing and val data so we can compute FEVs
+        f = h5py.File(fname_performanceFile,'r')
+        bool_idx_val = np.array(f['stim_info']['bool_idx_val'])
+        idx_unitsToTake = np.array(f['idx_unitsToTake'])
+        idx_unitsToTake = idx_unitsToTake[idx_unitsToExtract]
+        f.close()
+        data_val = load_h5Dataset(fname_data_train_val_test,LOADFROMBOOL=True,nsamps_train=bool_idx_val)
+        obs_rate_allStimTrials_d1 = data_val.y[None,:,:]
 
+        
+        # Arrange data as per model inputs
+        if select_mdl[:6]=='CNN_2D':
+            obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1[:,temporal_width:,idx_unitsToTake]
+            data_val = prepare_data_cnn2d(data_val,temporal_width,idx_unitsToTake)
+        elif select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D' or select_mdl[:8]=='BP_CNN2D':
+            obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1[:,pr_temporal_width:,idx_unitsToTake]
+            data_val = prepare_data_cnn2d(data_val,pr_temporal_width,idx_unitsToTake)
+            temporal_width = pr_temporal_width
+        
+        obs_rate_allStimTrials_d1 = np.squeeze(obs_rate_allStimTrials_d1)   # backwards compat
+        
+        pred_rate = mdl_dict[select_mdl].predict(data_val.X)
+        pred_rate = pred_rate[:,idx_unitsToExtract]
+        fev_d1_allUnits, _, predCorr_d1_allUnits, _ = model_evaluate_new(obs_rate_allStimTrials_d1,pred_rate,0,lag = 0,obs_noise=0)
+        perf_datasets[select_mdl][d]['fev_allUnits'] = fev_d1_allUnits
+        perf_datasets[select_mdl][d]['corr_allUnits'] = predCorr_d1_allUnits
+        
+        # ---- temp to compute RWA from model
+        # data_train,_,_,_,_,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=True)
+        # pred_rate = mdl_dict[select_mdl].predict(data_train.X[idx_samps],batch_size = 100)
+        data_train = data_alldsets[d]['raw'].X[:,-temporal_width:,:,:]
+        # pred_rate = mdl_dict[select_mdl].predict(data_train,batch_size = 100)
+        bz = 100
+        gen = chunker(data_train,bz,mode='predict') # use generators to generate batches of data
+        pred_rate = mdl_dict[select_mdl].predict(gen,steps=int(np.ceil(data_train.shape[0]/bz)))
+        pred_rate = pred_rate[:,idx_unitsToExtract]
+        perf_datasets[select_mdl][d]['pred_rate'] = pred_rate

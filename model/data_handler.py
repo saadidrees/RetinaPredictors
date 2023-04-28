@@ -474,7 +474,7 @@ def load_data_kr_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
     # select only cells where we wont have so many zero spikerate in a batch   
     if idx_cells_orig is None:
         rgb = np.sum(datasets['train'].y,axis=0)
-        thresh = 0.75*np.median(rgb)
+        thresh = thresh_rr*np.median(rgb)           # This was 0.75 for the big rat dataset
         idx_unitsToTake = np.arange(len(units_all))
         idx_unitsToTake = idx_unitsToTake[rgb>thresh]
         units_all = units_all[idx_unitsToTake]
@@ -915,8 +915,11 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
             idx = np.where(bool_idx_train)
             X = np.array(f['data_train']['X'][idx],dtype='float32')
             y = np.array(f['data_train']['y'][idx],dtype='float32')
-            spikes = np.array(f['data_train']['spikes'][idx],dtype='float32')
-            data_train = Exptdata_spikes(X,y,spikes)
+            if 'spikes' in f['data_train']:
+                spikes = np.array(f['data_train']['spikes'][idx],dtype='float32')
+                data_train = Exptdata_spikes(X,y,spikes)
+            else:
+                data_train = Exptdata(X,y)
             
 
     else:
@@ -949,8 +952,11 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
             else:
                 X = np.array(f['data_val']['X'][idx_val_start:idx_val_end],dtype='float32') # only extract n_samples. if nsamps = -1 then extract all.
                 y = np.array(f['data_val']['y'][idx_val_start:idx_val_end],dtype='float32')
-                spikes = np.array(f['data_val']['spikes'][idx_val_start:idx_val_end],dtype='float32')
-                data_val = Exptdata_spikes(X,y,spikes)
+                if 'spikes' in f['data_val']:
+                    spikes = np.array(f['data_val']['spikes'][idx_val_start:idx_val_end],dtype='float32')
+                    data_val = Exptdata_spikes(X,y,spikes)
+                else:
+                    data_val = Exptdata(X,y)
     
                 # dataset info
                 if 'data_val_info' in f:

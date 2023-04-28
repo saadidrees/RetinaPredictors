@@ -503,7 +503,7 @@ def getSTA_spikeTrain(stim,spikes,N_trials=1,timeBin=16,REV_CORR=True):
     return sta_prod,spatRF,tempRF
     
 
-def getSTA_spikeTrain_simple(stim,spikes):
+def getSTA_spikeTrain_simple(stim,spikes,ADJ_MEAN=True):
     
     """
     stim = [samples,time,y,x]
@@ -514,7 +514,7 @@ def getSTA_spikeTrain_simple(stim,spikes):
     stim = data.X[:nsamps,-30:]
     spikes = data.spikes[:nsamps,2]
     """
-    stim = (stim-stim.mean())#/stim.std()
+    # stim = (stim-stim.mean())#/stim.std()
     # stim = stim - np.mean(stim,axis=0)  # mean across all samples 
     # stim[stim<50] = -1
     # stim[stim>50] = 1
@@ -533,6 +533,7 @@ def getSTA_spikeTrain_simple(stim,spikes):
     # sta = np.sum(sta,axis=0)/np.sum(spikes[spikes>0])
     sta = np.sum(sta,axis=0)/np.sum(spikes>0)
     
-    sta = sta - np.mean(stim,axis=0)
+    if ADJ_MEAN==True:
+        sta = sta - np.mean(stim,axis=0)
     
     return sta

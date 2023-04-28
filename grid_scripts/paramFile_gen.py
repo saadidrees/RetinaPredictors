@@ -38,18 +38,18 @@ for select_rgctype in list_new:
     MaxPool=2
     num_trials=1
     
-    chan1_n = np.arange(5,8,2) #np.array((7,8,9,10,11,12,13,14,15,16)) #np.atleast_1d((18)) #np.atleast_1d((18))
-    filt1_size = np.atleast_1d((9)) #((1,2,3,4,5,6,7,8,9))
+    chan1_n = np.arange(7,13,2) #np.array((7,8,9,10,11,12,13,14,15,16)) #np.atleast_1d((18)) #np.atleast_1d((18))
+    filt1_size = np.atleast_1d((9,11)) #((1,2,3,4,5,6,7,8,9))
     filt1_3rdDim = np.atleast_1d((0)) #np.atleast_1d((1,10,20,30,40,50,60))
     
-    chan2_n = np.arange(13,18,4) #np.atleast_1d((25))     #np.array((8,10,13,15,18,20,22,24,25,26,28,30))
+    chan2_n = np.arange(17,25,2) #np.atleast_1d((25))     #np.array((8,10,13,15,18,20,22,24,25,26,28,30))
     # chan2_n = np.append(chan2_n,16)
-    filt2_size = np.atleast_1d((7,5))   #((1,2,3,4,5,6,7,8,9))
+    filt2_size = np.atleast_1d((7,9,11))   #((1,2,3,4,5,6,7,8,9))
     filt2_3rdDim = np.atleast_1d((0)) #np.atleast_1d((1,8,10,12,14,18,20,30,40,50))
     
-    chan3_n = np.arange(23,28,4) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
+    chan3_n = np.arange(27,33,2) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
     # chan3_n = np.append([0],chan3_n)
-    filt3_size = np.atleast_1d((7,5))   # ((1,2,3,4,5,6,7,8,9))
+    filt3_size = np.atleast_1d((7,9,11))   # ((1,2,3,4,5,6,7,8,9))
     filt3_3rdDim = np.atleast_1d((0))#np.atleast_1d((1,8,10,12,14,18,20,30,40,50))
     
     chan4_n = np.atleast_1d((0)) #np.arange(0,120,20) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
