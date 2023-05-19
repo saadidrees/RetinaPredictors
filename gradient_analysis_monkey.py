@@ -241,7 +241,7 @@ n_search = 37
 idx_fev = idx_fev_stack[:n_search]
 rgb = np.intersect1d(idx_fev[:,0],idx_fev[:,1]).astype('int32')
 # idx_unitsToExtract = rgb[:n_units]
-idx_unitsToExtract = np.array([7,9,11,12])    # u-4
+# idx_unitsToExtract = np.array([7,9,11,12])    # u-4
 # idx_unitsToExtract = np.array([2,3,4,5,8]) # u-5
 # idx_unitsToExtract = np.array([10, 14, 15, 16, 17, 19])   # u-6
 # idx_unitsToExtract = np.array([13,18,20,23,27,28,32]) #u-7
@@ -568,7 +568,7 @@ SAVE_FIGS = False
 select_mdl = 'PRFR_CNN2D_RODS' #('PRFR_CNN2D_RODS','CNN_2D_NORM)
 select_lightLevel = 'scot-30-Rstar'  #
 select_lightLevel_sta = select_lightLevel
-n_units = 7     # corresponds to suffix of the grad file
+n_units = 4     # corresponds to suffix of the grad file
 USE_SSD = False     # Location of gradient file
 
 
@@ -578,6 +578,7 @@ temp_window = 40
 sig_fac = 1.5   # For spat RF std
 rfExtractNPixs = 10     # Edge size in pixels of window around RF center
 timeBin = 8
+dsFac = 4   # Downsampling factor. Because origninal stuff was upsampled by 4
 num_samps_toload = 400000 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
 batch_size = 20000
 if batch_size<num_samps_toload:
@@ -735,8 +736,8 @@ for u in u_arr:
     fontsize=12
     fig,axs = plt.subplots(1,1,figsize=(15,5))
     axs.plot(t[idx_datapoints],rgb[idx_datapoints]/rgb[idx_datapoints].max())
-    # axs.plot(t[idx_datapoints],data_alldsets[select_lightLevel_sta]['raw'].y[idx_datapoints,select_rgc_dataset]/
-    #           data_alldsets[select_lightLevel_sta]['raw'].y[idx_datapoints,select_rgc_dataset].max())
+    axs.plot(t[idx_datapoints],data_alldsets[select_lightLevel_sta]['raw'].y[idx_datapoints,select_rgc_dataset]/
+              data_alldsets[select_lightLevel_sta]['raw'].y[idx_datapoints,select_rgc_dataset].max())
     axs.set_xlabel('Time (s)',fontsize=fontsize)
     axs.set_ylabel(labels_rf_params[idx_param],fontsize=fontsize)
 
@@ -763,6 +764,7 @@ for u in u_arr:
      
 
     # ---- initialize binned variables
+    temp_window_ds = int(temp_window/dsFac)
     spatRF_grads_binned_grand = np.zeros((spat_dims[0],spat_dims[1],nbins));spatRF_grads_binned_grand[:]=np.nan
     tempRF_grads_binned_grand = np.zeros((temp_window,nbins));tempRF_grads_binned_grand[:] = np.nan
     rf_params_grads_binned_grand = np.zeros((nbins,*rf_params_grand.shape[1:]),dtype='float64')
@@ -770,7 +772,7 @@ for u in u_arr:
     
     data_real_binned_grand = np.zeros(nbins)
     spatRF_real_binned_grand = np.empty((spat_dims[0],spat_dims[1],nbins));spatRF_real_binned_grand[:]=np.nan
-    tempRF_real_binned_grand = np.empty((temp_window,nbins));tempRF_real_binned_grand[:]=np.nan
+    tempRF_real_binned_grand = np.empty((temp_window_ds,nbins));tempRF_real_binned_grand[:]=np.nan
     rf_params_real_binned_grand = np.zeros((nbins,*rf_params_grand.shape[1:]),dtype='float64')
     rf_coords_real_binned_grand = np.zeros((629,2,nbins),dtype='float64')
     
@@ -778,7 +780,7 @@ for u in u_arr:
     avgMovie_binned_grand[:] = np.nan
     sta_grads_binned_grand = np.empty((temp_window,spat_dims[0],spat_dims[1],nbins),dtype='float32')
     sta_grads_binned_grand[:] = np.nan
-    sta_real_binned_grand = np.empty((temp_window,spat_dims[0],spat_dims[1],nbins),dtype='float32')
+    sta_real_binned_grand = np.empty((temp_window_ds,spat_dims[0],spat_dims[1],nbins),dtype='float32')
     sta_real_binned_grand[:] = np.nan
     temp_win_gradsBin = np.arange(10,30)
     
@@ -833,34 +835,30 @@ for u in u_arr:
 
         if np.sum(spikes_totake>0)>200:
             # Perform rev corr
-            sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
+            stim_ds = stim[:,::dsFac]
+            sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim_ds,spikes_totake)
             scaleFac = np.nanmean(resp_totake)/np.var(stim)
             sta_data = sta_data * scaleFac
-
-            spatRF = sta_data[idx_tempPeak,:,:]     # slice for SpatRF. To then extract temporal RF
+            
+            idx_tempPeak_ds = int(idx_tempPeak/dsFac)
+            spatRF = sta_data[idx_tempPeak_ds,:,:]     # slice for SpatRF. To then extract temporal RF
             
             try:
-                rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
                 cent_idx_min_max = np.array([np.unravel_index(spatRF.argmin(), spatRF.shape),np.unravel_index(spatRF.argmax(), spatRF.shape)])
                 min_max_spatRF = np.argmax(np.abs([spatRF.min(),spatRF.max()]))
                 cent_idx = cent_idx_min_max[min_max_spatRF]
                 tempRF = sta_data[:,cent_idx[0],cent_idx[1]]
-                sign = np.sign(tempRF[idx_tempPeak])
+                sign = np.sign(tempRF[idx_tempPeak_ds])
                 if sign<0:      
                     tempRF = tempRF*sign
                 # Normalize spatRF by unit mean to reflect any variations in gain
                 # purely in the temporal part
-                mean_rfCent = np.nanmean(np.abs(rf_fit_img))
+                mean_rfCent = np.nanmean(np.abs(spatRF))
                 spatRF = spatRF/mean_rfCent
                 tempRF = tempRF*mean_rfCent
             except:
                 tempRF = np.zeros(sta_data.shape[0]);tempRF[:] = np.nan
             
-            # spatRF,tempRF = model.featureMaps.decompose(sta_data)
-            # rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-            # mean_rfCent = np.nanmean(np.abs(rf_fit_img))
-            # spatRF = spatRF/mean_rfCent
-            # tempRF = tempRF*mean_rfCent
             
             if np.sum(np.isfinite(spatRF))>0:
                 rf_params_real_binned_grand[i,0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
@@ -889,12 +887,12 @@ for u in u_arr:
     plt.plot(gain_grads_binned,gain_real_binned,'o');plt.ylabel('real');plt.xlabel('grads');plt.show()
     
     
-    idx = np.array([1,2,3,4,5,6,7,8])
+    idx = np.array([0,1,2,3,4,5,6,7,8,9])
     txt_suptitle = '%s | %s (FEV=%02d%%) | Training: %s | Testing: %s | STA: %s'%(select_mdl,uname,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc_dataset]*100,dataset_model,select_lightLevel,select_lightLevel_sta)
     fig,axs = plt.subplots(1,2,figsize=(20,5))
     fig.suptitle(txt_suptitle)
     axs = np.ravel(axs)
-    axs[0].plot(tempRF_grads_binned_grand_norm[:,idx])
+    axs[0].plot(tempRF_grads_binned_grand_norm[::dsFac,idx])
     axs[0].set_title('gradients');axs[0].set_xlabel('frames')
     axs[1].plot(tempRF_real_binned_grand_norm[:,idx])
     axs[1].set_title('data');axs[1].set_xlabel('frames')
@@ -904,13 +902,13 @@ for u in u_arr:
     dict_perUnit = dict(tempRF_grads_binned_grand_norm=tempRF_grads_binned_grand_norm,
                         tempRF_real_binned_grand_norm=tempRF_real_binned_grand_norm,
                         tempRF_grads_binned_grand=tempRF_grads_binned_grand,
-                        tempRF_real_binned_grand=tempRF_real_binned_grand_norm,
+                        tempRF_real_binned_grand=tempRF_real_binned_grand,
                         gain_grads_binned=gain_grads_binned,
                         gain_real_binned=gain_real_binned,
                         fev=perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc_dataset]*100,
                         uname=uname)
     
-    fname_results = os.path.join(path_save,'gain_analysis.h5')
+    fname_results = os.path.join(path_save,'gain_analysis_ds.h5')
     if 'f' in locals():
         try:
             f.close()
