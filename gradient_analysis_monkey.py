@@ -62,9 +62,7 @@ subFold = 'gradient_analysis'
 fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
 
 
-path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/datasets/' #CNS/datasets/'         # CNS
-# path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/CNS/datasets/'         # CNS
-
+path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/datasets/'
 dataset_model = 'scot-3-30-Rstar'
 
 path_save = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/'
@@ -74,12 +72,12 @@ path_mdl = '/home/saad/data/analyses/data_kiersten/monkey01/ICLR2023'      # CNS
 mdl_subFold = '' #'LayerNorm_MultiAxis'
 mdl_names = ('CNN_2D_NORM','PRFR_CNN2D_RODS') #'CNN_2D_NORM' #'PRFR_CNN2D_RODS' 
 paramName_mdl = {}
-paramName_mdl['PRFR_CNN2D_RODS'] = 'U-37_P-180_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' #'U-0.00_P-180_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.0010_TR-01' 
-paramName_mdl['CNN_2D_NORM'] = 'U-37_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' #'U-0.00_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.0010_TR-01'
-#paramName_mdl = 'U-37.00_P-180_T-120_CB-01_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.0010_TRSAMPS-030_TR-01' 
+paramName_mdl['PRFR_CNN2D_RODS'] = 'U-37_P-180_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' 
+paramName_mdl['CNN_2D_NORM'] = 'U-37_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' 
 
+
+# Load models into RAM
 mdl_dict = {}
-
 select_mdl = mdl_names[0]
 for select_mdl in mdl_names:
 
@@ -108,15 +106,10 @@ for select_mdl in mdl_names:
     mdl_dict[select_mdl] = mdl
 
 
-
-
 # %% Load all the datasets on which the model is to be evaluated and for which we have to compute gradients
 
 nsamps_dur = -1   # amount of data to load. In minutes
-
-# fname_sta_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/monkey01','db_files','datasets','monkey01_dataset_CB_allLightLevels_8ms.h5')
-
-dataset_eval = ('scot-30-Rstar','scot-3-Rstar','scot-0.3-Rstar')    #_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
+dataset_eval = ('scot-30-Rstar','scot-3-Rstar','scot-0.3-Rstar')    
 data_alldsets = {}
 d = dataset_eval[0]
 
@@ -140,15 +133,9 @@ for d in dataset_eval:
     idx_samps = np.arange(0,nsamps*samp_interval,samp_interval)      # this is the index of data that we will extract 
     
     data_train = Exptdata_spikes(data_train.X[idx_samps],data_train.y[idx_samps],data_train.spikes[idx_samps])
-    
     data_train = prepare_data_cnn2d(data_train,pr_temporal_width,np.arange(data_train.y.shape[1]))
 
     data = data_train
-    # if nsamps == data_train.X.shape[0]:
-    #     data = data_train
-    # else:
-    #     data = Exptdata_spikes(data_train.X[idx_samps],data_train.y[idx_samps],data_train.spikes[idx_samps])
-
     data_alldsets[d]['raw'] = data
     data_alldsets[d]['idx_samps'] = rgb
     
@@ -157,11 +144,11 @@ for d in dataset_eval:
 data_alldsets['spat_dims'] = (data.X.shape[-2],data.X.shape[-1])
 data_alldsets['temporal_dim'] = data.X.shape[1]
 
+del data
 
 # %% Extract performance for each model at each dataset
 
 path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/datasets/' 
-# path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/CNS/datasets/'         # CNS
 correctMedian = True
 
 perf_datasets = {}
@@ -197,8 +184,6 @@ for select_mdl in mdl_names:
 
         
         obs_rate = data_val.y
-        # pred_rate = mdl_dict[select_mdl].predict(data_val.X)
-        # obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,filt_width:,:]
         
         if correctMedian==True:
             fname_data_train_val_test_training = os.path.join(path_mdl,'datasets',('monkey01'+'_dataset_train_val_test_'+dataset_model+'.h5'))
@@ -215,10 +200,19 @@ for select_mdl in mdl_names:
         perf_datasets[select_mdl][d]['fev_allUnits'] = fev_d1_allUnits
         perf_datasets[select_mdl][d]['corr_allUnits'] = predCorr_d1_allUnits
         
-        
         _ = gc.collect()
         
 # %% Get index of the top common units across all models to be analyzed
+
+"""
+This part is useful to select units with top performance. Because then I can
+extract gradients in parts and not for all units at once.
+The main variables to use from this cell are:
+    - fev_unitsToExtract
+    - uname_unitsToExtract
+    - idx_unitsToExtract
+    - n_units
+"""
 n_units = 37
 fev_stack = np.zeros(len(perf_model['uname_selectedUnits']))
 idx_fev_stack = np.zeros(len(perf_model['uname_selectedUnits'] ))
@@ -228,8 +222,8 @@ for select_mdl in mdl_names:
     fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[select_mdl]+'.h5')
 
     f = h5py.File(fname_performanceFile,'r')
-    uname_all = np.array(f['uname_selectedUnits'],dtype='bytes')
-    uname_all = np.asarray(list(model.utils_si.h5_tostring(uname_all)))
+    uname_all_inData = np.array(f['uname_selectedUnits'],dtype='bytes')
+    uname_all_inData = np.asarray(list(model.utils_si.h5_tostring(uname_all_inData)))
     f.close()
     
     # d = dataset_eval[1]
@@ -246,44 +240,15 @@ idx_fev_stack = idx_fev_stack[1:].T
 n_search = 37
 idx_fev = idx_fev_stack[:n_search]
 rgb = np.intersect1d(idx_fev[:,0],idx_fev[:,1]).astype('int32')
-idx_unitsToExtract = rgb[:n_units]
-# idx_unitsToExtract = np.array([7,9,11,12])    # u-4
+# idx_unitsToExtract = rgb[:n_units]
+idx_unitsToExtract = np.array([7,9,11,12])    # u-4
 # idx_unitsToExtract = np.array([2,3,4,5,8]) # u-5
 # idx_unitsToExtract = np.array([10, 14, 15, 16, 17, 19])   # u-6
 # idx_unitsToExtract = np.array([13,18,20,23,27,28,32]) #u-7
 fev_unitsToExtract = fev_stack[idx_unitsToExtract]
-uname_unitsToExtract = uname_all[idx_unitsToExtract]
+uname_unitsToExtract = uname_all_inData[idx_unitsToExtract]
 print(uname_unitsToExtract)
 n_units = len(uname_unitsToExtract)
-
-# uname_gainFile = ['on_mid_003', 'on_mid_004', 'on_mid_005', 'on_mid_006', 'on_mid_009', 'on_mid_011', 'on_mid_015', 'on_mid_016', 'on_mid_017', 'on_mid_018', 'on_mid_020']
-# ['on_mid_003',
-#  'on_mid_004',
-#  'on_mid_005',
-#  'on_mid_006',
-#  'on_mid_008',
-#  'on_mid_009',
-#  'on_mid_010',
-#  'on_mid_011',
-#  'on_mid_012',
-#  'on_mid_013',
-#  'on_mid_015',
-#  'on_mid_016',
-#  'on_mid_017',
-#  'on_mid_018',
-#  'on_mid_020']
-# %% Keep data only for unitsToExtract ones
-
-for d in dataset_eval:
-    data = data_alldsets[d]['raw']
-    data = Exptdata_spikes(data.X,data.y[:,idx_unitsToExtract],data.spikes[:,idx_unitsToExtract])
-    data_alldsets[d]['raw'] = data
-    
-    for select_mdl in mdl_names:
-        rgb = perf_datasets[select_mdl][d]['fev_allUnits']
-        perf_datasets[select_mdl][d]['fev_allUnits'] = rgb[idx_unitsToExtract]
-
-
 
 # %% Compute gradients for all the datasets (and models?)
 """
@@ -304,10 +269,11 @@ Gradients are computed within GradientTape framework. This allows TF to 'record'
 relevant operations in the forward pass. Then during backward pass, TF traverses
 this list of operations in reverse order to compute gradients.
 """
+
 path_grads = '/mnt/phd/postdoc/analyses/'
 temporal_width_grads = 40
 select_mdl = 'CNN_2D_NORM' #'PRFR_CNN2D_RODS' #'CNN_2D_NORM'
-save_grads = True
+save_grads = False
 
 mdl_totake = mdl_dict[select_mdl]
 
@@ -319,7 +285,7 @@ n_units = len(idx_unitsToExtract)
 # idx_unitsToExtract = np.arange(n_units)
 
 d = dataset_eval[0]
-for d in (dataset_eval[0],):
+for d in dataset_eval:
     if save_grads==True:
         fname_gradsFile = os.path.join(path_grads,'grads_'+select_mdl+'_'+d+'_'+str(nsamps)+'_u-'+str(n_units)+'.h5')
         if os.path.exists(fname_gradsFile):
@@ -328,7 +294,7 @@ for d in (dataset_eval[0],):
     data = data_alldsets[d]['raw']
     if select_mdl == 'CNN_2D_NORM':
         data = Exptdata(data.X[:,-temporal_width:,:,:],data.y)
-        batch_size = 256
+        batch_size = 256        # move this outside
     else:
         batch_size = 256
     
@@ -395,18 +361,16 @@ for d in (dataset_eval[0],):
     t_dur = time.time()-t_start
     print(t_dur/60)
     if save_grads==True:
-        # grp['grads'].attrs['idx_data'] = data_alldsets[d]['idx_samps']
         grp.create_dataset('idx_data',data=data_alldsets[d]['idx_samps'])
         grp.create_dataset('unames',data=uname_unitsToExtract.astype('bytes'))
         grp.create_dataset('fev',data=fev_unitsToExtract)
     f_grads.close()
 
 # %% STA vs gradient comparisons
-fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
 datasets_plot = ('scot-3-Rstar',)#'scot-0.3-Rstar',)#'scot-3-Rstar','scot-0.3-Rstar')
 mdls_toplot = ('CNN_2D_NORM','PRFR_CNN2D_RODS',) #PRFR_CNN2D_RODS  CNN_2D_NORM
 
-USE_SSD = False
+USE_SSD = False     # location of gradients
 if USE_SSD == True:
     path_gradFiles = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/gradients/'
 else:
@@ -423,20 +387,14 @@ temp_window = 50
 sig_fac = 1.5
 range_tempFilt = np.arange(temporal_width_grads-temp_window,temporal_width_grads)
 
-# u_arr = np.array([0,1,2,3,4,5,6,30,31,32,33,34,35,36])
 u_arr = [0]
-# u = u_arr[0]
-
  
 m = 0
 num_samps = len(idx_samps) 
-n_units = 7
+n_units = 7     # suffix for the gradients file
 
+u = 0
 for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
-    # select_rgc = u  # 1, 5
-    
-    # uname = uname_unitsToExtract[select_rgc]
-    # print(uname)
 
     spatRF_sta = np.zeros((data_alldsets['spat_dims'][0],data_alldsets['spat_dims'][1],len(datasets_plot),len(mdl_names)))
     tempRF_sta = np.zeros((range_tempFilt.shape[0],len(datasets_plot),len(mdl_names)))
@@ -448,10 +406,8 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
     tempRF_indiv_avg_acrossImgs = np.zeros((range_tempFilt.shape[0],len(datasets_plot),len(mdl_names)))
     tempRF_indiv = np.zeros((range_tempFilt.shape[0],num_samps,len(datasets_plot),len(mdl_names)))
 
-
     for m in range(len(mdls_toplot)):
         select_mdl = mdls_toplot[m]
-                
         
         ctr_d = -1
         d = datasets_plot[0]
@@ -461,21 +417,13 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
 
             uname_all_grads = np.array(f_grads[select_mdl][d]['unames'],'bytes')
             uname_all_grads = utils_si.h5_tostring(uname_all_grads)
-            # rgb = uname_all_grads == uname_unitsToExtract
-            rgb = np.intersect1d(uname_all_grads,uname_unitsToExtract)
-            rgb = np.sort(uname_all_grads) == np.sort(rgb)
+            uname = uname_all_grads[u]
 
-            if np.any(rgb) == False:
-                raise ValueError('gradient dataset and stimulus dataset do not match')
-            else:
-                uname = uname_all_grads[u]
-            
             print(uname)
-            select_rgc_dataset = np.where(uname==uname_all)[0][0]
+            select_rgc_dataset = np.where(uname==uname_all_inData)[0][0]
 
             ctr_d+=1
             
-
             data = data_alldsets[d]['raw']
         
             # Method 1: Compute STA by taking Response Weighted Average of the stimulus (model independent)
@@ -511,8 +459,6 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
     vmin = np.min((spatRF_singImg.min(),spatRF_indiv_avg_acrossImgs.min()))
     vmax = np.max((spatRF_singImg.max(),spatRF_indiv_avg_acrossImgs.max()))
     
-    # tmin = np.nanmin((tempRF_sta.min(),tempRF_singImg.min(),tempRF_indiv_avg_acrossImgs.min(),tempRF_indiv.min()))-0.05
-    # tmax = np.nanmax((tempRF_sta.max(),tempRF_singImg.max(),tempRF_indiv_avg_acrossImgs.max(),tempRF_indiv.max()))+0.05
     tmin = np.nanmin((tempRF_sta.min(),tempRF_singImg.min()))-0.05
     tmax = np.nanmax((tempRF_sta.max(),tempRF_singImg.max()))+0.05
 
@@ -521,7 +467,7 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
     temp_axis = np.arange(temp_window)
     temp_axis = np.flip(temp_axis*frametime)
     n_ticks = 10
-    ticks_x = np.arange(0,temp_axis.shape[0],5) #np.linspace(0,temp_axis.shape[0],n_ticks,dtype=int)-1
+    ticks_x = np.arange(0,temp_axis.shape[0],5) 
     ticks_x[0] = 0
     ticks_x_labels = temp_axis[ticks_x]
     font_tick = 14
@@ -529,9 +475,6 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
     
     txt_title = 'Train: %s\nTest: %s\n%s'%(dataset_model,d,uname)
     
-    n_conds = len(mdls_toplot)*(2*len(datasets_plot))
-    plots_idx = np.arange(0,n_conds*2)
-    # plots_idx = plots_idx.reshape(n_conds,len(datasets_plot),len(mdls_toplot),order='F')
     plots_idx = np.array([[0,3],[1,4],[2,5]])
 
     fig,axs = plt.subplots(2,len(datasets_plot)*len(mdls_toplot)+1,figsize=(30,15))
@@ -544,21 +487,16 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
         
     for d in datasets_plot:
         ctr_d+=1
-
-    
         
-        # idx_p = len(dataset_eval)*ctr_d
-        # idx_p = plots_idx[0,0,ctr_d,m]
         idx_p = plots_idx[0,0]
         axs[idx_p].set_title('Conventional STA',fontsize=font_title)
         axs[idx_p].imshow(spatRF_sta[:,:,ctr_d,m],aspect='auto',cmap=cmap_name)
         axs[idx_p].axes.xaxis.set_visible(False)
         axs[idx_p].axes.yaxis.set_visible(False)
 
-        # idx_p = plots_idx[0,1,ctr_d,m]
         idx_p = plots_idx[0,1]
         axs[idx_p].plot(tempRF_sta[:,ctr_d,m])
-        # axs[idx_p].set_xlabel('Time prior to spike (ms)',size=font_tick)
+        axs[idx_p].set_xlabel('Time prior to spike (frames)',size=font_tick)
         axs[idx_p].set_xticks(ticks_x)
         axs[idx_p].set_xticklabels(ticks_x_labels)
         axs[idx_p].set_ylim(tmin,tmax)
@@ -567,59 +505,23 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
 
         for m in range(len(mdls_toplot)):
             select_mdl = mdls_toplot[m]
-           
             
-            # idx_p = plots_idx[1,0,ctr_d,m]
             idx_p = plots_idx[m+1,0]
             axs[idx_p].set_title('single sample',fontsize=font_title)
             axs[idx_p].imshow(spatRF_singImg[:,:,ctr_d,m],aspect='auto',cmap=cmap_name)#,vmin=-vmax,vmax=-vmin)
             axs[idx_p].axes.xaxis.set_visible(False)
             axs[idx_p].axes.yaxis.set_visible(False)
-            # idx_p = plots_idx[1,1,ctr_d,m]
             
             idx_p = plots_idx[m+1,1]
             txt_subtitle = '%s | %s | FEV = %02d%%'%(select_mdl,d[5:],perf_datasets[select_mdl][d]['fev_allUnits'][select_rgc_dataset]*100)
             axs[idx_p].set_title(txt_subtitle,fontsize=font_title)
             axs[idx_p].plot(tempRF_singImg[:,ctr_d,m])
-            # axs[idx_p].set_xlabel('Time prior to spike (ms)',size=font_tick)
+            axs[idx_p].set_xlabel('Time prior to spike (frames)',size=font_tick)
             axs[idx_p].set_xticks(ticks_x)
             axs[idx_p].set_ylim(tmin,tmax)
             axs[idx_p].set_xticklabels(ticks_x_labels)
             axs[idx_p].tick_params(axis='both',labelsize=font_tick)
             axs[idx_p].set_ylabel('spikes/R*/rod',size=font_tick)
-
-
-            # idx_p = plots_idx[2,0,ctr_d,m]
-            # axs[idx_p].set_title('Avg STRFs across samps',fontsize=font_title)
-            # axs[idx_p].imshow(spatRF_indiv_avg_acrossImgs[:,:,ctr_d,m],aspect='auto',cmap=cmap_name,vmin=vmin,vmax=vmax)
-            # axs[idx_p].axes.xaxis.set_visible(False)
-            # axs[idx_p].axes.yaxis.set_visible(False)
-
-            # idx_p = plots_idx[2,1,ctr_d,m]
-            # axs[idx_p].plot(tempRF_indiv_avg_acrossImgs[:,ctr_d,m])
-            # # axs[idx_p].set_xlabel('Time prior to spike (ms)',size=font_tick)
-            # axs[idx_p].set_xticks(ticks_x)
-            # axs[idx_p].set_xticklabels(ticks_x_labels)
-            # axs[idx_p].set_ylim(tmin,tmax)
-            # axs[idx_p].tick_params(axis='both',labelsize=font_tick)
-            # axs[idx_p].set_ylabel('spikes/R*/rod',size=font_tick)
-
-
-            # idx_p = plots_idx[3,0,ctr_d,m]
-            # axs[idx_p].set_title('Average gradients across samps',fontsize=font_title)
-            # axs[idx_p].imshow(spatRF_gradAvg_acrossImgs[:,:,ctr_d,m],aspect='auto',cmap=cmap_name,vmin=vmin,vmax=vmax)
-            # axs[idx_p].axes.xaxis.set_visible(False)
-            # axs[idx_p].axes.yaxis.set_visible(False)
-
-            # idx_p = plots_idx[3,1,ctr_d,m]
-            # axs[idx_p].plot(tempRF_indiv[:,:,ctr_d,m])
-            # # axs[idx_p].set_xlabel('Time prior to spike (ms)',size=font_tick)
-            # axs[idx_p].set_xticks(ticks_x)
-            # axs[idx_p].set_xticklabels(ticks_x_labels)
-            # axs[idx_p].set_ylim(tmin,tmax)
-            # axs[idx_p].tick_params(axis='both',labelsize=font_tick)
-            # axs[idx_p].set_ylabel('spikes/R*/rod',size=font_tick)
-            # axs[idx_p].tick_params(axis='both',labelsize=font_tick)
 
     _ = gc.collect()
 
@@ -635,27 +537,46 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
 # %% TEMP RF BINNING
 
 """
-For each cell, bin the images by gradient strength / temporal filter strength and see if we can do this with real data
+For each cell:
+    1. Load the gradients
+    2. Decompose STRF into spatial and temporal
+    3. Find the peaks (gain)
+    4. Bin the temporal RFs by their gain and calc average temporal RF per bin
+    5. Get list of idx of movies within each bin
+    6. Perform rev corr on data using movies within each bin and get temporal RF per bin
+    7. 
+    
+    Create h5 file with following structure
+    Model
+        |--- LightLevel
+                    | ----- unit
+                             | ----- tempRF_grads_binned
+                             | ----- gain
+                             .
+                             .
+                             
+    
+
 """
 
 path_save_fig = os.path.join(path_save,'STRFs')
 if not os.path.exists(path_save_fig):
     os.makedirs(path_save_fig)
 
-DEBUG = 1
 SAVE_FIGS = False
 
 select_mdl = 'PRFR_CNN2D_RODS' #('PRFR_CNN2D_RODS','CNN_2D_NORM)
 select_lightLevel = 'scot-30-Rstar'  #
 select_lightLevel_sta = select_lightLevel
-n_units = 7
-USE_SSD = False
+n_units = 7     # corresponds to suffix of the grad file
+USE_SSD = False     # Location of gradient file
 
 
-nbins = 10
-ONLY_LARGEGRADS = False
+nbins = 10      # number of bins to group temporal RF gains in
+ONLY_LARGEGRADS = False     # True will only select gradients above a specific threshold
 temp_window = 40
-sig_fac = 1.5
+sig_fac = 1.5   # For spat RF std
+rfExtractNPixs = 10     # Edge size in pixels of window around RF center
 timeBin = 8
 num_samps_toload = 400000 #149000 #392000 #149000 # Note this is from the begining. Will have to provide indices if start offset
 batch_size = 20000
@@ -692,21 +613,14 @@ print(fname_gradsFile)
 f_grads = h5py.File(fname_gradsFile,'r')
 
 
-u = u_arr[-1]
+u = u_arr[0]
 for u in u_arr:
     
     uname_all_grads = np.array(f_grads[select_mdl][select_lightLevel]['unames'],'bytes')
     uname_all_grads = utils_si.h5_tostring(uname_all_grads)
-    # rgb = uname_all_grads == uname_unitsToExtract
-    rgb = np.intersect1d(uname_all_grads,uname_unitsToExtract)
-    rgb = np.sort(uname_all_grads) == np.sort(rgb)
+    uname = uname_all_grads[u]
 
-    if np.any(rgb) == False:
-        raise ValueError('gradient dataset and stimulus dataset do not match')
-    else:
-        uname = uname_all_grads[u]
-    
-    select_rgc_dataset = np.where(uname==uname_all)[0][0]
+    select_rgc_dataset = np.where(uname==uname_all_inData)[0][0]
     
     print(uname)
     idx_sampsInFullMat = idx_samps[:num_samps_toload] #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
@@ -729,21 +643,19 @@ for u in u_arr:
     
     idx_tempPeak = -1*(temp_window - np.argmax(np.abs(tempRF_fullSTA)))
     rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF_fullSTA,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
-    rfExtractNPixs = 10
     RF_midpoint_x = rf_params['x0']
     RF_midpoint_y = rf_params['y0']
     rfExtractIdx_x = (np.max((round(RF_midpoint_x-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_x+0.5*rfExtractNPixs),spatRF_fullSTA.shape[1]-1)))
     rfExtractIdx_y = (np.max((round(RF_midpoint_y-0.5*rfExtractNPixs),0)),np.min((round(RF_midpoint_y+0.5*rfExtractNPixs),spatRF_fullSTA.shape[0]-1)))
        
-    
     spat_dims = np.array([rfExtractNPixs,rfExtractNPixs])
     
     # ---- load gradients
     # grads_all = np.zeros((num_samps_toload,temp_window,spat_dims[0],spat_dims[1]),dtype='float16')
-    spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]))      # [imgs,y,x,lightlevels,models]
-    tempRF_grand = np.zeros((num_samps_toload,temp_window))      # [imgs,time,lightlevels,models]
+    spatRF_grand = np.zeros((num_samps_toload,spat_dims[0],spat_dims[1]))      # [imgs,y,x]
+    tempRF_grand = np.zeros((num_samps_toload,temp_window))      # [imgs,time,lightlevels]
     rf_params_grand = np.zeros((num_samps_toload,len(labels_rf_params)),dtype='float64') #[img,10 = [polarity,euclidean,theta,amp,biphasic,t_zero,t_peak,t_trough,t_zero_peakTrough,amp_trough]   sigma is the width of gaussian
-    rf_coords_grand = np.zeros((1000,2,num_samps_toload),dtype='float32')    # [points,[x,y],imgs,lightlevel,models]
+    rf_coords_grand = np.zeros((1000,2,num_samps_toload),dtype='float32')    # [points,[x,y],imgs]
     rf_coords_grand[:] = np.nan
 
     batch=0
@@ -752,12 +664,11 @@ for u in u_arr:
         print('Batch %d of %d'%(batch+1,total_batches-1))
         idx_chunk = np.arange(idx_batchStart[batch],idx_batchStart[batch+1])
         
+        # load gradient chunk        
         grads_chunk = f_grads[select_mdl][select_lightLevel]['grads'][u,idx_chunk,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
-        # grads_chunk = f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,idx_chunk]
-        # grads_chunk = grads_chunk[:,-temp_window:,rfExtractIdx_y[0]:rfExtractIdx_y[1],rfExtractIdx_x[0]:rfExtractIdx_x[1]]
-        # spatRF_chunk = grads_all[idx_chunk,idx_tempPeak,:,:]
 
-        spatRF_chunk = grads_chunk[:,idx_tempPeak-1,:,:]
+        # Estimate spatial RF. Need this to eventually extract temporal component
+        spatRF_chunk = grads_chunk[:,idx_tempPeak-1,:,:]    # spatial RF as slice
         
         spatRF_chunk_flatten = spatRF_chunk.reshape(spatRF_chunk.shape[0],-1)
         cent_idx_min_max = np.array([np.argmin(spatRF_chunk_flatten,axis=1),np.argmax(spatRF_chunk_flatten,axis=1)])
@@ -773,11 +684,10 @@ for u in u_arr:
         
         sign = np.sign(tempRF_chunk[:,idx_tempPeak-1])
         if np.sum(sign<0)>0:
-            tempRF_chunk[sign<0,:] = tempRF_chunk[sign<0,:]*sign[sign<0][:,None]
+            tempRF_chunk[sign<0,:] = tempRF_chunk[sign<0,:]*sign[sign<0][:,None]    # Make sure temporal RF is positive and reflect negative peaks in spatial RF
         
-        # rgb = np.unravel_index(cent_idx,(spatRF_chunk.shape[-2],spatRF_chunk.shape[-1]))
+        # normalize spatial RF by unit mean and reflect any gain changes purely in temporal part
         mean_rfCent = np.nanmean(np.abs(spatRF_chunk_flatten),axis=-1)
-        # mean_rfCent = np.nanmean(np.abs(rf_fit_img))
         spatRF_chunk = spatRF_chunk/mean_rfCent[:,None,None]
         tempRF_chunk = tempRF_chunk*mean_rfCent[:,None]
         
@@ -787,7 +697,6 @@ for u in u_arr:
         rf_params_chunk[:,11] = np.nanmin(tempRF_chunk,axis=1)
         rf_params_chunk[:,12] = np.argmax(tempRF_chunk,axis=1)
 
-                        
         spatRF_grand[idx_chunk,:,:] = spatRF_chunk
         tempRF_grand[idx_chunk,:] = tempRF_chunk
         rf_params_grand[idx_chunk,:] = rf_params_chunk
@@ -796,8 +705,8 @@ for u in u_arr:
         print('%0.2f minutes'%(t_end/60))
         
     
+    # Just consider all grads for the time being
     bool_largeGrads = np.ones(num_samps_toload,'bool')
-    
     print(bool_largeGrads.sum())
     
     _ = gc.collect()
@@ -814,12 +723,10 @@ for u in u_arr:
     for param in idx_params_select:
         cnt+=1
         axs[cnt].hist(rf_params_grand[:,param])
-        # axs[cnt].hist(rf_params_grand[bool_largeGrads,param])
         ax_title = '%s'%labels_rf_params[param]
         axs[cnt].set_title(ax_title,size=12)
-        # axs[cnt].set_ylabel('TempRF for all samples',size=font_title)
 
-    # Plot RF position as function of time
+    # Plot RF param as function of time
     idx_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == 'gain'][0]
     rgb = rf_params_grand[:,idx_param].copy()
     # rgb = rgb - np.nanmean(rgb)
@@ -827,11 +734,18 @@ for u in u_arr:
     idx_datapoints = np.arange(4500,5500)
     fontsize=12
     fig,axs = plt.subplots(1,1,figsize=(15,5))
-    axs.plot(t[idx_datapoints],rgb[idx_datapoints])
+    axs.plot(t[idx_datapoints],rgb[idx_datapoints]/rgb[idx_datapoints].max())
+    # axs.plot(t[idx_datapoints],data_alldsets[select_lightLevel_sta]['raw'].y[idx_datapoints,select_rgc_dataset]/
+    #           data_alldsets[select_lightLevel_sta]['raw'].y[idx_datapoints,select_rgc_dataset].max())
     axs.set_xlabel('Time (s)',fontsize=fontsize)
     axs.set_ylabel(labels_rf_params[idx_param],fontsize=fontsize)
 
     # ---- Find binning edges
+    """
+    Equal sample binning.
+    - idx_bin_edges variable just gives us bin edges for totalsamps/nbins
+    - idx_sorted is the index of data sorted low to high
+    """
     idx_binning_param = [p for p in range(len(labels_rf_params)) if labels_rf_params[p] == binning_param][0]
     data_tobin = rf_params_grand[:,idx_binning_param]
     idx_sorted = np.argsort(data_tobin)
@@ -848,8 +762,7 @@ for u in u_arr:
      # plt.plot(data_sorted)  
      
 
-    # ---- initialize binning variables
-    data_grads_binned_grand = np.zeros(nbins)
+    # ---- initialize binned variables
     spatRF_grads_binned_grand = np.zeros((spat_dims[0],spat_dims[1],nbins));spatRF_grads_binned_grand[:]=np.nan
     tempRF_grads_binned_grand = np.zeros((temp_window,nbins));tempRF_grads_binned_grand[:] = np.nan
     rf_params_grads_binned_grand = np.zeros((nbins,*rf_params_grand.shape[1:]),dtype='float64')
@@ -873,17 +786,11 @@ for u in u_arr:
     i = 0
     for i in tqdm(range(len(idx_bin_edges)-1),desc='Gradient binning'):
         idx_totake = idx_sorted[idx_bin_edges[i]:idx_bin_edges[i+1]]
-        # idx_totake = idx_sorted_flip[idx_bin_edges[i]:idx_bin_edges[i+1]]
-        data_tobin = rf_params_grand[:,idx_binning_param]
-        data_binned = data_tobin[idx_totake]
-        data_binned = np.mean(data_binned,axis=0)
-    
-        data_grads_binned_grand[i] = data_binned
         
         # metrics for binned grads
         rf_params_grads_binned_grand[i,:] = np.nanmean(rf_params_grand[idx_totake,:],axis=0,keepdims=True)
         
-        # Grads binned and then compute STRF
+        # Select the idx of spat and tempRF in each bin and average them.
         spatRF = np.nanmean(spatRF_grand[idx_totake,:,:],axis=0)
         tempRF = np.nanmean(tempRF_grand[idx_totake,:],axis=0)
         rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=3,rot=True,sta=0,tempRF_sig=False)
@@ -895,7 +802,7 @@ for u in u_arr:
         spatRF_grads_binned_grand[:,:,i] = spatRF
         tempRF_grads_binned_grand[:,i] = tempRF
         # sta_grads_binned_grand[:,:,:,i] = np.mean(f_grads[select_mdl][select_lightLevel]['grads'][select_rgc,np.sort(idx_totake),:,:,:],axis=0)
-    tempRF_grads_binned_grand_norm = tempRF_grads_binned_grand/np.nanmax(tempRF_grads_binned_grand,axis=(0,1),keepdims=True)
+    tempRF_grads_binned_grand_norm = tempRF_grads_binned_grand/np.nanmax(tempRF_grads_binned_grand,axis=(0,1),keepdims=True)    # should maybe normalize later after removing last bin?
 
     # winSize_x = 20
     # winSize_y = 20
@@ -925,11 +832,13 @@ for u in u_arr:
         avg_stim = np.mean(stim,axis=0)
 
         if np.sum(spikes_totake>0)>200:
+            # Perform rev corr
             sta_data = model.featureMaps.getSTA_spikeTrain_simple(stim,spikes_totake)
             scaleFac = np.nanmean(resp_totake)/np.var(stim)
             sta_data = sta_data * scaleFac
 
-            spatRF = sta_data[idx_tempPeak,:,:]
+            spatRF = sta_data[idx_tempPeak,:,:]     # slice for SpatRF. To then extract temporal RF
+            
             try:
                 rf_coords,rf_fit_img,rf_params,_ = model.featureMaps.spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
                 cent_idx_min_max = np.array([np.unravel_index(spatRF.argmin(), spatRF.shape),np.unravel_index(spatRF.argmax(), spatRF.shape)])
@@ -939,6 +848,8 @@ for u in u_arr:
                 sign = np.sign(tempRF[idx_tempPeak])
                 if sign<0:      
                     tempRF = tempRF*sign
+                # Normalize spatRF by unit mean to reflect any variations in gain
+                # purely in the temporal part
                 mean_rfCent = np.nanmean(np.abs(rf_fit_img))
                 spatRF = spatRF/mean_rfCent
                 tempRF = tempRF*mean_rfCent
@@ -950,7 +861,6 @@ for u in u_arr:
             # mean_rfCent = np.nanmean(np.abs(rf_fit_img))
             # spatRF = spatRF/mean_rfCent
             # tempRF = tempRF*mean_rfCent
-
             
             if np.sum(np.isfinite(spatRF))>0:
                 rf_params_real_binned_grand[i,0] = np.sqrt(rf_params['sigma_x']**2+rf_params['sigma_y']**2)*sig_fac*2     # spatial size
@@ -960,7 +870,6 @@ for u in u_arr:
                 rf_params_real_binned_grand[i,4] = rf_params['y0']
     
             sta_real_binned_grand[:,:,:,i] = sta_data
-            data_real_binned_grand[i] = rf_params_real_binned_grand[i,idx_binning_param]
             rf_coords_real_binned_grand[:,:,i] = rf_coords
             spatRF_real_binned_grand[:,:,i] = spatRF
             tempRF_real_binned_grand[:,i] = tempRF
@@ -979,10 +888,6 @@ for u in u_arr:
     gain_real_binned  = np.max(tempRF_real_binned_grand_norm,axis=0)
     plt.plot(gain_grads_binned,gain_real_binned,'o');plt.ylabel('real');plt.xlabel('grads');plt.show()
     
-    # tpeak_grads_binned = -(temp_window - np.argmax(tempRF_grads_binned_grand_norm,axis=0))
-    # tpeak_real_binned = -(temp_window - np.argmax(tempRF_real_binned_grand_norm,axis=0))
-    # plt.plot(tpeak_grads_binned,tpeak_real_binned,'o');plt.ylabel('real');plt.xlabel('grads');plt.show()
-
     
     idx = np.array([1,2,3,4,5,6,7,8])
     txt_suptitle = '%s | %s (FEV=%02d%%) | Training: %s | Testing: %s | STA: %s'%(select_mdl,uname,perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc_dataset]*100,dataset_model,select_lightLevel,select_lightLevel_sta)
@@ -998,6 +903,8 @@ for u in u_arr:
 
     dict_perUnit = dict(tempRF_grads_binned_grand_norm=tempRF_grads_binned_grand_norm,
                         tempRF_real_binned_grand_norm=tempRF_real_binned_grand_norm,
+                        tempRF_grads_binned_grand=tempRF_grads_binned_grand,
+                        tempRF_real_binned_grand=tempRF_real_binned_grand_norm,
                         gain_grads_binned=gain_grads_binned,
                         gain_real_binned=gain_real_binned,
                         fev=perf_datasets[select_mdl][select_lightLevel]['fev_allUnits'][select_rgc_dataset]*100,
@@ -1009,7 +916,8 @@ for u in u_arr:
             f.close()
         except:
             f
-        
+    
+    # save dict_perUnit to h5 file
     f = h5py.File(fname_results,'a')
     grp_name = '/'+select_mdl+'/'+select_lightLevel+'/'+uname
     if grp_name in f:
@@ -1020,16 +928,12 @@ for u in u_arr:
         h = grp.create_dataset(key,data=dict_perUnit[key])
     f.close()
     
-                        
-                        
-        
-
 # %% Load gain file
 
 fname_gainFile = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/gain_analysis.h5'
 f = h5py.File(fname_gainFile,'r')
 
-select_mdl = 'CNN_2D_NORM'  # CNN_2D_NORM # PRFR_CNN2D_RODS
+select_mdl = 'PRFR_CNN2D_RODS'  # CNN_2D_NORM # PRFR_CNN2D_RODS
 select_lightLevel = 'scot-0.3-Rstar'
 
 uname_gainFile = list(f[select_mdl][select_lightLevel].keys()) #['on_mid_003', 'on_mid_004', 'on_mid_005', 'on_mid_006', 'on_mid_009', 'on_mid_011', 'on_mid_015', 'on_mid_016', 'on_mid_017', 'on_mid_018', 'on_mid_020']
@@ -1064,9 +968,9 @@ for u in range(len(uname_gainFile)):
     fevs_pr[u] = np.array(f['PRFR_CNN2D_RODS'][select_lightLevel][uname]['fev'])
     
 f.close()
-    # plt.plot(gain_grads,gain_real,'o');plt.ylabel('real');plt.xlabel('grads');plt.title(slect_mdl+' | '+select_lightLevel+' | '+uname);plt.show()
 
-binsToTake = np.array([1,2,3,4,5,6,7,8])
+binsToTake = np.array([0,1,2,3,4,5,6,7,8,9])
+
 mse_cnn = np.nanmean((gain_grads_cnn[binsToTake]-gain_real_cnn[binsToTake])**2,axis=0)
 mse_pr = np.nanmean((gain_grads_pr[binsToTake]-gain_real_pr[binsToTake])**2,axis=0)
 
@@ -1087,21 +991,7 @@ axs[0].set_ylim(0,max_axis)
 axs[0].set_xlabel('MSE_CNN');axs[0].set_ylabel('MSE_PR')
 axs[0].set_title(txt_title)
 
-max_axis = np.max((fevs_cnn.max(),fevs_pr.max()))+1
-min_axis = 0#np.min((fevs_cnn.min(),fevs_pr.min()))-1
-
-# fig,axs = plt.subplots(1,1,figsize=(5,5))
-# axs = np.ravel(axs)
-# axs[0].plot(fevs_cnn[idx_fev_PR_G_CNN],fevs_pr[idx_fev_PR_G_CNN],'ro',label='PR>CNN')
-# axs[0].plot(fevs_cnn[idx_fev_CNN_G_PR],fevs_pr[idx_fev_CNN_G_PR],'bo',label='CNN>PR')
-# # axs[0].plot(fevs_cnn,fevs_pr,'o')
-# axs[0].legend()
-# axs[0].plot([0,100],[0,100],'--k')
-# axs[0].set_xlim(min_axis,max_axis)
-# axs[0].set_ylim(min_axis,max_axis)
-# axs[0].set_xlabel('FEV_CNN');axs[0].set_ylabel('FEV_PR')
-# axs[0].set_title(txt_title)
-
+# %% BELOW Sections not relevant for paper
 
 # %% TEMP RF BINNING - Feature selection
 
@@ -1175,7 +1065,7 @@ for u in u_arr:
     else:
         uname = uname_all_grads[u]
     
-    select_rgc_dataset = np.where(uname==uname_all)[0][0]
+    select_rgc_dataset = np.where(uname==uname_all_inData)[0][0]
     
     print(uname)
     idx_sampsInFullMat = idx_samps[:num_samps_toload] #grads_dict['CNN_2D_NORM']['scot-3-Rstar']['idx_samps']
@@ -1538,6 +1428,11 @@ f.close()
 
 avgMovies_pr = np.concatenate((avgMovie_pr_train[:,:,:,:,:,None],avgMovie_pr_test[:,:,:,:,:,None]),axis=-1) # [temp,spat_y,spat_x,bins,units,lightLevel_grads]
 
+# Get bin which leads to max sensitivity
+maxBin_tempRF_real_pr_train = np.where(tempRF_real_pr_train==1)[1]
+maxBin_tempRF_real_pr_test = np.where(tempRF_real_pr_test==1)[1]
+
+
 # ---- avg movie analysis
 avgMovies_temp_pr = np.zeros((temp_win,nbins,len(uname_gainFile),avgMovies_pr.shape[-1]));avgMovies_temp_pr[:] = np.nan
 
@@ -1560,28 +1455,31 @@ for u in range(len(uname_gainFile)):
         idx_tempPeak = -1*(temp_win - np.argmax(np.abs(tempRF_fullSTA)))
         
 
-        for d in range(avgMovies_pr.shape[-1]):
+        for d in range(avgMovies_pr.shape[-1]): # dataset
             spatRF = avgMovies_pr[idx_tempPeak,:,:,b,u,d]
             try:
                 cent_idx = np.where(np.abs(spatRF)==np.max(np.abs(spatRF)))
-                tempRF = avgMovies_pr[:,cent_idx[0][0],cent_idx[1][0],b,u,d]
-                avgMovies_temp_pr[:,b,u,d] = tempRF
+                tempMov = avgMovies_pr[:,cent_idx[0][0],cent_idx[1][0],b,u,d]
+                avgMovies_temp_pr[:,b,u,d] = tempMov
                 
             except:
                 avgMovies_temp_pr[:,b,u,d] = np.nan
-            
+    
+        
 avgMovies_temp_pr_norm = avgMovies_temp_pr/np.nanmax(avgMovies_temp_pr,axis=(0,1),keepdims=True)    # [time,bins,units,lightLevel_grads]
 
-# gain_avgMoviesTemp_pr = np.nanmax(avgMovies_temp_pr_norm,axis=0)     # [bins,units,lightLevel_grads]
-# mse_gain_avgMoviesTemp_pr = np.nanmean((gain_avgMoviesTemp_pr[:,:,0]-gain_avgMoviesTemp_pr[:,:,1])**2,axis=0)
-mse_temp_avgMoviesTemp_pr = np.nanmean((avgMovies_temp_pr_norm[:,:,:,0]-avgMovies_temp_pr_norm[:,:,:,1])**2,axis=(0,1)) # [units]
+avgMovies_maxBin_temp_pr = np.zeros((temp_win,len(uname_gainFile),avgMovies_pr.shape[-1]));avgMovies_maxBin_temp_pr[:] = np.nan
+avgMovies_maxBin_temp_pr[:,:,0] = avgMovies_temp_pr_norm[:,maxBin_tempRF_real_pr_train,range(len(maxBin_tempRF_real_pr_train)),0]    # fancy indexing
+avgMovies_maxBin_temp_pr[:,:,1] = avgMovies_temp_pr_norm[:,maxBin_tempRF_real_pr_test,range(len(maxBin_tempRF_real_pr_test)),1]    # fancy indexing
+
+mse_temp_avgMoviesTemp_pr = np.nanmean((avgMovies_maxBin_temp_pr[:,:,0]-avgMovies_maxBin_temp_pr[:,:,1])**2,axis=0) # [units]
 
 b = 7
 err_avgMovies_temp_pr_norm = np.nanmean((avgMovies_temp_pr_norm[:,b,:,0] - avgMovies_temp_pr_norm[:,b,:,1])**2,axis=0)
 a = np.argsort(-1*err_avgMovies_temp_pr_norm)
                     
 binsToTake = np.array([5])
-u=12; plt.plot(avgMovies_temp_pr_norm[:,binsToTake,u,0]); plt.plot(avgMovies_temp_pr_norm[:,binsToTake,u,1],'--');plt.title(uname_gainFile[u]+' | FEV = '+str(fevs_pr[u]));plt.show()
+u=2; plt.plot(avgMovies_temp_pr_norm[:,binsToTake,u,0]); plt.plot(avgMovies_temp_pr_norm[:,binsToTake,u,1],'--');plt.title(uname_gainFile[u]+' | FEV = '+str(fevs_pr[u]));plt.show()
 plt.plot(tempRF_real_pr_train[:,binsToTake,u]); plt.plot(tempRF_real_pr_test[:,binsToTake,u],'--');plt.title(uname_gainFile[u]+' | FEV = '+str(fevs_pr[u]));plt.show()
 
 binsToTake = np.array([5])
@@ -3614,3 +3512,17 @@ for u in u_arr:
     idx_bin_edges = idx_bin_edges.astype('int32')
 
     
+   # % Keep data only for unitsToExtract ones - Update so i dont have to do this. I load in all the data and keep track of unit indices etc. Use uname as the key
+
+# for d in dataset_eval:
+#     data = data_alldsets[d]['raw']
+#     data = Exptdata_spikes(data.X,data.y[:,idx_unitsToExtract],data.spikes[:,idx_unitsToExtract])
+#     data_alldsets[d]['raw'] = data
+    
+#     for select_mdl in mdl_names:
+#         rgb = perf_datasets[select_mdl][d]['fev_allUnits']
+#         perf_datasets[select_mdl][d]['fev_allUnits'] = rgb[idx_unitsToExtract]
+
+
+
+
