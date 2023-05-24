@@ -537,3 +537,55 @@ def getSTA_spikeTrain_simple(stim,spikes,ADJ_MEAN=True):
         sta = sta - np.mean(stim,axis=0)
     
     return sta
+
+# %%
+# lag = 1
+# idx_s = [6,5]
+
+# sta = stim[spikes.astype('bool')]
+# sta = np.sum(sta,axis=0)/np.sum(spikes>0)
+# avgStim = np.mean(stim,axis=0)
+# avgStim = np.roll(avgStim,lag,axis=0)
+# sta_adj = sta - avgStim
+
+
+# sta = sta[:,idx_s[0],idx_s[1]]
+# sta = (sta-sta.min())/(sta.max()-sta.min())
+
+# avgStim = avgStim[:,idx_s[0],idx_s[1]]
+# avgStim = (avgStim-avgStim.min())/(avgStim.max()-avgStim.min())
+
+# sta_adj = sta_adj[:,idx_s[0],idx_s[1]]
+# sta_adj = (sta_adj-sta_adj.min())/(sta_adj.max()-sta_adj.min())
+
+# plt.plot(avgStim);plt.plot(sta);plt.plot(sta_adj)
+
+
+# # %%
+
+# a = stim.copy()
+# a = np.moveaxis(a,0,1)
+# a = a[::4]
+# a = np.moveaxis(a,0,1)
+# a.shape
+
+
+# sta = a[spikes.astype('bool')]
+# sta = np.sum(sta,axis=0)/np.sum(spikes>0)
+# avgStim = np.mean(a,axis=0)
+# # avgStim = np.roll(avgStim,lag,axis=0)
+# sta_adj = sta - avgStim
+
+
+# sta = sta[:,idx_s[0],idx_s[1]]
+# sta = (sta-sta.min())/(sta.max()-sta.min())
+
+# avgStim = avgStim[:,idx_s[0],idx_s[1]]
+# avgStim = (avgStim-avgStim.min())/(avgStim.max()-avgStim.min())
+
+# sta_adj = sta_adj[:,idx_s[0],idx_s[1]]
+# sta_adj = (sta_adj-sta_adj.min())/(sta_adj.max()-sta_adj.min())
+
+# # plt.plot(avgStim);plt.plot(sta);plt.plot(sta_adj)
+
+# plt.plot(sta_adj);plt.plot(tempRF_grads_binned_grand_norm[::4,-1])
