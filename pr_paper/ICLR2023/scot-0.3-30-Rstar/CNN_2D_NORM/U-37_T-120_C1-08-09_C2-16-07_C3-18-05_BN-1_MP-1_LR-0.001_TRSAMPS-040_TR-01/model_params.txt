@@ -1,0 +1,109 @@
+expFold = monkey01
+mdl_name = CNN_2D_NORM
+path_model_save_base = /home/saad/data/analyses/data_kiersten/monkey01/scot-0.3-30-Rstar/LayerNorm_eps0
+fname_data_train_val_test = /home/saad/data/analyses/data_kiersten/monkey01/datasets/monkey01_dataset_train_val_test_scot-0.3-30-Rstar.h5
+path_dataset_base = /home/saad/data/analyses/data_kiersten/monkey01/
+path_existing_mdl = 
+nb_epochs = 50
+bz_ms = 10000
+runOnCluster = 0
+USE_CHUNKER = 0
+trainingSamps_dur = 40
+validationSamps_dur = 0
+CONTINUE_TRAINING = 1
+idxStart_fixedLayers = 0
+idxEnd_fixedLayers = -1
+info = 
+lr = 0.001
+lr_fac = 1
+use_lrscheduler = 0
+idx_unitsToTake = [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28 29 30 31 32 33 34 35 36]
+initial_epoch = 0
+chan1_n = 8
+filt1_size = 9
+chan2_n = 16
+filt2_size = 7
+chan3_n = 18
+filt3_size = 5
+BatchNorm = 1
+MaxPool = 1
+filt_temporal_width = 120
+lr_schedule = def lr_scheduler(epoch,lr):
+     arr_scheduler = np.array([[3,1],
+                           [10,10],
+                           [15,1],
+                           [20,10],
+                           [30,10],
+                           [50,10]])
+ 
+     idx = np.where(arr_scheduler[:,0]==epoch)[0]
+     
+     if idx.size>0:
+         idx = idx[0]
+         lr_fac = arr_scheduler[idx,1]
+         lr = lr/lr_fac
+     
+     return lr
+
+Model: "CNN_2D_NORM"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ input_4 (InputLayer)        [(None, 120, 30, 39)]     0         
+                                                                 
+ layer_normalization_1 (Laye  (None, 120, 30, 39)      280800    
+ rNormalization)                                                 
+                                                                 
+ conv2d_6 (Conv2D)           (None, 8, 22, 31)         77768     
+                                                                 
+ max_pooling2d_2 (MaxPooling  (None, 8, 11, 15)        0         
+ 2D)                                                             
+                                                                 
+ gaussian_noise_6 (GaussianN  (None, 8, 11, 15)        0         
+ oise)                                                           
+                                                                 
+ activation_8 (Activation)   (None, 8, 11, 15)         0         
+                                                                 
+ conv2d_7 (Conv2D)           (None, 16, 5, 9)          6288      
+                                                                 
+ flatten_2 (Flatten)         (None, 720)               0         
+                                                                 
+ batch_normalization (BatchN  (None, 720)              2880      
+ ormalization)                                                   
+                                                                 
+ reshape (Reshape)           (None, 16, 5, 9)          0         
+                                                                 
+ gaussian_noise_7 (GaussianN  (None, 16, 5, 9)         0         
+ oise)                                                           
+                                                                 
+ activation_9 (Activation)   (None, 16, 5, 9)          0         
+                                                                 
+ conv2d_8 (Conv2D)           (None, 18, 1, 5)          7218      
+                                                                 
+ flatten_3 (Flatten)         (None, 90)                0         
+                                                                 
+ batch_normalization_1 (Batc  (None, 90)               360       
+ hNormalization)                                                 
+                                                                 
+ reshape_1 (Reshape)         (None, 18, 1, 5)          0         
+                                                                 
+ gaussian_noise_8 (GaussianN  (None, 18, 1, 5)         0         
+ oise)                                                           
+                                                                 
+ activation_10 (Activation)  (None, 18, 1, 5)          0         
+                                                                 
+ flatten_4 (Flatten)         (None, 90)                0         
+                                                                 
+ batch_normalization_2 (Batc  (None, 90)               360       
+ hNormalization)                                                 
+                                                                 
+ dense_2 (Dense)             (None, 37)                3367      
+                                                                 
+ activation_11 (Activation)  (None, 37)                0         
+                                                                 
+=================================================================
+Total params: 379,041
+Trainable params: 377,241
+Non-trainable params: 1,800
+_________________________________________________________________
