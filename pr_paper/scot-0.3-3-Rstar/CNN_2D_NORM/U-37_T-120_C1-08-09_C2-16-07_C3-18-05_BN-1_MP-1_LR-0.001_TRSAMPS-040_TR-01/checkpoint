@@ -1,2 +1,0 @@
-model_checkpoint_path: "weights_U-37_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.0001_TRSAMPS-040_TR-01_epoch-050"
-all_model_checkpoint_paths: "weights_U-37_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.0001_TRSAMPS-040_TR-01_epoch-050"
