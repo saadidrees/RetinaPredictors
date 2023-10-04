@@ -1305,13 +1305,15 @@ def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_w
         stimFrames_train_flattened = np.reshape(stimFrames_train,(stimFrames_train.shape[0],np.prod(stimFrames_train.shape[1:])))
         stimFrames_val_flattened = np.reshape(stimFrames_val,(stimFrames_val.shape[0],np.prod(stimFrames_val.shape[1:])))
     
-    if np.unique(stimFrames_train_flattened,axis=0).shape[0] != stimFrames_train_flattened.shape[0]:
+    stimFrames_train_flattened_unique = np.unique(stimFrames_train_flattened,axis=0)
+    
+    if stimFrames_train_flattened_unique.shape[0] != stimFrames_train_flattened.shape[0]:
         Warning('training dataset contains repeated stimulus frames')
     
     if np.unique(stimFrames_val_flattened,axis=0).shape[0] != stimFrames_val_flattened.shape[0]:
         Warning('validation dataset contains repeated stimulus frames')
     
-    a = np.unique(stimFrames_train_flattened,axis=0)
+    a = stimFrames_train_flattened_unique #np.unique(stimFrames_train_flattened,axis=0)
     b = np.unique(stimFrames_val_flattened,axis=0)   
     c = np.concatenate((b,a),axis=0)
     d,d_idx = np.unique(c,axis=0,return_index=True)
@@ -1327,12 +1329,7 @@ def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_w
     else:
         print('No contamination found')
         return idx_discard
-              
-    # if idx_discard.size!=0:
-    #     print('training samples contains validation samples')
-    #     Warning('training dataset contains repeated stimulus frames')
-    # return idx_discard
-    
+
         
 def get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened):
         
