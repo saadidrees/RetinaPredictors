@@ -1321,7 +1321,7 @@ def check_trainVal_contamination(stimFrames_train,stimFrames_val,filt_temporal_w
     # idx_discard = np.setdiff1d(np.arange(0,a.shape[0]),d_idx)
     idx_discard = np.atleast_1d(np.empty(0))
     if np.abs(np.unique(c,axis=0).shape[0] - c.shape[0]) > 2:
-        Warning('Training samples contains validation samples. Finding training indices to remove')
+        print('Training samples contains validation samples. Finding training indices to remove')
         
         idx_discard = get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened)
         return idx_discard
