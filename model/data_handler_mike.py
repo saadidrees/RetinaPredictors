@@ -118,15 +118,21 @@ def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,
     # Cut out portion from middle that will comprise validation and test. Then take test dataset as last part of the validation dataset
     if frac_val+frac_test > 0:
         nsamples_val = int(np.floor(datasets['train'].X.shape[0]*(frac_val+frac_test)))       
-        idx_val = np.floor(np.arange((datasets['train'].X.shape[0]/2)-(nsamples_val/2),(datasets['train'].X.shape[0]/2)))
-        idx_val = np.concatenate((idx_val,np.arange(datasets['train'].X.shape[0]-(nsamples_val/2),datasets['train'].X.shape[0]-1)),axis=0)
+        offset_frames = 10 # Leave a gap of 10 frames to ensure no overlap because of upsampling
+        idx_val = np.floor(np.arange((datasets['train'].X.shape[0]/2)-(nsamples_val/2),(datasets['train'].X.shape[0]/2)+(nsamples_val/2)))
         idx_val = idx_val.astype('int')
         
-        idx_train = np.setdiff1d(np.arange(0,datasets['train'].X.shape[0]),idx_val)
+        pad_left = np.arange(idx_val[0]-offset_frames,idx_val[0])
+        pad_right = np.arange(idx_val[-1]+1,idx_val[-1]+offset_frames)
+        idx_val_withOffset = np.unique(np.concatenate((pad_left,idx_val,pad_right)))
+        
+        idx_train = np.setdiff1d(np.arange(0,datasets['train'].X.shape[0]),idx_val_withOffset)
 
         nsamps_test = int(np.floor(datasets['train'].X.shape[0]*frac_test))       
         idx_test = idx_val[-nsamps_test:]
-        idx_val = np.setdiff1d(idx_val, idx_test)
+        pad_left = np.arange(idx_test[0]-offset_frames)
+        idx_test_withOffset = np.concatenate((pad_left,idx_test))
+        idx_val = np.setdiff1d(idx_val, idx_test_withOffset)
         
         
         stim_train = datasets['train'].X[idx_train]
@@ -173,7 +179,9 @@ def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,
     datasets=[]; stim_train=[]; stim_val=[];stim_test=[];
     _ = gc.collect()
     
+    print('Checking contamination across train and val')
     check_trainVal_contamination(data_train.X,data_val.X)
+    print('Checking contamination across train and test')
     check_trainVal_contamination(data_train.X,data_test.X)
         
     
