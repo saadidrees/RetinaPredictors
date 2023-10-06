@@ -11,7 +11,10 @@ import h5py
 import tensorflow as tf
 import tensorflow.keras.callbacks as cb
 from tensorflow.keras.layers import Input
-from tensorflow.keras.optimizers.legacy import Adam
+try:
+    from tensorflow.keras.optimizers.legacy import Adam
+except:
+    from tensorflow.keras.optimizers import Adam
 import model.metrics as metrics
 import numpy as np
 import re
