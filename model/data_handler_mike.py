@@ -19,7 +19,7 @@ from model.data_handler import rolling_window, check_trainVal_contamination
 from model import utils_si
 import gc
 
-def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0):
+def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False):
     
     # valSets = ['scotopic','photopic']   # embed this in h5 file
     
@@ -130,7 +130,7 @@ def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,
 
         nsamps_test = int(np.floor(datasets['train'].X.shape[0]*frac_test))       
         idx_test = idx_val[-nsamps_test:]
-        pad_left = np.arange(idx_test[0]-offset_frames)
+        pad_left = np.arange(idx_test[0]-offset_frames,idx_test[0])
         idx_test_withOffset = np.concatenate((pad_left,idx_test))
         idx_val = np.setdiff1d(idx_val, idx_test_withOffset)
         
@@ -179,14 +179,273 @@ def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,
     datasets=[]; stim_train=[]; stim_val=[];stim_test=[];
     _ = gc.collect()
     
-    print('Checking contamination across train and val')
-    check_trainVal_contamination(data_train.X,data_val.X)
-    print('Checking contamination across train and test')
-    check_trainVal_contamination(data_train.X,data_test.X)
+    if CHECK_CONTAM == True:
+        print('Checking contamination across train and val')
+        check_trainVal_contamination(data_train.X,data_val.X)
+        print('Checking contamination across train and test')
+        check_trainVal_contamination(data_train.X,data_test.X)
         
     
     dataset_rr={};
     return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig
 
 
+def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None,data_train_info=None,data_val_info=None):
+    
+    f = h5py.File(fname,'a')
+       
+    grp = f.create_group('/data_quality')
+    keys = list(data_quality.keys())
+    for i in range(len(data_quality)):
+        if data_quality[keys[i]].dtype == 'O':
+            grp.create_dataset(keys[i], data=np.array(data_quality[keys[i]],dtype='bytes'))        
+        else:
+            grp.create_dataset(keys[i], data=data_quality[keys[i]])
+            
+            
+    if type(data_train) is dict:    # if the training set is divided into multiple datasets then create a group for each
+        data_train_keys = list(data_train.keys())
+        grp = f.create_group('/data_train')
+        grp.create_dataset('X',data=data_train[data_train_keys[0]].X,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].X.shape[-2],data_train[data_train_keys[0]].X.shape[-1]))
+        grp.create_dataset('y',data=data_train[data_train_keys[0]].y,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].y.shape[-1]))
+        grp.create_dataset('spikes',data=data_train[data_train_keys[0]].spikes,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].spikes.shape[-1]))
+
+        for i in range(1,len(data_train_keys)):
+            f['data_train']['X'].resize((f['data_train']['X'].shape[0] + data_train[data_train_keys[i]].X.shape[0]),axis=0)
+            f['data_train']['X'][-data_train[data_train_keys[i]].X.shape[0]:] = data_train[data_train_keys[i]].X
+            
+            f['data_train']['y'].resize((f['data_train']['y'].shape[0] + data_train[data_train_keys[i]].y.shape[0]),axis=0)
+            f['data_train']['y'][-data_train[data_train_keys[i]].y.shape[0]:] = data_train[data_train_keys[i]].y
+
+            f['data_train']['spikes'].resize((f['data_train']['spikes'].shape[0] + data_train[data_train_keys[i]].spikes.shape[0]),axis=0)
+            f['data_train']['spikes'][-data_train[data_train_keys[i]].spikes.shape[0]:] = data_train[data_train_keys[i]].spikes
+
+    # if type(data_train) is dict:    # if the training set is divided into multiple datasets then create a group for each
+    #     for i in data_train.keys():
+    #         grp = f.create_group('/'+i)
+    #         grp.create_dataset('X',data=data_train[i].X,compression='gzip')
+    #         grp.create_dataset('y',data=data_train[i].y,compression='gzip')
+            
+    else:
+        grp = f.create_group('/data_train')
+        grp.create_dataset('X',data=data_train.X,compression='gzip')
+        grp.create_dataset('y',data=data_train.y,compression='gzip')
+        grp.create_dataset('spikes',data=data_train.spikes,compression='gzip')
+    
+    
+    if type(data_val)==dict: # if the training set is divided into multiple datasets
+        data_val_keys = list(data_val.keys())
+        grp = f.create_group('/data_val')
+        grp.create_dataset('X',data=data_val[data_val_keys[0]].X,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].X.shape[-2],data_val[data_val_keys[0]].X.shape[-1]))
+        grp.create_dataset('y',data=data_val[data_val_keys[0]].y,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].y.shape[-1]))
+        grp.create_dataset('spikes',data=data_val[data_val_keys[0]].spikes,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].spikes.shape[-1]))
+
+        for i in range(1,len(data_val_keys)):
+            f['data_val']['X'].resize((f['data_val']['X'].shape[0] + data_val[data_val_keys[i]].X.shape[0]),axis=0)
+            f['data_val']['X'][-data_val[data_val_keys[i]].X.shape[0]:] = data_val[data_val_keys[i]].X
+            
+            f['data_val']['y'].resize((f['data_val']['y'].shape[0] + data_val[data_val_keys[i]].y.shape[0]),axis=0)
+            f['data_val']['y'][-data_val[data_val_keys[i]].y.shape[0]:] = data_val[data_val_keys[i]].y
+            
+            f['data_val']['spikes'].resize((f['data_val']['spikes'].shape[0] + data_val[data_val_keys[i]].spikes.shape[0]),axis=0)
+            f['data_val']['spikes'][-data_val[data_val_keys[i]].spikes.shape[0]:] = data_val[data_val_keys[i]].spikes
+    else:
+        grp = f.create_group('/data_val')
+        grp.create_dataset('X',data=data_val.X,compression='gzip')
+        grp.create_dataset('y',data=data_val.y,compression='gzip')
+        grp.create_dataset('spikes',data=data_val.spikes,compression='gzip')
+    
+    if data_test != None:  # data_test is None if it does not exist. So if it doesn't exist, don't save it.
+        grp = f.create_group('/data_test')
+        grp.create_dataset('X',data=data_test.X,compression='gzip')
+        grp.create_dataset('y',data=data_test.y,compression='gzip')
+        grp.create_dataset('spikes',data=data_test.spikes,compression='gzip')
+        
+    # Training data info
+    if type(data_train_info)==dict: # if the training set is divided into multiple datasets
+        for i in data_train_info.keys():
+            grp = f.create_group('/'+i)
+            info_keys = data_train_info[i].keys()
+            for j in info_keys:
+                grp.create_dataset(j,data=data_train_info[i][j])
+    elif data_train_info!=None:
+        grp = f.create_group('/data_train_info')
+        info_keys = data_train_info[i].keys()
+        for j in info_keys:
+            grp.create_dataset(j,data=data_train_info[i][j])
+    
+    
+    # Validation data info
+    if type(data_val_info)==dict: # if the training set is divided into multiple datasets
+        for i in data_val_info.keys():
+            grp = f.create_group('/'+i)
+            info_keys = data_val_info[i].keys()
+            for j in info_keys:
+                grp.create_dataset(j,data=data_val_info[i][j])
+    elif data_val_info!=None:
+        grp = f.create_group('/data_val_info')
+        info_keys = data_val_info[i].keys()
+        for j in info_keys:
+            grp.create_dataset(j,data=data_val_info[i][j])
+
+    
+    if dataset_rr != None:
+        grp = f.create_group('/dataset_rr')
+        keys = list(dataset_rr.keys())
+        for j in keys:
+            grp = f.create_group('/dataset_rr/'+j)
+            keys_2 = list(dataset_rr[j].keys())
+            for i in range(len(keys_2)):
+                if 'bytes' in dataset_rr[j][keys_2[i]].dtype.name:
+                    grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]])
+                elif dataset_rr[j][keys_2[i]].dtype == 'O':
+                    grp.create_dataset(keys_2[i], data=np.array(dataset_rr[j][keys_2[i]],dtype='bytes'))
+                else:
+                    grp.create_dataset(keys_2[i], data=dataset_rr[j][keys_2[i]],compression='gzip')
+                
+            
+    grp = f.create_group('/parameters')   
+    keys = list(parameters.keys())
+    for i in range(len(parameters)):
+        grp.create_dataset(keys[i], data=parameters[keys[i]]) 
+        
+    if resp_orig != None:
+        grp = f.create_group('/resp_orig')
+        keys = list(resp_orig.keys())
+        for i in keys:
+            grp.create_dataset(i, data=resp_orig[i],compression='gzip') 
+            
+    f.close()
               
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_val=-1,nsamps_train=-1,idx_train_start=0):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
+
+    f = h5py.File(fname_data_train_val_test,'r')
+    t_frame = np.array(f['parameters']['t_frame'])
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    Exptdata_spikes = namedtuple('Exptdata', ['X', 'y','spikes'])
+    
+    # some loading parameters
+    if nsamps_val==-1 or nsamps_val==0:
+        idx_val_start = 0
+        idx_val_end = -1
+    else:
+        nsamps_val = int((nsamps_val*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
+        idx_val_start = 0
+        idx_val_end = idx_val_start+nsamps_val
+        
+    idx_train_start = int((idx_train_start*60*1000)/(t_frame))    # mins to frames
+    if nsamps_train==-1 or nsamps_train==0 :
+        # idx_train_start = 0
+        idx_train_end = -1
+        # idx_data = np.arange(idx_train_start,np.array(f['data_train']['y'].shape[0]))
+    else:
+        nsamps_train = int((nsamps_train*60*1000)/t_frame)
+        idx_train_end = idx_train_start+nsamps_train
+    
+    
+    # Training data
+    if LOAD_TR==True:   # only if it is requested to load the training data
+        idx = np.arange(idx_train_start,idx_train_end)
+        X = np.array(f['data_train']['X'][idx],dtype='float32')
+        y = np.array(f['data_train']['y'][idx],dtype='float32')
+        spikes = np.array(f['data_train']['spikes'][idx],dtype='float32')
+        data_train = Exptdata_spikes(X,y,spikes)
+
+    else:
+        data_train = None
+        
+    if LOAD_VAL==True:   # only if it is requested to load the training data
+        # Val
+        idx = np.arange(idx_val_start,idx_val_end)
+        X = np.array(f['data_val']['X'][idx],dtype='float32')
+        y = np.array(f['data_val']['y'][idx],dtype='float32')
+        spikes = np.array(f['data_val']['spikes'][idx],dtype='float32')
+        data_val= Exptdata_spikes(X,y,spikes)
+            
+            
+        # test data
+        X = np.array(f['data_test']['X'],dtype='float32')
+        y = np.array(f['data_test']['y'],dtype='float32')
+        try:
+            spikes = np.array(f['data_test']['spikes'][idx],dtype='float32')
+        except:
+            print('spikes dataset not found')
+        data_test = Exptdata_spikes(X,y,spikes)
+
+    else:
+        data_val = None
+        data_test = None
+     
+    
+    
+    # Quality data
+    select_groups = ('data_quality')
+    level_keys = list(f[select_groups].keys())
+    data_quality = {}
+    for i in level_keys:
+        data_key = '/'+select_groups+'/'+i
+        rgb = np.array(f[data_key])
+        rgb_type = rgb.dtype.name
+           
+        if 'bytes' in rgb_type:
+            data_quality[i] = utils_si.h5_tostring(rgb)
+        else:
+            data_quality[i] = rgb
+            
+    # Retinal reliability data
+    select_groups = ('dataset_rr')
+    level_keys = list(f[select_groups].keys())
+    dataset_rr = {}
+    for i in level_keys:
+        level4_keys = list(f[select_groups][i].keys())
+        temp_2 = {}
+
+        for d in level4_keys:
+            data_key ='/'+select_groups+'/'+i+'/'+d
+        
+            rgb = np.array(f[data_key])
+            try:
+                rgb_type = rgb.dtype.name
+                if 'bytes' in rgb_type:
+                    temp_2[d] = utils_si.h5_tostring(rgb)
+                else:
+                    temp_2[d] = rgb
+            except:
+                temp_2[d] = rgb
+        dataset_rr[i] = temp_2
+        
+    # Parameters
+    select_groups = ('parameters')
+    level_keys = list(f[select_groups].keys())
+    parameters = {}
+    for i in level_keys:
+        data_key = '/'+select_groups+'/'+i
+        rgb = np.array(f[data_key])
+        rgb_type = rgb.dtype.name
+           
+        if 'bytes' in rgb_type:
+            parameters[i] = utils_si.h5_tostring(rgb)
+        else:
+            parameters[i] = rgb
+    
+    # Orig response (non normalized)
+    try:
+        select_groups = ('resp_orig')
+        level_keys = list(f[select_groups].keys())
+        resp_orig = {}
+        for i in level_keys:
+            data_key = '/'+select_groups+'/'+i
+            rgb = np.array(f[data_key])
+            rgb_type = rgb.dtype.name
+               
+            if 'bytes' in rgb_type:
+                resp_orig[i] = utils_si.h5_tostring(rgb)
+            else:
+                resp_orig[i] = rgb
+    except:
+        resp_orig = None
+
+            
+    f.close()
+
+    return data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig
