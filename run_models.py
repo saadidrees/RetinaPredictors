@@ -48,10 +48,11 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     from tensorflow.keras.layers import Input
     
-    from model.data_handler import load_h5Dataset, prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d
+    from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets
+    from model.data_handler_mike import load_h5Dataset
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer
     import model.metrics as metrics
-    import model.models  # can improve this by only importing the model that is being used
+    import model.models_primate  # can improve this by only importing the model that is being used
     import model.paramsLogger
 
     from model.train_model import train, chunker
@@ -64,17 +65,31 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
     # Set up the gpu
-    config = tf.compat.v1.ConfigProto(log_device_placement=True)
-    config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = .9
-    tf.compat.v1.Session(config=config)
-    gpus = tf.config.experimental.list_physical_devices('GPU')
+    # config = tf.compat.v1.ConfigProto(log_device_placement=True)
+    # config.gpu_options.allow_growth = True
+    # config.gpu_options.per_process_gpu_memory_fraction = .9
+    # tf.compat.v1.Session(config=config)
+    # gpus = tf.config.experimental.list_physical_devices('GPU')
     # tf.compat.v1.disable_eager_execution()
-    if not 'FR' in mdl_name:
-        tf.config.experimental.set_memory_growth(gpus[0], True)
-        tf.compat.v1.disable_eager_execution()
-        tf.compat.v1.experimental.output_all_intermediates(True) 
-        USE_CHUNKER = 0
+    # if not 'FR' in mdl_name:
+    #     tf.config.experimental.set_memory_growth(gpus[0], True)
+    #     tf.compat.v1.disable_eager_execution()
+    #     tf.compat.v1.experimental.output_all_intermediates(True) 
+    #     USE_CHUNKER = 0
+    
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+      try:
+        # Currently, memory growth needs to be the same across GPUs
+        for gpu in gpus:
+          tf.config.experimental.set_memory_growth(gpu, True)
+        logical_gpus = tf.config.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+      except RuntimeError as e:
+        # Memory growth must be set before GPUs have been initialized
+        print(e)
+        
+    tf.compat.v1.disable_eager_execution()
 
 
     # if only 1 layer cnn then set all parameters for next layers to 0
@@ -118,19 +133,39 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
         trainingSamps_dur = 4
     
-    idx_train_start = 0    # mins to chop off in the begining.
-    rgb = load_h5Dataset(fname_data_train_val_test,nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,   # THIS NEEDS TO BE TIDIED UP
-                         LOAD_ALL_TR=False,idx_train_start=idx_train_start,VALFROMTRAIN=True,RETURN_VALINFO=True)
-    data_train=rgb[0];
-    data_val = rgb[1];
-    data_test = rgb[2]
-    data_quality = rgb[3]
-    dataset_rr = rgb[4]
-    parameters = rgb[5]
-    if len(rgb)>7:
-        data_info = rgb[7]
+    # Check whether the filename has multiple datasets that need to be merged
+    fname_data_train_val_test_all = fname_data_train_val_test.split('+')
     
-    t_frame = parameters['t_frame']     # time in ms of one frame/sample 
+    
+    idx_train_start = 0    # mins to chop off in the begining.
+    d=0
+    dict_train = {}
+    dict_val = {}
+    dict_test = {}
+    for d in range(len(fname_data_train_val_test_all)):
+        rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,   # THIS NEEDS TO BE TIDIED UP
+                             idx_train_start=idx_train_start)
+        data_train=rgb[0];
+        data_val = rgb[1];
+        data_test = rgb[2]
+        data_quality = rgb[3]
+        dataset_rr = rgb[4]
+        parameters = rgb[5]
+        if len(rgb)>7:
+            data_info = rgb[7]
+    
+        t_frame = parameters['t_frame']     # time in ms of one frame/sample 
+        
+        if len(fname_data_train_val_test_all)>1:
+            dict_train[fname_data_train_val_test_all[d]] = data_train
+            dict_val[fname_data_train_val_test_all[d]] = data_val
+            dict_test[fname_data_train_val_test_all[d]] = data_test
+
+    # Merge datasets
+    if len(fname_data_train_val_test_all)>1:
+        data_train = merge_datasets(dict_train)
+        data_val = merge_datasets(dict_val)
+        data_test = merge_datasets(dict_test)
     
     # Get RGC type info
     
@@ -143,12 +178,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         else:
             idx_unitsToTake = np.arange(0,idx_unitsToTake)
     
-    if select_rgctype != '0':   # for cluster
+    if select_rgctype != 0:   # for cluster
         select_rgctype = re.findall(r'(\w+)',select_rgctype)
         # print(len(select_rgctype))
         if len(select_rgctype)>0:
             print('Selecting RGC subtypes %s'%select_rgctype)
-            f = h5py.File(fname_data_train_val_test,'r')
+            f = h5py.File(fname_data_train_val_test_all,'r')
             uname_all = np.array(f['data_quality']['uname_selectedUnits'],dtype='bytes')
             uname_all = list(model.utils_si.h5_tostring(uname_all))
             uname_new = list()
@@ -182,7 +217,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         pr_temporal_width = 0
 
     
-    modelNames_all = model.models.model_definitions()    # get all model names
+    modelNames_all = model.models_primate.model_definitions()    # get all model names
     modelNames_2D = modelNames_all[0]
     modelNames_3D = modelNames_all[1]
     
@@ -237,7 +272,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
      3. Build a new model but transfer some or all weights (In this case the weight transferring layers should be similar)
     """
     
-    fname_model,dict_params = model.models.modelFileName(U=len(idx_unitsToTake),P=pr_temporal_width,T=temporal_width,CB_n=chans_bp,
+    fname_model,dict_params = model.models_primate.modelFileName(U=len(idx_unitsToTake),P=pr_temporal_width,T=temporal_width,CB_n=chans_bp,
                                                         C1_n=chan1_n,C1_s=filt1_size,C1_3d=filt1_3rdDim,
                                                         C2_n=chan2_n,C2_s=filt2_size,C2_3d=filt2_3rdDim,
                                                         C3_n=chan3_n,C3_s=filt3_size,C3_3d=filt3_3rdDim,
@@ -276,8 +311,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     else:
         # create the model
-        model_func = getattr(model.models,mdl_name.lower())
+        model_func = getattr(model.models_primate,mdl_name.lower())
         mdl = model_func(x, n_cells, **dict_params)      
+        mdl.save(os.path.join(path_model_save,fname_model)) # save model architecture
         # mdl.summary()
 
         # Transfer weights to new model from an existing model
@@ -317,7 +353,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     fname_excel = 'performance_'+fname_model+'.csv'
     
-    # mdl.summary()
+    mdl.summary()
     
 # %% Log all params and hyperparams
     
@@ -385,7 +421,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     t_elapsed = 0
     t = time.time()
-    gbytes_usage = model.models.get_model_memory_usage(bz, mdl)  # for PRFR layer models, this is not a good estimate.
+    gbytes_usage = model.models_primate.get_model_memory_usage(bz, mdl)  # for PRFR layer models, this is not a good estimate.
     print('Memory required = %0.2f GB' %gbytes_usage)
     # continue a halted training: load existing model checkpoint and initial_epoch value to pass on for continuing the training
     
@@ -443,7 +479,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     rrCorr_allUnits_allEpochs[:] = np.nan
     
     # for compatibility with greg's dataset
-    if dataset_rr['stim_0']['val'][:,:,idx_unitsToTake].shape[0]>1:
+    if 'stim_0' in dataset_rr and dataset_rr['stim_0']['val'][:,:,idx_unitsToTake].shape[0]>1:
         obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake]
         obs_noise = None
         num_iters = 10
@@ -465,6 +501,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     print('-----EVALUATING PERFORMANCE-----')
+    i=0
     for i in range(0,nb_epochs):
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
@@ -489,7 +526,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         predCorr = np.mean(predCorr_loop,axis=0)
         rrCorr = np.mean(rrCorr_loop,axis=0)
         
-        if np.isnan(rrCorr).all():  # if retinal reliability is in quality datasets
+        if np.isnan(rrCorr).all() and 'fracExVar_allUnits' in data_quality:  # if retinal reliability is in quality datasets
             fracExVar = data_quality['fracExVar_allUnits'][idx_unitsToTake]
             rrCorr = data_quality['corr_allUnits'][idx_unitsToTake]
 
@@ -603,7 +640,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                 }
     
     stim_info = {
-         'fname_data_train_val_test':fname_data_train_val_test,
+         'fname_data_train_val_test':fname_data_train_val_test_all,
          'n_trainingSamps': data_train.X.shape[0],
          'n_valSamps': data_val.X.shape[0],
          'temporal_width':temporal_width,
