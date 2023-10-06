@@ -7,8 +7,8 @@ across the sample dimension (axis=0).
 from functools import wraps
 
 import tensorflow as tf
-# import tensorflow.keras.backend as K
-from tensorflow import keras as K
+import tensorflow.keras.backend as K
+# from tensorflow import keras as K
 import numpy as np
 
 __all__ = ['cc', 'rmse', 'fev', 'CC', 'RMSE', 'FEV', 'np_wrap',

@@ -1355,3 +1355,26 @@ def get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened)
     return idx_discard
 
 
+def merge_datasets(dict_train):
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    keys = list(dict_train.keys())
+    key = keys[0]
+    
+    X = np.zeros(([0,*dict_train[key].X.shape[1:]]),dtype='float32')
+    y = np.zeros(([0,*dict_train[key].y.shape[1:]]),dtype='float32')
+    spikes = np.zeros(([0,*dict_train[key].spikes.shape[1:]]),dtype='float32')
+    num_units = []
+    
+    for key in keys:
+        X = np.concatenate((X,dict_train[key].X),axis=0)
+        y = np.concatenate((y,dict_train[key].y),axis=0)
+        try:
+            spikes = np.concatenate((spikes,dict_train[key].spikes),axis=0)
+        except:
+            print('skipping spikes dataset')
+        
+        num_units.append(y.shape[1])
+    data_train = Exptdata(X,y)
+    if np.prod(num_units)/num_units[0]!=num_units[0]:
+        raise ValueError('num of units do not match across datasets')
+    return data_train
