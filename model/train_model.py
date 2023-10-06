@@ -11,7 +11,7 @@ import h5py
 import tensorflow as tf
 import tensorflow.keras.callbacks as cb
 from tensorflow.keras.layers import Input
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers.legacy import Adam
 import model.metrics as metrics
 import numpy as np
 import re
@@ -77,8 +77,8 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
     optimizer = Adam(lr)
     mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
 
-    if initial_epoch==0: # 
-        mdl.save(os.path.join(path_model_base,fname_model)) # save model architecture
+    # if initial_epoch==1: # 
+        # mdl.save(os.path.join(path_model_base,fname_model)) # save model architecture
 
     if initial_epoch>0:
         try:
