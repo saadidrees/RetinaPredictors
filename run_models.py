@@ -178,7 +178,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         else:
             idx_unitsToTake = np.arange(0,idx_unitsToTake)
     
-    if len(select_rgctype)!=0 or select_rgctype=='0' or select_rgctype==0:   # for cluster
+    if len(select_rgctype)!=0 or select_rgctype!='0' or select_rgctype!=0:   # for cluster
         select_rgctype = re.findall(r'(\w+)',select_rgctype)
         # print(len(select_rgctype))
         if len(select_rgctype)>0:
@@ -194,8 +194,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
             f.close()
             idx_unitsToTake = idx_selectedRGCtypes.copy()
-
-
 
     print(idx_unitsToTake)
     print(len(idx_unitsToTake))
