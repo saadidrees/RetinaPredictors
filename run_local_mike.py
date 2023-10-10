@@ -59,7 +59,7 @@ num_trials=1
 BatchNorm_train = 0
 saveToCSV=1
 trainingSamps_dur=40 # minutes per dataset
-validationSamps_dur=0.2
+validationSamps_dur=0
 
 dataset_nameForPaths = ''
 for i in range(len(dataset)):
