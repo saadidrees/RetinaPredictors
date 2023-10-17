@@ -90,8 +90,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         print(e)
         
     tf.compat.v1.disable_eager_execution()
-
-
+    
+    DTYPE='float16'
+    
     # if only 1 layer cnn then set all parameters for next layers to 0
     if chan2_n == 0:
         filt2_size = 0
@@ -144,7 +145,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dict_test = {}
     for d in range(len(fname_data_train_val_test_all)):
         rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,   # THIS NEEDS TO BE TIDIED UP
-                             idx_train_start=idx_train_start)
+                             idx_train_start=idx_train_start,dtype=DTYPE)
         data_train=rgb[0];
         data_val = rgb[1];
         data_test = rgb[2]
@@ -261,7 +262,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     else:
         mp_val=0       
     
-    x = Input(shape=data_train.X.shape[1:]) # keras input layer
+    x = Input(shape=data_train.X.shape[1:],dtype=DTYPE) # keras input layer
     n_cells = data_train.y.shape[1]         # number of units in output layer
 
 # %% Select model 
@@ -279,6 +280,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                                                         C4_n=chan4_n,C4_s=filt4_size,C4_3d=filt4_3rdDim,
                                                         BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial,TRSAMPS=trainingSamps_dur_orig)
     dict_params['filt_temporal_width'] = temporal_width
+    dict_params['dtype'] = DTYPE
     
     # filt_temporal_width = dict_params['filt_temporal_width']; chan1_n = dict_params['chan1_n']; filt1_size = dict_params['filt1_size']; chan2_n = dict_params['chan2_n']; filt2_size = dict_params['filt2_size']
     # chan3_n = dict_params['chan3_n']; filt3_size = dict_params['filt3_size']; BatchNorm = bool(dict_params['BatchNorm']); MaxPool = dict_params['MaxPool']
@@ -447,7 +449,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     idx = np.arange(700,1000)
     idx_cell = a[-2]; #plt.plot(y_train[:500,idx_cell]);plt.plot(pred_train[:500,idx_cell]);plt.show()      # 7, 92
     plt.plot(y_val[idx,idx_cell]);plt.plot(pred_val[idx,idx_cell]);plt.title(str(idx_cell));plt.show()
-
     """
     # %%
     # inp = mdl.input

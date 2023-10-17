@@ -211,6 +211,7 @@ def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
     
     BatchNorm = bool(kwargs['BatchNorm'])
     MaxPool = kwargs['MaxPool']
+    dtype = kwargs['dtype']
     
     mdl_params = {}
     keys = ('chan4_n','filt4_size')

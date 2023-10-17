@@ -695,10 +695,10 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
         
         del X_rgb, y_rgb
 
-    # X = X.astype('float16')
-    # y = y.astype('float16')
+    X = X.astype('float16')
+    y = y.astype('float16')
     if isintuple(data,'y_trials')==True:
-        # y_trials = y_trials.astype('float16')
+        y_trials = y_trials.astype('float16')
         data = Exptdata_trials(X,y,y_trials,spikes)
     elif isintuple(data,'spikes')==True:
         data = Exptdata_spikes(X,y,spikes)
@@ -738,7 +738,12 @@ def prepare_data_convLSTM(data,filt_temporal_width,idx_unitsToTake):
 
     
 
-def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None,data_train_info=None,data_val_info=None):
+def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None,data_train_info=None,data_val_info=None,dtype='float16'):
+    
+    if dtype=='float16':
+        h5dtype='f2'
+    elif dtype=='float16':
+        h5dtype='f4'
     
     f = h5py.File(fname,'a')
        
@@ -754,16 +759,21 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
     if type(data_train) is dict:    # if the training set is divided into multiple datasets then create a group for each
         data_train_keys = list(data_train.keys())
         grp = f.create_group('/data_train')
-        grp.create_dataset('X',data=data_train[data_train_keys[0]].X,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].X.shape[-2],data_train[data_train_keys[0]].X.shape[-1]))
-        grp.create_dataset('y',data=data_train[data_train_keys[0]].y,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].y.shape[-1]))
-        grp.create_dataset('spikes',data=data_train[data_train_keys[0]].spikes,compression='gzip',chunks=True,maxshape=(None,data_train[data_train_keys[0]].spikes.shape[-1]))
+        grp.create_dataset('X',data=data_train[data_train_keys[0]].X.astype(dtype),
+                           compression='gzip',chunks=True,dtype=h5dtype,
+                           maxshape=(None,data_train[data_train_keys[0]].X.shape[-2],data_train[data_train_keys[0]].X.shape[-1]))
+        grp.create_dataset('y',data=data_train[data_train_keys[0]].y.astype(dtype),
+                           compression='gzip',chunks=True,dtype=h5dtype,
+                           maxshape=(None,data_train[data_train_keys[0]].y.shape[-1]))
+        grp.create_dataset('spikes',data=data_train[data_train_keys[0]].spikes,compression='gzip',chunks=True,
+                           maxshape=(None,data_train[data_train_keys[0]].spikes.shape[-1]))
 
         for i in range(1,len(data_train_keys)):
             f['data_train']['X'].resize((f['data_train']['X'].shape[0] + data_train[data_train_keys[i]].X.shape[0]),axis=0)
-            f['data_train']['X'][-data_train[data_train_keys[i]].X.shape[0]:] = data_train[data_train_keys[i]].X
+            f['data_train']['X'][-data_train[data_train_keys[i]].X.shape[0]:] = data_train[data_train_keys[i]].X.astype(dtype)
             
             f['data_train']['y'].resize((f['data_train']['y'].shape[0] + data_train[data_train_keys[i]].y.shape[0]),axis=0)
-            f['data_train']['y'][-data_train[data_train_keys[i]].y.shape[0]:] = data_train[data_train_keys[i]].y
+            f['data_train']['y'][-data_train[data_train_keys[i]].y.shape[0]:] = data_train[data_train_keys[i]].y.astype(dtype)
 
             f['data_train']['spikes'].resize((f['data_train']['spikes'].shape[0] + data_train[data_train_keys[i]].spikes.shape[0]),axis=0)
             f['data_train']['spikes'][-data_train[data_train_keys[i]].spikes.shape[0]:] = data_train[data_train_keys[i]].spikes
@@ -776,37 +786,43 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
             
     else:
         grp = f.create_group('/data_train')
-        grp.create_dataset('X',data=data_train.X,compression='gzip')
-        grp.create_dataset('y',data=data_train.y,compression='gzip')
+        grp.create_dataset('X',data=data_train.X.astype(dtype),compression='gzip',dtype=h5dtype)
+        grp.create_dataset('y',data=data_train.y.astype(dtype),compression='gzip',dtype=h5dtype)
         grp.create_dataset('spikes',data=data_train.spikes,compression='gzip')
     
     
     if type(data_val)==dict: # if the training set is divided into multiple datasets
         data_val_keys = list(data_val.keys())
         grp = f.create_group('/data_val')
-        grp.create_dataset('X',data=data_val[data_val_keys[0]].X,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].X.shape[-2],data_val[data_val_keys[0]].X.shape[-1]))
-        grp.create_dataset('y',data=data_val[data_val_keys[0]].y,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].y.shape[-1]))
-        grp.create_dataset('spikes',data=data_val[data_val_keys[0]].spikes,compression='gzip',chunks=True,maxshape=(None,data_val[data_val_keys[0]].spikes.shape[-1]))
+        grp.create_dataset('X',data=data_val[data_val_keys[0]].X.astype(dtype),
+                           compression='gzip',chunks=True,dtype=h5dtype,
+                           maxshape=(None,data_val[data_val_keys[0]].X.shape[-2],data_val[data_val_keys[0]].X.shape[-1]))
+        grp.create_dataset('y',data=data_val[data_val_keys[0]].y.astype(dtype),
+                           compression='gzip',chunks=True,dtype=h5dtype,
+                           maxshape=(None,data_val[data_val_keys[0]].y.shape[-1]))
+        grp.create_dataset('spikes',data=data_val[data_val_keys[0]].spikes,
+                           compression='gzip',chunks=True,
+                           maxshape=(None,data_val[data_val_keys[0]].spikes.shape[-1]))
 
         for i in range(1,len(data_val_keys)):
             f['data_val']['X'].resize((f['data_val']['X'].shape[0] + data_val[data_val_keys[i]].X.shape[0]),axis=0)
-            f['data_val']['X'][-data_val[data_val_keys[i]].X.shape[0]:] = data_val[data_val_keys[i]].X
+            f['data_val']['X'][-data_val[data_val_keys[i]].X.shape[0]:] = data_val[data_val_keys[i]].X.astype(dtype)
             
             f['data_val']['y'].resize((f['data_val']['y'].shape[0] + data_val[data_val_keys[i]].y.shape[0]),axis=0)
-            f['data_val']['y'][-data_val[data_val_keys[i]].y.shape[0]:] = data_val[data_val_keys[i]].y
+            f['data_val']['y'][-data_val[data_val_keys[i]].y.shape[0]:] = data_val[data_val_keys[i]].y.astype(dtype)
             
             f['data_val']['spikes'].resize((f['data_val']['spikes'].shape[0] + data_val[data_val_keys[i]].spikes.shape[0]),axis=0)
             f['data_val']['spikes'][-data_val[data_val_keys[i]].spikes.shape[0]:] = data_val[data_val_keys[i]].spikes
     else:
         grp = f.create_group('/data_val')
-        grp.create_dataset('X',data=data_val.X,compression='gzip')
-        grp.create_dataset('y',data=data_val.y,compression='gzip')
+        grp.create_dataset('X',data=data_val.X.astype(dtype),compression='gzip',dtype=h5dtype)
+        grp.create_dataset('y',data=data_val.y.astype(dtype),compression='gzip',dtype=hfdtype)
         grp.create_dataset('spikes',data=data_val.spikes,compression='gzip')
     
     if data_test != None:  # data_test is None if it does not exist. So if it doesn't exist, don't save it.
         grp = f.create_group('/data_test')
-        grp.create_dataset('X',data=data_test.X,compression='gzip')
-        grp.create_dataset('y',data=data_test.y,compression='gzip')
+        grp.create_dataset('X',data=data_test.X.astype(dtype),compression='gzip',dtype=h5dtype)
+        grp.create_dataset('y',data=data_test.y.astype(dtype),compression='gzip',dtype=h5dtype)
         # grp.create_dataset('spikes',data=data_test.spikes,compression='gzip')
         
     # Training data info
@@ -866,7 +882,8 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
     f.close()
     
 # NEED TO TIDY THIS UP
-def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False,idx_train_start=0,VALFROMTRAIN=False,LOADFROMBOOL=False):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False,
+                   idx_train_start=0,VALFROMTRAIN=False,LOADFROMBOOL=False,dtype='float16'):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
     FLAG_VALFROMTRAIN=False
     f = h5py.File(fname_data_train_val_test,'r')
     t_frame = np.array(f['parameters']['t_frame'])

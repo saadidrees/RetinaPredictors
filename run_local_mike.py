@@ -58,7 +58,7 @@ num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur = 0.05 #0.05 # minutes per dataset
+trainingSamps_dur = -1 #0.05 # minutes per dataset
 validationSamps_dur=0
 
 dataset_nameForPaths = ''
