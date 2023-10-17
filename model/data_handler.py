@@ -618,7 +618,7 @@ def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
     
     return data
 
-def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=6):
+def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=1):
         
     if filt_temporal_width>0:
         X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
@@ -653,48 +653,48 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=6):
         del X_rgb, y_rgb
 
     if X.ndim==6:       # if the data has multiple stims and trials
-        # X_rgb = np.moveaxis(X,0,-1)
-        # X_rgb = X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],X_rgb.shape[3],-1)
-        # X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
-        # X_rgb = np.moveaxis(X_rgb,-1,0)
+        X_rgb = np.moveaxis(X,0,-1)
+        X_rgb = X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],X_rgb.shape[3],-1)
+        X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
+        X_rgb = np.moveaxis(X_rgb,-1,0)
         
-        # y_rgb = np.moveaxis(y,0,-1)
-        # y_rgb = y_rgb.reshape(y_rgb.shape[0],y_rgb.shape[1],-1)
-        # y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
-        # y_rgb = np.moveaxis(y_rgb,-1,0)
+        y_rgb = np.moveaxis(y,0,-1)
+        y_rgb = y_rgb.reshape(y_rgb.shape[0],y_rgb.shape[1],-1)
+        y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
+        y_rgb = np.moveaxis(y_rgb,-1,0)
         
-        # X = X_rgb
-        # y = y_rgb
-        
-        # del X_rgb, y_rgb
-        
-        
-        # chunk_size = 50
-        # num_chunks = int(np.ceil(X.shape[0]/chunk_size))
-        chunks_idx = np.linspace(0,X.shape[0],num_chunks+1,dtype='int')
-        
-        X_rgb = np.empty((0,X.shape[1],X.shape[2],X.shape[3]),dtype=X.dtype)
-        y_rgb = np.empty((0,y.shape[1]),dtype=y.dtype)
-
-        for i in tqdm(range(num_chunks)):
-            rgb = np.moveaxis(X[chunks_idx[i]:chunks_idx[i+1]],0,-1)
-            rgb = rgb.reshape(rgb.shape[0],rgb.shape[1],rgb.shape[2],rgb.shape[3],-1)
-            rgb =  rgb.reshape(rgb.shape[0],rgb.shape[1],rgb.shape[2],-1)
-            rgb = np.moveaxis(rgb,-1,0)
-            X_rgb = np.concatenate((X_rgb,rgb),axis=0)
-            
-            rgb = np.moveaxis(y[chunks_idx[i]:chunks_idx[i+1]],0,-1)
-            rgb = rgb.reshape(rgb.shape[0],rgb.shape[1],-1)
-            rgb = rgb.reshape(rgb.shape[0],-1)
-            rgb = np.moveaxis(rgb,-1,0)
-            y_rgb = np.concatenate((y_rgb,rgb),axis=0)
-            
-            _ = gc.collect()
-
         X = X_rgb
         y = y_rgb
         
         del X_rgb, y_rgb
+        
+        
+        # # chunk_size = 50
+        # # num_chunks = int(np.ceil(X.shape[0]/chunk_size))
+        # chunks_idx = np.linspace(0,X.shape[0],num_chunks+1,dtype='int')
+        
+        # X_rgb = np.empty((0,X.shape[1],X.shape[2],X.shape[3]),dtype=X.dtype)
+        # y_rgb = np.empty((0,y.shape[1]),dtype=y.dtype)
+
+        # for i in tqdm(range(num_chunks)):
+        #     rgb = np.moveaxis(X[chunks_idx[i]:chunks_idx[i+1]],0,-1)
+        #     rgb = rgb.reshape(rgb.shape[0],rgb.shape[1],rgb.shape[2],rgb.shape[3],-1)
+        #     rgb =  rgb.reshape(rgb.shape[0],rgb.shape[1],rgb.shape[2],-1)
+        #     rgb = np.moveaxis(rgb,-1,0)
+        #     X_rgb = np.concatenate((X_rgb,rgb),axis=0)
+            
+        #     rgb = np.moveaxis(y[chunks_idx[i]:chunks_idx[i+1]],0,-1)
+        #     rgb = rgb.reshape(rgb.shape[0],rgb.shape[1],-1)
+        #     rgb = rgb.reshape(rgb.shape[0],-1)
+        #     rgb = np.moveaxis(rgb,-1,0)
+        #     y_rgb = np.concatenate((y_rgb,rgb),axis=0)
+            
+        #     _=gc.collect()
+
+        # X = X_rgb
+        # y = y_rgb
+        
+        # del X_rgb, y_rgb
 
         
 
