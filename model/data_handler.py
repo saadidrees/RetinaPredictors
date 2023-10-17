@@ -695,10 +695,10 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
         
         del X_rgb, y_rgb
 
-    X = X.astype('float16')
-    y = y.astype('float16')
+    # X = X.astype('float16')
+    # y = y.astype('float16')
     if isintuple(data,'y_trials')==True:
-        y_trials = y_trials.astype('float16')
+        # y_trials = y_trials.astype('float16')
         data = Exptdata_trials(X,y,y_trials,spikes)
     elif isintuple(data,'spikes')==True:
         data = Exptdata_spikes(X,y,spikes)
