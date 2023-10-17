@@ -16,6 +16,8 @@ from model import utils_si
 from model.performance import model_evaluate
 import re
 import json
+from tqdm import tqdm
+import gc
 
 
 
@@ -616,36 +618,7 @@ def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
     
     return data
 
-# def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
-#     if data != None:
-#         Exptdata = namedtuple('Exptdata', ['X', 'y'])
-#         Exptdata_spikes = namedtuple('Exptdata_spikes', ['X', 'y','spikes'])
-#         if filt_temporal_width>0:
-#             X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
-#             y = data.y[:,idx_unitsToTake]
-#             y = y[filt_temporal_width:]
-#             if isintuple(data,'spikes')==True:
-#                 spikes = data.spikes[:,idx_unitsToTake]
-#                 spikes = spikes[filt_temporal_width:]
-#         else:
-#             X = np.expand_dims(data.X,axis=1)
-#             y = data.y[:,idx_unitsToTake]
-#             if isintuple(data,'spikes')==True:
-#                 spikes = data.spikes[:,idx_unitsToTake]
-
-#         if isintuple(data,'spikes')==True:
-#             data = Exptdata_spikes(X,y,spikes)
-#         else:
-#             data = Exptdata(X,y)
-        
-#         del X, y
-#     return data
-
-
-def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
-    Exptdata = namedtuple('Exptdata', ['X', 'y'])
-    Exptdata_spikes = namedtuple('Exptdata_spikes', ['X', 'y','spikes'])
-    Exptdata_trials = namedtuple('Exptdata_spikes', ['X', 'y','y_trials','spikes'])
+def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=6):
         
     if filt_temporal_width>0:
         X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
@@ -680,30 +653,59 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
         del X_rgb, y_rgb
 
     if X.ndim==6:       # if the data has multiple stims and trials
-        X_rgb = np.moveaxis(X,0,-1)
-        X_rgb = X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],X_rgb.shape[3],-1)
-        X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
-        X_rgb = np.moveaxis(X_rgb,-1,0)
+        # X_rgb = np.moveaxis(X,0,-1)
+        # X_rgb = X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],X_rgb.shape[3],-1)
+        # X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
+        # X_rgb = np.moveaxis(X_rgb,-1,0)
         
-        y_rgb = np.moveaxis(y,0,-1)
-        y_rgb = y_rgb.reshape(y_rgb.shape[0],y_rgb.shape[1],-1)
-        y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
-        y_rgb = np.moveaxis(y_rgb,-1,0)
+        # y_rgb = np.moveaxis(y,0,-1)
+        # y_rgb = y_rgb.reshape(y_rgb.shape[0],y_rgb.shape[1],-1)
+        # y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
+        # y_rgb = np.moveaxis(y_rgb,-1,0)
         
+        # X = X_rgb
+        # y = y_rgb
+        
+        # del X_rgb, y_rgb
+        
+        
+        # chunk_size = 50
+        # num_chunks = int(np.ceil(X.shape[0]/chunk_size))
+        chunks_idx = np.linspace(0,X.shape[0],num_chunks+1,dtype='int')
+        
+        X_rgb = np.empty((0,X.shape[1],X.shape[2],X.shape[3]),dtype=X.dtype)
+        y_rgb = np.empty((0,y.shape[1]),dtype=y.dtype)
+
+        for i in tqdm(range(num_chunks)):
+            rgb = np.moveaxis(X[chunks_idx[i]:chunks_idx[i+1]],0,-1)
+            rgb = rgb.reshape(rgb.shape[0],rgb.shape[1],rgb.shape[2],rgb.shape[3],-1)
+            rgb =  rgb.reshape(rgb.shape[0],rgb.shape[1],rgb.shape[2],-1)
+            rgb = np.moveaxis(rgb,-1,0)
+            X_rgb = np.concatenate((X_rgb,rgb),axis=0)
+            
+            rgb = np.moveaxis(y[chunks_idx[i]:chunks_idx[i+1]],0,-1)
+            rgb = rgb.reshape(rgb.shape[0],rgb.shape[1],-1)
+            rgb = rgb.reshape(rgb.shape[0],-1)
+            rgb = np.moveaxis(rgb,-1,0)
+            y_rgb = np.concatenate((y_rgb,rgb),axis=0)
+            
+            _ = gc.collect()
+
         X = X_rgb
         y = y_rgb
         
         del X_rgb, y_rgb
 
-    X = X.astype('float16')
-    y = y.astype('float16')
-    if isintuple(data,'y_trials')==True:
-        y_trials = y_trials.astype('float16')
-        data = Exptdata_trials(X,y,y_trials,spikes)
-    elif isintuple(data,'spikes')==True:
-        data = Exptdata_spikes(X,y,spikes)
-    else:
-        data = Exptdata(X,y)
+        
+
+    data_vars = ['X','y','spikes','y_trials']
+    dataDict = {}
+    for var in data_vars:
+        if var in locals():
+            dataDict[var]=eval(var)
+            
+    data = namedtuple('Exptdata',dataDict)
+    data=data(**dataDict)
     
     del X, y
     return data
