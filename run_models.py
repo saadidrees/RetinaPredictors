@@ -48,7 +48,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     from tensorflow.keras.layers import Input
     
-    from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets
+    from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets,isintuple
     from model.data_handler_mike import load_h5Dataset
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer
     import model.metrics as metrics
@@ -166,6 +166,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         data_train = merge_datasets(dict_train)
         data_val = merge_datasets(dict_val)
         data_test = merge_datasets(dict_test)
+    
+    rgb = [];dict_train={};dict_val={};dict_test={};
     
     # Get RGC type info
     
@@ -477,7 +479,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     rrCorr_allUnits_allEpochs[:] = np.nan
     
     # for compatibility with greg's dataset
-    if 'stim_0' in dataset_rr and dataset_rr['stim_0']['val'][:,:,idx_unitsToTake].shape[0]>1:
+    if isintuple(data_test,'y_trials'):
+        obs_rate_allStimTrials = np.moveaxis(data_test.y_trials,-1,0)
+        obs_noise = None
+        num_iters = 11
+        
+    elif 'stim_0' in dataset_rr and dataset_rr['stim_0']['val'][:,:,idx_unitsToTake].shape[0]>1:
         obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake]
         obs_noise = None
         num_iters = 10
@@ -495,7 +502,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # Check if any stimulus frames from the validation set are present in the training set
     # check_trainVal_contamination(data_train.X,data_val.X,temporal_width)  # commented out because it takes long for my dataset and I did it once while preparing the dataset
     
-    obs_rate = data_val.y   # the actual data
 
     
     print('-----EVALUATING PERFORMANCE-----')
@@ -565,9 +571,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     fname_bestWeight = 'weights_'+fname_model+'_epoch-%03d' % (idx_bestEpoch+1)
     mdl.load_weights(os.path.join(path_model_save,fname_bestWeight))
     # pred_rate = mdl.predict(gen,steps=int(np.ceil(data_val.X.shape[0]/bz)))
-    pred_rate = mdl.predict(data_val.X)
+    pred_rate = mdl.predict(data_test.X)
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
-    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(data_val.y,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(np.moveaxis(data_test.y_trials,-1,0),pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
 
     
 
@@ -657,7 +663,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     dataset_pred = {
-        'obs_rate': obs_rate,
+        'obs_rate':  data_test.y,   # the actual data
         'pred_rate': pred_rate,
         }
 

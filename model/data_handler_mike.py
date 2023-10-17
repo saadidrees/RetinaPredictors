@@ -19,7 +19,7 @@ from model.data_handler import rolling_window, check_trainVal_contamination
 from model import utils_si
 import gc
 
-def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False):
+def load_data_allLightLevels_cb(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False):
     
     # valSets = ['scotopic','photopic']   # embed this in h5 file
     
@@ -190,6 +190,193 @@ def load_data_allLightLevels(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,
     return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig
 
 
+def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False):
+    
+    # valSets = ['scotopic','photopic']   # embed this in h5 file
+    
+    # Data
+    t_start = 0    # of frames to skip in the begining of stim file (each frame is 16 or 17 ms)   
+    
+    f = h5py.File(fname_dataFile,'r')
+    data_key = dataset
+    stims_keys = list(f[data_key].keys())
+    
+    #units
+    units_all = np.array(f['/units'])
+    units_all = utils_si.h5_tostring(units_all)
+    
+    if idx_cells_orig is None:
+        idx_cells_temp = np.array([np.arange(len(units_all))])
+        idx_cells = idx_cells_temp[0,:]
+    else:
+        idx_cells = idx_cells_orig
+
+    
+    Exptdata = namedtuple('Exptdata', ['X', 'y','spikes'])
+    Exptdata_trials = namedtuple('Exptdata', ['X', 'y','y_trials','spikes'])
+    datasets = {}
+    resp_non_norm = {}
+    # total_spikeCounts = np.zeros(len(idx_cells))
+    
+    # same_stims = ((0,2),(1,3))
+    
+    s = stims_keys[0]
+    for s in stims_keys:
+        
+        # stim info
+        code_stim = '/'+data_key+'/'+s
+        stim_len = np.array(f[code_stim+'/spikeRate']).shape[0]        
+        idx_time = np.arange(t_start,stim_len)
+          
+        # firing rates
+        resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
+        spikes = np.array(f[code_stim+'/spikeCounts'])[idx_time]
+        resp_orig = np.squeeze(np.array(f[code_stim+'/spikeRate_orig'])[idx_time])
+        resp_median = np.array(f[code_stim+'/spikeRate_median'])
+        # resp = resp.T
+        # if resp.ndim == 2:
+        resp = resp[:,idx_cells][filt_temporal_width:]
+        spikes = spikes[:,idx_cells][filt_temporal_width:]
+        resp_orig = resp_orig[:,idx_cells][filt_temporal_width:]
+        
+        #  stim
+        stim = np.array(f[code_stim+'/stim_frames'][idx_time,:])
+        t_frame = f[code_stim+'/stim_frames'].attrs['t_frame']   
+        # num_CB_x = f[code_stim+'/stim_frames'].attrs['num_checkers_x']   # cb_info['steps_x'][0][0]
+        # num_CB_y = f[code_stim+'/stim_frames'].attrs['num_checkers_y']   # cb_info['steps_y'][0][0]
+        
+        if stim.ndim==2:    # only if stim space is flattened
+            stim = np.reshape(stim,(stim.shape[0],num_CB_y,num_CB_x),order='F')       
+        # stim = zscore(stim)
+        stim = rolling_window(stim,filt_temporal_width,time_axis=0) 
+        
+        datasets[s] = Exptdata(stim, resp, spikes)
+        resp_non_norm[s] = resp_orig
+        
+    f.close()
+    
+    
+    del resp
+    del stim
+    
+
+    
+    # select only cells where we wont have so many zero spikerate in a batch   
+    if idx_cells_orig is None:
+        rgb = np.sum(datasets['train'].y,axis=0)
+        thresh = -1 #thresh_rr*np.median(rgb)           # This was 0.75 for the big rat dataset
+        idx_unitsToTake = np.arange(len(units_all))
+        idx_unitsToTake = idx_unitsToTake[np.all(rgb>thresh,axis=(1,2))]
+        units_all = units_all[idx_unitsToTake]
+        resp_median_allUnits = resp_median[idx_unitsToTake]
+    else:
+        idx_unitsToTake = idx_cells
+        units_all = units_all[idx_unitsToTake]
+        resp_median_allUnits = resp_median[idx_unitsToTake]
+
+# dataset for retinal reliability
+
+    try:
+        rgb = np.squeeze(datasets['val'].y[:,:,0,:]) # select just one stim from validation set
+        temp_val = np.moveaxis(rgb,-1,0)    # move trials to first axis
+        rgb = np.squeeze(datasets['val'].spikes[:,:,0,:]) # select just one stim from validation set
+        temp_val_spikes = np.moveaxis(rgb,-1,0)
+        dset_name = np.array(dataset)
+     
+    except:
+        select_val = valSets[-1]
+        temp_val = np.moveaxis(datasets['val_'+select_val].y,-1,0)
+        temp_val_spikes = np.moveaxis(datasets['val_'+select_val].spikes,-1,0)
+        dset_name = select_val
+    
+    dataset_rr = {}    
+    if idx_cells_orig is None:
+        temp_val = temp_val[:,:,idx_unitsToTake]
+        temp_val_spikes = temp_val_spikes[:,:,idx_unitsToTake]
+
+    dict_vars = {
+         'val': temp_val,
+         'val_spikes': temp_val_spikes,
+         'dataset_name': np.atleast_1d(np.array(dset_name,dtype='bytes'))
+         }
+     
+    dataset_rr['stim_0'] = dict_vars
+        
+    
+# Retinal reliability method 1 - only take one validation set at this stage
+
+    numCells = len(idx_unitsToTake)
+    rate_sameStim_trials = dataset_rr['stim_0']['val']
+    # if rate_sameStim_trials.shape[0]>1: # use this method if we have multiple trials
+    _, fracExVar_allUnits, _, corr_allUnits = model_evaluate(rate_sameStim_trials,None,filt_temporal_width,RR_ONLY=True)
+    retinalReliability_fev = np.round(np.nanmedian(fracExVar_allUnits),2)
+    retinalReliability_corr = np.round(np.nanmedian(corr_allUnits),2)
+                
+
+    data_quality = {
+        'retinalReliability_fev': retinalReliability_fev,
+        'retinalReliability_corr': retinalReliability_corr,
+        'uname_selectedUnits': units_all,  
+        'idx_unitsToTake': idx_unitsToTake,
+        'fracExVar_allUnits': fracExVar_allUnits,
+        'corr_allUnits': corr_allUnits,
+        'resp_median_allUnits' : resp_median_allUnits,
+        }
+    print('Retinal Reliability - FEV: '+str(np.round(retinalReliability_fev,2)))
+    print('Retinal Reliability - Corr: '+str(np.round(retinalReliability_corr,2)))
+    print('Number of selected cells: ',str(len(idx_unitsToTake)))
+
+
+    
+    # Extract test from validation set 
+    # For validation at model running stage, only take one dataset. 
+    # Cut out portion from middle that will comprise validation and test. Then take test dataset as last part of the validation dataset
+    
+    # But first, for the validation set, average the response across trials so we predict 'trial-averaged-response'
+    data_train = datasets['train']
+
+    stim_val = datasets['val'].X[:,:,:,:,0]
+    resp_val = np.nanmean(datasets['val'].y,axis=-1)
+    resp_val_allTrials = datasets['val'].y
+    spikes_val = datasets['val'].spikes
+
+    if frac_test > 0:
+        idx_stimToTakeAsTest = -1
+        nsamps_test = int(np.floor(stim_val.shape[0]*0.5))   
+        idx_test = np.arange(stim_val.shape[0]-nsamps_test,stim_val.shape[0])        
+        stim_test = stim_val[idx_test,:,:,idx_stimToTakeAsTest]
+        resp_test = resp_val[idx_test,:,idx_stimToTakeAsTest]
+        resp_test_allTrials = resp_val_allTrials[idx_test,:,idx_stimToTakeAsTest,:]
+        spikes_test = spikes_val[idx_test,:,idx_stimToTakeAsTest,:]
+
+        data_test = Exptdata_trials(stim_test,resp_test,resp_test_allTrials,spikes_test)
+        data_val = Exptdata_trials(stim_val,resp_val,resp_val_allTrials,spikes_val)
+
+        
+    if idx_cells_orig is None:
+        data_train = Exptdata(data_train.X,data_train.y[:,idx_unitsToTake],data_train.spikes[:,idx_unitsToTake])        
+        data_val = Exptdata_trials(data_val.X,data_val.y[:,idx_unitsToTake],data_val.y_trials[:,idx_unitsToTake],data_val.spikes[:,idx_unitsToTake])
+        data_test = Exptdata_trials(data_test.X,data_test.y[:,idx_unitsToTake],data_test.y_trials[:,idx_unitsToTake],data_test.spikes[:,idx_unitsToTake])
+
+    
+    resp_orig = {}
+    for i in resp_non_norm.keys():
+        resp_orig[i] = resp_non_norm[i][:,idx_unitsToTake]
+    
+    datasets=[]; stim_train=[]; stim_val=[];stim_test=[];
+    _ = gc.collect()
+    
+    if CHECK_CONTAM == True:
+        print('Checking contamination across train and val')
+        check_trainVal_contamination(data_train.X,data_val.X)
+        print('Checking contamination across train and test')
+        check_trainVal_contamination(data_train.X,data_test.X)
+        
+    
+    # dataset_rr={};
+    return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig
+
+
 def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None,data_train_info=None,data_val_info=None):
     
     f = h5py.File(fname,'a')
@@ -219,7 +406,7 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
 
             f['data_train']['spikes'].resize((f['data_train']['spikes'].shape[0] + data_train[data_train_keys[i]].spikes.shape[0]),axis=0)
             f['data_train']['spikes'][-data_train[data_train_keys[i]].spikes.shape[0]:] = data_train[data_train_keys[i]].spikes
-
+            
     # if type(data_train) is dict:    # if the training set is divided into multiple datasets then create a group for each
     #     for i in data_train.keys():
     #         grp = f.create_group('/'+i)
@@ -249,6 +436,10 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
             
             f['data_val']['spikes'].resize((f['data_val']['spikes'].shape[0] + data_val[data_val_keys[i]].spikes.shape[0]),axis=0)
             f['data_val']['spikes'][-data_val[data_val_keys[i]].spikes.shape[0]:] = data_val[data_val_keys[i]].spikes
+            
+            f['data_val']['y_trials'].resize((f['data_val']['y_trials'].shape[0] + data_val[data_val_keys[i]].y_trials.shape[0]),axis=0)
+            f['data_val']['y_trials'][-data_val[data_val_keys[i]].y_trials.shape[0]:] = data_val[data_val_keys[i]].y_trials
+
     else:
         grp = f.create_group('/data_val')
         grp.create_dataset('X',data=data_val.X,compression='gzip')
@@ -260,6 +451,7 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         grp.create_dataset('X',data=data_test.X,compression='gzip')
         grp.create_dataset('y',data=data_test.y,compression='gzip')
         grp.create_dataset('spikes',data=data_test.spikes,compression='gzip')
+        grp.create_dataset('y_trials',data=data_test.y_trials,compression='gzip')
         
     # Training data info
     if type(data_train_info)==dict: # if the training set is divided into multiple datasets
@@ -323,6 +515,7 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_v
     t_frame = np.array(f['parameters']['t_frame'])
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
     Exptdata_spikes = namedtuple('Exptdata', ['X', 'y','spikes'])
+    Exptdata_trials = namedtuple('Exptdata_trials', ['X', 'y','y_trials','spikes'])
     
     # some loading parameters
     if nsamps_val==-1 or nsamps_val==0:
@@ -336,7 +529,7 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_v
     idx_train_start = int((idx_train_start*60*1000)/(t_frame))    # mins to frames
     if nsamps_train==-1 or nsamps_train==0 :
         # idx_train_start = 0
-        idx_train_end = -1
+        idx_train_end = int(f['data_train']['X'].shape[0])
         # idx_data = np.arange(idx_train_start,np.array(f['data_train']['y'].shape[0]))
     else:
         nsamps_train = int((nsamps_train*60*1000)/t_frame)
@@ -360,17 +553,26 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_v
         X = np.array(f['data_val']['X'][idx],dtype='float32')
         y = np.array(f['data_val']['y'][idx],dtype='float32')
         spikes = np.array(f['data_val']['spikes'][idx],dtype='float32')
-        data_val= Exptdata_spikes(X,y,spikes)
+        if 'y_trials' in f['data_val']:
+            y_trials = np.array(f['data_val']['y_trials'][idx],dtype='float32')
+            data_val = Exptdata_trials(X,y,y_trials,spikes)
+        else:
+            data_val = Exptdata_spikes(X,y,spikes)
             
             
         # test data
         X = np.array(f['data_test']['X'],dtype='float32')
         y = np.array(f['data_test']['y'],dtype='float32')
-        try:
-            spikes = np.array(f['data_test']['spikes'][idx],dtype='float32')
-        except:
-            print('spikes dataset not found')
-        data_test = Exptdata_spikes(X,y,spikes)
+        if 'spikes' in f['data_test']:
+            spikes = np.array(f['data_test']['spikes'],dtype='float32')
+        else:
+            spikes = np.zeroslike(y); spikes[:]=np.nan
+            
+        if 'y_trials' in f['data_test']:
+            y_trials = np.array(f['data_test']['y_trials'],dtype='float32')
+            data_test = Exptdata_trials(X,y,y_trials,spikes)
+        else:
+            data_test = Exptdata_spikes(X,y,spikes)
 
     else:
         data_val = None

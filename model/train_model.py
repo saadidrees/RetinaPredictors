@@ -75,22 +75,22 @@ def lr_scheduler(epoch,lr):
     return lr
 
 # %%
-def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0):
+def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0):
     
     optimizer = Adam(lr)
     mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
 
     # if initial_epoch==1: # 
-        # mdl.save(os.path.join(path_model_base,fname_model)) # save model architecture
+        # mdl.save(os.path.join(path_model_save,fname_model)) # save model architecture
 
     if initial_epoch>0:
         try:
             weight_file = 'weights_'+fname_model+'_epoch-%03d' % initial_epoch
-            mdl.load_weights(os.path.join(path_model_base,weight_file))
+            mdl.load_weights(os.path.join(path_model_save,weight_file))
 
         except:
             weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % initial_epoch
-            mdl.load_weights(os.path.join(path_model_base,weight_file))
+            mdl.load_weights(os.path.join(path_model_save,weight_file))
             
 
         tf.keras.backend.set_value(mdl.optimizer.learning_rate, lr/lr_fac)  # lr_fac controls how much to divide the learning rate whenever training is resumed
@@ -102,9 +102,9 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
     # define model callbacks
     fname_cb = 'weights_'+ fname_model + '_epoch-{epoch:03d}' 
     
-    cbs = [cb.ModelCheckpoint(os.path.join(path_model_base, fname_cb),save_weights_only=True),
-           cb.TensorBoard(log_dir=path_model_base, histogram_freq=0, write_grads=True),
-           cb.CSVLogger(os.path.join(path_model_base, fname_excel)),
+    cbs = [cb.ModelCheckpoint(os.path.join(path_model_save, fname_cb),save_weights_only=True),
+           cb.TensorBoard(log_dir=path_model_save, histogram_freq=0, write_grads=True),
+           cb.CSVLogger(os.path.join(path_model_save, fname_excel)),
            CustomCallback()]
             # cb.ReduceLROnPlateau(monitor='loss',min_lr=1e-6, factor=0.2, patience=5),
    
@@ -128,7 +128,7 @@ def train(mdl, data_train, data_val,fname_excel,path_model_base, fname_model, bz
     keys = list(rgb.keys())
     
     fname_history = 'history_'+mdl.name+'.h5'
-    fname_history = os.path.join(path_model_base,fname_history)                            
+    fname_history = os.path.join(path_model_save,fname_history)                            
     f = h5py.File(fname_history,'w')
     for i in range(len(rgb)):
         f.create_dataset(keys[i], data=rgb[keys[i]])

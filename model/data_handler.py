@@ -616,30 +616,98 @@ def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
     
     return data
 
-def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
-    if data != None:
-        Exptdata = namedtuple('Exptdata', ['X', 'y'])
-        Exptdata_spikes = namedtuple('Exptdata_spikes', ['X', 'y','spikes'])
-        if filt_temporal_width>0:
-            X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
-            y = data.y[:,idx_unitsToTake]
-            y = y[filt_temporal_width:]
-            if isintuple(data,'spikes')==True:
-                spikes = data.spikes[:,idx_unitsToTake]
-                spikes = spikes[filt_temporal_width:]
-        else:
-            X = np.expand_dims(data.X,axis=1)
-            y = data.y[:,idx_unitsToTake]
-            if isintuple(data,'spikes')==True:
-                spikes = data.spikes[:,idx_unitsToTake]
+# def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
+#     if data != None:
+#         Exptdata = namedtuple('Exptdata', ['X', 'y'])
+#         Exptdata_spikes = namedtuple('Exptdata_spikes', ['X', 'y','spikes'])
+#         if filt_temporal_width>0:
+#             X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
+#             y = data.y[:,idx_unitsToTake]
+#             y = y[filt_temporal_width:]
+#             if isintuple(data,'spikes')==True:
+#                 spikes = data.spikes[:,idx_unitsToTake]
+#                 spikes = spikes[filt_temporal_width:]
+#         else:
+#             X = np.expand_dims(data.X,axis=1)
+#             y = data.y[:,idx_unitsToTake]
+#             if isintuple(data,'spikes')==True:
+#                 spikes = data.spikes[:,idx_unitsToTake]
 
-        if isintuple(data,'spikes')==True:
-            data = Exptdata_spikes(X,y,spikes)
-        else:
-            data = Exptdata(X,y)
+#         if isintuple(data,'spikes')==True:
+#             data = Exptdata_spikes(X,y,spikes)
+#         else:
+#             data = Exptdata(X,y)
         
-        del X, y
+#         del X, y
+#     return data
+
+
+def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake):
+    Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    Exptdata_spikes = namedtuple('Exptdata_spikes', ['X', 'y','spikes'])
+    Exptdata_trials = namedtuple('Exptdata_spikes', ['X', 'y','y_trials','spikes'])
+        
+    if filt_temporal_width>0:
+        X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
+        y = data.y[:,idx_unitsToTake]
+        y = y[filt_temporal_width:]
+        if isintuple(data,'spikes')==True:
+            spikes = data.spikes[:,idx_unitsToTake]
+            spikes = spikes[filt_temporal_width:]
+            
+        if isintuple(data,'y_trials')==True:
+            y_trials = data.y_trials[:,idx_unitsToTake]
+            y_trials = y_trials[filt_temporal_width:]
+
+    else:
+        X = np.expand_dims(data.X,axis=1)
+        y = data.y[:,idx_unitsToTake]
+        if isintuple(data,'y_trials')==True:
+            y_trials = data.y_trials[:,idx_unitsToTake]
+
+    if X.ndim==5:       # if the data has multiple stims
+        X_rgb = np.moveaxis(X,0,-1)
+        X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
+        X_rgb = np.moveaxis(X_rgb,-1,0)
+        
+        y_rgb = np.moveaxis(y,0,-1)
+        y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
+        y_rgb = np.moveaxis(y_rgb,-1,0)
+        
+        X = X_rgb
+        y = y_rgb
+        
+        del X_rgb, y_rgb
+
+    if X.ndim==6:       # if the data has multiple stims and trials
+        X_rgb = np.moveaxis(X,0,-1)
+        X_rgb = X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],X_rgb.shape[3],-1)
+        X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
+        X_rgb = np.moveaxis(X_rgb,-1,0)
+        
+        y_rgb = np.moveaxis(y,0,-1)
+        y_rgb = y_rgb.reshape(y_rgb.shape[0],y_rgb.shape[1],-1)
+        y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
+        y_rgb = np.moveaxis(y_rgb,-1,0)
+        
+        X = X_rgb
+        y = y_rgb
+        
+        del X_rgb, y_rgb
+
+    X = X.astype('float16')
+    y = y.astype('float16')
+    if isintuple(data,'y_trials')==True:
+        y_trials = y_trials.astype('float16')
+        data = Exptdata_trials(X,y,y_trials,spikes)
+    elif isintuple(data,'spikes')==True:
+        data = Exptdata_spikes(X,y,spikes)
+    else:
+        data = Exptdata(X,y)
+    
+    del X, y
     return data
+
 
 def prepare_data_pr_cnn2d(data,pr_temporal_width,idx_unitsToTake):
     Exptdata = namedtuple('Exptdata', ['X', 'y'])

@@ -308,7 +308,7 @@ def paramsToName(mdl_name,LR=None,U=0,P=0,T=60,C1_n=1,C1_s=1,C1_3d=0,C2_n=0,C2_s
     
     
 
-def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=False,lag = 2):
+def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=False,lag = 0):
     numCells = obs_rate_allStimTrials.shape[-1]
     num_trials = obs_rate_allStimTrials.shape[0]
     idx_allTrials = np.arange(num_trials)
@@ -384,7 +384,7 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False
         r2 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r2,:,:],axis=0)
         
         noise_trialAveraged = np.mean((r1-r2)**2,axis=0)
-        fracExplainableVar = (np.var(r2,axis=0) - noise_trialAveraged)/np.var(r2,axis=0)
+        fracExplainableVar = (np.var(r2,axis=0) - noise_trialAveraged)/(np.var(r2,axis=0)+1e-5)
         
         if RR_ONLY is True:
             fev = None
