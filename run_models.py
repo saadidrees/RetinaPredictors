@@ -262,8 +262,19 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     else:
         mp_val=0       
     
-    x = Input(shape=data_train.X.shape[1:],dtype=DTYPE) # keras input layer
-    n_cells = data_train.y.shape[1]         # number of units in output layer
+    if isinstance(data_train.X,list):
+        n_train = len(data_train.X)
+        inp_shape = data_train.X[0].shape
+        out_shape = data_train.y[0].shape
+    else:
+        n_train = data_train.X.shape[0]
+        inp_shape = data_train.X.shape[1:]
+        out_shape = data_train.y.shape[1:]
+        
+    x = Input(shape=inp_shape,dtype=DTYPE) # keras input layer
+    n_cells = out_shape[0]         # number of units in output layer
+    
+    dset_details = dict(n_train=n_train,inp_shape=inp_shape,out_shape=out_shape)
 
 # %% Select model 
     """
@@ -430,7 +441,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if initial_epoch < nb_epochs:
         print('-----RUNNING MODEL-----')
         validation_batch_size = 100 # samples
-        mdl_history = train(mdl, data_train, data_test, fname_excel,path_model_save, fname_model, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=1,
+        mdl_history = train(mdl, data_train, data_test, fname_excel,path_model_save, fname_model, dset_details, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=1,
                             USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=use_lrscheduler,lr_fac=lr_fac)  
         mdl_history = mdl_history.history
         _ = gc.collect()

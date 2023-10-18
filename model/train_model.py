@@ -20,26 +20,41 @@ import numpy as np
 import re
 from tensorflow import keras
 from model.load_savedModel import load
+import gc
 
 def chunker(data,batch_size,mode='default'):
-    if mode=='predict': # in predict mode no need to do y
-        X = data
+    if isinstance(data.X,list):
+        nsamps = len(data.X)
         counter = 0
         while True:
-            counter = (counter + 1) % X.shape[0]
-            for cbatch in range(0, X.shape[0], batch_size):
-                yield (X[cbatch:(cbatch + batch_size)])
+            counter = (counter + 1) % nsamps
+            cbatch=0
+            for cbatch in range(0, nsamps, batch_size):
+                # X = np.asarray(data.X[cbatch:(cbatch + batch_size)])
+                # y = np.asarray(data.y[cbatch:(cbatch + batch_size)])
+                yield (np.asarray(data.X[cbatch:(cbatch + batch_size)]), np.asarray(data.y[cbatch:(cbatch + batch_size)]))
 
     else:
-        X = data.X
-        y = data.y
-            
-        counter = 0
-        while True:
-            counter = (counter + 1) % X.shape[0]
-            for cbatch in range(0, X.shape[0], batch_size):
-                yield (X[cbatch:(cbatch + batch_size)], y[cbatch:(cbatch + batch_size)])
+        if mode=='predict': # in predict mode no need to do y
+            X = data
+            counter = 0
+            while True:
+                counter = (counter + 1) % X.shape[0]
+                for cbatch in range(0, X.shape[0], batch_size):
+                    yield (X[cbatch:(cbatch + batch_size)])
     
+        else:
+            X = data.X
+            y = data.y
+                
+            counter = 0
+            while True:
+                counter = (counter + 1) % X.shape[0]
+                for cbatch in range(0, X.shape[0], batch_size):
+                    yield (X[cbatch:(cbatch + batch_size)], y[cbatch:(cbatch + batch_size)])
+    
+    
+
 class CustomCallback(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
@@ -74,8 +89,9 @@ def lr_scheduler(epoch,lr):
     
     return lr
 
+
 # %%
-def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0):
+def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, dset_details, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0):
     
     optimizer = Adam(lr)
     mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
@@ -117,11 +133,12 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, bz
         
     else:
         batch_size = bz
-        steps_per_epoch = int(np.ceil(data_train.X.shape[0]/batch_size))
+        steps_per_epoch = int(np.ceil(dset_details['n_train']/batch_size))
         gen_train = chunker(data_train,batch_size)
         # gen_val = chunker(data_val,validation_batch_size)
         # mdl_history = mdl.fit(gen_train,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=gen_val,shuffle=True,initial_epoch=initial_epoch,use_multiprocessing=True,validation_freq=validation_freq)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
-        mdl_history = mdl.fit(gen_train,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=(data_val.X,data_val.y),shuffle=True,initial_epoch=initial_epoch,use_multiprocessing=False,validation_freq=validation_freq)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
+        mdl_history = mdl.fit(gen_train,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs,
+                              validation_data=(data_val.X,data_val.y),shuffle=True,initial_epoch=initial_epoch,use_multiprocessing=False,validation_freq=validation_freq)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
 
       
     rgb = mdl_history.history
