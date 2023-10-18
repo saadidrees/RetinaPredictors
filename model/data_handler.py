@@ -16,7 +16,7 @@ from model import utils_si
 from model.performance import model_evaluate
 import re
 import json
-from tqdm import tqdm
+# from tqdm import tqdm
 import gc
 
 
@@ -619,63 +619,129 @@ def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
     return data
 
 def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=1):
+    
+    if data.X.ndim==5:       # if the data has multiple stims and trials
+        X = data.X
+        y = data.y
+
+        X_rgb = X.reshape(X.shape[0],X.shape[1],X.shape[2],-1,order='A')
+        X_rgb = rolling_window(X_rgb,filt_temporal_width,time_axis=0)
         
-    if filt_temporal_width>0:
-        X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
-        y = data.y[:,idx_unitsToTake]
-        y = y[filt_temporal_width:]
-        if isintuple(data,'spikes')==True:
-            spikes = data.spikes[:,idx_unitsToTake]
-            spikes = spikes[filt_temporal_width:]
+        y_rgb = y.reshape(y.shape[0],y.shape[1],-1,order='A')
+        y_rgb = y_rgb[filt_temporal_width:]
+        
+        X_list = []
+        y_list = []
+        i=0
+        for i in range(X_rgb.shape[-1]):
+            rgb = list(X_rgb[:,:,:,:,i])
+            X_list = X_list + rgb
             
-        if isintuple(data,'y_trials')==True:
-            y_trials = data.y_trials[:,idx_unitsToTake]
-            y_trials = y_trials[filt_temporal_width:]
+            rgb = list(y_rgb[:,:,i])
+            y_list = y_list + rgb
+        
+        X = X_list
+        y = y_list
 
-    else:
-        X = np.expand_dims(data.X,axis=1)
-        y = data.y[:,idx_unitsToTake]
-        if isintuple(data,'y_trials')==True:
-            y_trials = data.y_trials[:,idx_unitsToTake]
-
-    if X.ndim==5:       # if the data has multiple stims
-        X_rgb = np.moveaxis(X,0,-1)
-        X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
-        X_rgb = np.moveaxis(X_rgb,-1,0)
-        
-        y_rgb = np.moveaxis(y,0,-1)
-        y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
-        y_rgb = np.moveaxis(y_rgb,-1,0)
-        
-        X = X_rgb
-        y = y_rgb
-        
         del X_rgb, y_rgb
+    
+    else:
+        
+        if filt_temporal_width>0:
+            X = rolling_window(data.X,filt_temporal_width,time_axis=0)   
+            y = data.y[:,idx_unitsToTake]
+            y = y[filt_temporal_width:]
+            if isintuple(data,'spikes')==True:
+                spikes = data.spikes[:,idx_unitsToTake]
+                spikes = spikes[filt_temporal_width:]
+                
+            if isintuple(data,'y_trials')==True:
+                y_trials = data.y_trials[:,idx_unitsToTake]
+                y_trials = y_trials[filt_temporal_width:]
+
+        else:
+            X = np.expand_dims(data.X,axis=1)
+            y = data.y[:,idx_unitsToTake]
+            if isintuple(data,'y_trials')==True:
+                y_trials = data.y_trials[:,idx_unitsToTake]
+
+        if X.ndim==5:       # if the data has multiple stims
+            X_rgb = np.moveaxis(X,0,-1)
+            X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
+            X_rgb = np.moveaxis(X_rgb,-1,0)
+            
+            y_rgb = np.moveaxis(y,0,-1)
+            y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
+            y_rgb = np.moveaxis(y_rgb,-1,0)
+            
+            X = X_rgb
+            y = y_rgb
+            
+            del X_rgb, y_rgb
+
+
+    data_vars = ['X','y','spikes','y_trials']
+    dataDict = {}
+    for var in data_vars:
+        if var in locals():
+            dataDict[var]=eval(var)
+            
+    data = namedtuple('Exptdata',dataDict)
+    data=data(**dataDict)
+    
+    del X, y
+    return data
+
+
+"""
 
     if X.ndim==6:       # if the data has multiple stims and trials
-        X_rgb = np.moveaxis(X,0,-1)
-        X_rgb = X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],X_rgb.shape[3],-1)
-        X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
-        X_rgb = np.moveaxis(X_rgb,-1,0)
+        # X_rgb = np.moveaxis(X,0,-1)
+        # X_rgb = X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],X_rgb.shape[3],-1)
+        # X_rgb =  X_rgb.reshape(X_rgb.shape[0],X_rgb.shape[1],X_rgb.shape[2],-1)
+        # X_rgb = np.moveaxis(X_rgb,-1,0)
         
-        y_rgb = np.moveaxis(y,0,-1)
-        y_rgb = y_rgb.reshape(y_rgb.shape[0],y_rgb.shape[1],-1)
-        y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
-        y_rgb = np.moveaxis(y_rgb,-1,0)
+        # y_rgb = np.moveaxis(y,0,-1)
+        # y_rgb = y_rgb.reshape(y_rgb.shape[0],y_rgb.shape[1],-1)
+        # y_rgb = y_rgb.reshape(y_rgb.shape[0],-1)
+        # y_rgb = np.moveaxis(y_rgb,-1,0)
         
-        X = X_rgb
-        y = y_rgb
+        # X = X_rgb
+        # y = y_rgb
         
-        del X_rgb, y_rgb
+        # del X_rgb, y_rgb
         
+        
+        # num_chunks = int(np.ceil(X.shape[0]/chunk_size))
+        
+        X_rgb = X.reshape(X.shape[0],X.shape[1],X.shape[2],-1,order='A')
+        X_rgb = rolling_window(X_rgb,filt_temporal_width,time_axis=0)
+        # rgb_X = np.moveaxis(rgb_X,0)
+        
+        y_rgb = y.reshape(y.shape[0],y.shape[1],-1,order='A')
+        y_rgb = y_rgb[filt_temporal_width:]
+        # rgb_y = np.moveaxis(rgb_y,-1,0)
+        
+        X_list = []
+        y_list = []
+        i=0
+        for i in range(X_rgb.shape[-1]):
+            rgb = list(X_rgb[:,:,:,:,i])
+            X_list = X_list + rgb
+            
+            rgb = list(y_rgb[:,:,i])
+            y_list = y_list + rgb
+        
+        X = X_list
+        y = y_list
         
         # # chunk_size = 50
-        # # num_chunks = int(np.ceil(X.shape[0]/chunk_size))
-        # chunks_idx = np.linspace(0,X.shape[0],num_chunks+1,dtype='int')
+        # chunks_idx = np.linspace(0,rgb.shape[0],num_chunks+1,dtype='int')
+        # data_idx = rgb.shape[1]*chunks_idx
         
-        # X_rgb = np.empty((0,X.shape[1],X.shape[2],X.shape[3]),dtype=X.dtype)
+        # X_rgb = np.ones((rgb.shape[0]*rgb.shape[1],rgb.shape[2],rgb.shape[3],rgb.shape[4]),dtype=X.dtype)
         # y_rgb = np.empty((0,y.shape[1]),dtype=y.dtype)
-
+        # i=0
         # for i in tqdm(range(num_chunks)):
         #     rgb = np.moveaxis(X[chunks_idx[i]:chunks_idx[i+1]],0,-1)
         #     rgb = rgb.reshape(rgb.shape[0],rgb.shape[1],rgb.shape[2],rgb.shape[3],-1)
@@ -694,22 +760,9 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=1):
         # X = X_rgb
         # y = y_rgb
         
-        # del X_rgb, y_rgb
+        del X_rgb, y_rgb
 
-        
-
-    data_vars = ['X','y','spikes','y_trials']
-    dataDict = {}
-    for var in data_vars:
-        if var in locals():
-            dataDict[var]=eval(var)
-            
-    data = namedtuple('Exptdata',dataDict)
-    data=data(**dataDict)
-    
-    del X, y
-    return data
-
+"""
 
 def prepare_data_pr_cnn2d(data,pr_temporal_width,idx_unitsToTake):
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
