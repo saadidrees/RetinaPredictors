@@ -139,7 +139,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     idx_train_start = 0    # mins to chop off in the begining.
-    d=0
+    d=1
     dict_train = {}
     dict_val = {}
     dict_test = {}
@@ -255,12 +255,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         bn_val=1
     else:
         bn_val=0
-    
-    
-    if MaxPool==1:
-        mp_val=1
-    else:
-        mp_val=0       
     
     if isinstance(data_train.X,list):
         n_train = len(data_train.X)
@@ -494,7 +488,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if isintuple(data_test,'y_trials'):
         obs_rate_allStimTrials = np.moveaxis(data_test.y_trials,-1,0)
         obs_noise = None
-        num_iters = 11
+        num_iters = 5
         
     elif 'stim_0' in dataset_rr and dataset_rr['stim_0']['val'][:,:,idx_unitsToTake].shape[0]>1:
         obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake]
@@ -522,9 +516,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
-        gen = chunker(data_test.X,bz,mode='predict') # use generators to generate batches of data
-        pred_rate = mdl.predict(gen,steps=int(np.ceil(data_test.X.shape[0]/bz)))
-        # pred_rate = mdl.predict(data_val.X)
+        # gen = chunker(data_test.X,bz,mode='predict') # use generators to generate batches of data
+        # pred_rate = mdl.predict(gen,steps=int(np.ceil(data_test.X.shape[0]/bz)))
+        pred_rate = mdl.predict(data_test.X)
         _ = gc.collect()
         val_loss = None
         val_loss_allEpochs[i] = val_loss
@@ -585,7 +579,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # pred_rate = mdl.predict(gen,steps=int(np.ceil(data_val.X.shape[0]/bz)))
     pred_rate = mdl.predict(data_test.X)
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
-    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(np.moveaxis(data_test.y_trials,-1,0),pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
 
     
 
@@ -657,9 +651,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     stim_info = {
          'fname_data_train_val_test':fname_data_train_val_test_all,
-         'n_trainingSamps': data_train.X.shape[0],
-         'n_valSamps': data_val.X.shape[0],
-         'temporal_width':temporal_width,
+         'n_trainingSamps': n_train,
+          'n_valSamps': -1,
+          'temporal_width':temporal_width,
          'pr_temporal_width': pr_temporal_width
          }
     if len(data_info)>0:
@@ -691,7 +685,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
         csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','RGC_types','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
-        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,select_rgctype,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,bn_val,mp_val,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
+        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,select_rgctype,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,bn_val,MaxPool,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
         
         fname_csv_file = 'performance_'+expFold+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)

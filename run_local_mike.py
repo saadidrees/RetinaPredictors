@@ -27,9 +27,9 @@ path_existing_mdl = ''
 info = ''
 idxStart_fixedLayers = 0#1
 idxEnd_fixedLayers = -1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
-CONTINUE_TRAINING = 0
+CONTINUE_TRAINING = 1
 
-lr = 0.001
+lr = 0.0001
 lr_fac = 1# how much to divide the learning rate when training is resumed
 use_lrscheduler=0
 USE_CHUNKER=1
@@ -49,16 +49,16 @@ filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
-nb_epochs=50#42         # setting this to 0 only runs evaluation
+nb_epochs=200#42         # setting this to 0 only runs evaluation
 bz_ms=5000#5000
 BatchNorm=1
-MaxPool=1
+MaxPool=2
 runOnCluster=0
 num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur = -1 #0.05 # minutes per dataset
+trainingSamps_dur = -1#20 #-1 #0.05 # minutes per dataset
 validationSamps_dur=0
 
 dataset_nameForPaths = ''
@@ -67,7 +67,7 @@ for i in range(len(dataset)):
 
 dataset_nameForPaths = dataset_nameForPaths[:-1]
 
-path_model_save_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDate,subFold,dataset_nameForPaths,mdl_subFold)
+path_model_save_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDate,subFold,'models',dataset_nameForPaths,mdl_subFold)
 path_dataset_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDate,subFold)
 
 fname_data_train_val_test = ''
@@ -98,7 +98,7 @@ for c_trial in range(1,num_trials+1):
                             trainingSamps_dur=trainingSamps_dur,validationSamps_dur=validationSamps_dur,idx_unitsToTake=idx_unitsToTake,
                             lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler)
     
-plt.plot(model_performance['fev_medianUnits_allEpochs'])
+plt.plot(model_performance['fev_medianUnits_allEpochs']);plt.ylabel('FEV');plt.xlabel('Epochs')
 print('FEV = %0.2f' %(np.nanmax(model_performance['fev_medianUnits_allEpochs'])*100))
 
 
