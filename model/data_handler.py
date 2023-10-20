@@ -618,7 +618,7 @@ def prepare_data_cnn3d(data,filt_temporal_width,idx_unitsToTake):
     
     return data
 
-def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=1):
+def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=1,MAKE_LISTS=False):
     
     if data.X.ndim==5:       # if the data has multiple stims and trials
         X = data.X
@@ -678,8 +678,17 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=1):
             y = y_rgb
             
             del X_rgb, y_rgb
+            
+        if MAKE_LISTS==True:    # if we want to arrange samples as lists rather than numpy arrays
+            X = list(X)
+            y = list(y)
+            if isintuple(data,'y_trials')==True:
+                y_trials = list(y_trials)
 
+            if isintuple(data,'spikes')==True:
+                spikes = list(spikes)
 
+    
     data_vars = ['X','y','spikes','y_trials']
     dataDict = {}
     for var in data_vars:
@@ -1496,30 +1505,79 @@ def get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened)
 
 
 def merge_datasets(dict_data):
+    
+    dset_name = {}
 
     keys = list(dict_data.keys())
     key = keys[0]
     
-    X = np.zeros(([0,*dict_data[key].X.shape[1:]]),dtype=dict_data[key].X.dtype)
-    y = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
-    spikes = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
-    if isintuple(dict_data[key],'y_trials'):
-        y_trials = np.zeros(([0,*dict_data[key].y_trials.shape[1:]]),dtype=dict_data[key].X.dtype)
-    num_units = []
-    
+    islist = 0
+    has_y_trials = 0
+    has_spikes = 0
     for key in keys:
-        X = np.concatenate((X,dict_data[key].X),axis=0)
-        y = np.concatenate((y,dict_data[key].y),axis=0)
-        try:
-            spikes = np.concatenate((spikes,dict_data[key].spikes),axis=0)
-        except:
-            print('skipping spikes dataset')
-        if isintuple(dict_data[key],'y_trials'):
-            y_trials = np.concatenate((y_trials,dict_data[key].y_trials),axis=0)
+        rgb = key
+        patt = r'dataset_train_val_test_(\w+)'
+        a = re.search(patt,rgb)
+        dset_name[key] = a.group(1)
         
-        num_units.append(y.shape[1])
+        if isinstance(dict_data[key].X,list):
+            islist+=1
+        if isintuple(dict_data[key],'y_trials'):
+            has_y_trials+=1
+            n_trials = dict_data[key].y_trials.shape[-1]
+        if isintuple(dict_data[key],'spikes'):
+            has_spikes+=1
+            
+
+    dset_names = []
+    if islist>0:
+        X = []
+        y = []
+        if has_y_trials>0:
+            y_trials = []
+        if has_spikes>0:
+            spikes = []
+
+        for key in keys:
+            X = X + dict_data[key].X
+            y = y + dict_data[key].y
+            try:
+                spikes = spikes + dict_data[key].spikes
+            except:
+                print('skipping spikes dataset')
+            if isintuple(dict_data[key],'y_trials'):
+                y_trials = y_trials + dict_data[key].y_trials
+            elif isintuple(dict_data[key],'y_trials')==False and has_y_trials>0:
+                rgb = [None]*len(dict_data[key].X)
+                y_trials = y_trials + rgb
+            
+            dset_names = dset_names + [dset_name[key]]*len(dict_data[key].X)
+            
+    else:
+        X = np.zeros(([0,*dict_data[key].X.shape[1:]]),dtype=dict_data[key].X.dtype)
+        y = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
+        spikes = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
+        if has_y_trials>0:
+            y_trials = np.zeros(([0,*dict_data[key].y_trials.shape[1:]]),dtype=dict_data[key].X.dtype)
+        
+        for key in keys:
+            X = np.concatenate((X,dict_data[key].X),axis=0)
+            y = np.concatenate((y,dict_data[key].y),axis=0)
+            try:
+                spikes = np.concatenate((spikes,dict_data[key].spikes),axis=0)
+            except:
+                print('skipping spikes dataset')
+            if isintuple(dict_data[key],'y_trials'):
+                y_trials = np.concatenate((y_trials,dict_data[key].y_trials),axis=0)
+                
+            elif isintuple(dict_data[key],'y_trials')==False and has_y_trials>0:
+                rgb = np.zeros((dict_data[key].y.shape[0],dict_data[key].y.shape[1],n_trials),dtype=dict_data[key].y.dtype)
+                rgb[:]=np.nan
+                y_trials = np.concatenate((y_trials,rgb),axis=0)
+
+            dset_names = dset_names + [dset_name[key]]*dict_data[key].X.shape[0]
     
-    data_vars = ['X','y','spikes','y_trials']
+    data_vars = ['X','y','spikes','y_trials','dset_names']
 
     dataDict = {}
     for var in data_vars:

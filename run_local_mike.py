@@ -16,7 +16,7 @@ data_pers = 'mike' #'kiersten'
 expDate = '20230725C'
 expFold = expDate
 subFold = '' 
-dataset = ('NATSTIM_photopic-Rstar',)#'NATSTIM_mesopic-Rstar') #'photopic-Rstar',) #'scotopic-Rstar')
+dataset = ('CB_photopic-Rstar','NATSTIM_photopic-Rstar')#'NATSTIM_mesopic-Rstar') #'photopic-Rstar',) #'scotopic-Rstar')
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
@@ -49,7 +49,7 @@ filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
-nb_epochs=200#42         # setting this to 0 only runs evaluation
+nb_epochs=100#42         # setting this to 0 only runs evaluation
 bz_ms=5000#5000
 BatchNorm=1
 MaxPool=2
@@ -58,7 +58,7 @@ num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur = -1#20 #-1 #0.05 # minutes per dataset
+trainingSamps_dur = 5#20 #-1 #0.05 # minutes per dataset
 validationSamps_dur=0
 
 dataset_nameForPaths = ''

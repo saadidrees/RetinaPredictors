@@ -50,7 +50,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets,isintuple
     from model.data_handler_mike import load_h5Dataset
-    from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer
+    from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer, estimate_noise
     import model.metrics as metrics
     import model.models_primate  # can improve this by only importing the model that is being used
     import model.paramsLogger
@@ -64,19 +64,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     from collections import namedtuple
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
-    # Set up the gpu
-    # config = tf.compat.v1.ConfigProto(log_device_placement=True)
-    # config.gpu_options.allow_growth = True
-    # config.gpu_options.per_process_gpu_memory_fraction = .9
-    # tf.compat.v1.Session(config=config)
-    # gpus = tf.config.experimental.list_physical_devices('GPU')
-    # tf.compat.v1.disable_eager_execution()
-    # if not 'FR' in mdl_name:
-    #     tf.config.experimental.set_memory_growth(gpus[0], True)
-    #     tf.compat.v1.disable_eager_execution()
-    #     tf.compat.v1.experimental.output_all_intermediates(True) 
-    #     USE_CHUNKER = 0
-    
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
       try:
@@ -139,7 +126,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     idx_train_start = 0    # mins to chop off in the begining.
-    d=1
+    d=0
     dict_train = {}
     dict_val = {}
     dict_test = {}
@@ -157,18 +144,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
         t_frame = parameters['t_frame']     # time in ms of one frame/sample 
         
-        if len(fname_data_train_val_test_all)>1:
-            dict_train[fname_data_train_val_test_all[d]] = data_train
-            dict_val[fname_data_train_val_test_all[d]] = data_val
-            dict_test[fname_data_train_val_test_all[d]] = data_test
+        dict_train[fname_data_train_val_test_all[d]] = data_train
+        dict_val[fname_data_train_val_test_all[d]] = data_val
+        dict_test[fname_data_train_val_test_all[d]] = data_test
 
-    # Merge datasets
-    if len(fname_data_train_val_test_all)>1:
-        data_train = merge_datasets(dict_train)
-        data_val = merge_datasets(dict_val)
-        data_test = merge_datasets(dict_test)
-    
-    rgb = [];dict_train={};dict_val={};dict_test={};
     
     # Get RGC type info
     
@@ -181,22 +160,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         else:
             idx_unitsToTake = np.arange(0,idx_unitsToTake)
     
-    # if len(select_rgctype)!=0 or select_rgctype!='0' or select_rgctype!=0:   # for cluster
-    #     select_rgctype = re.findall(r'(\w+)',select_rgctype)
-    #     # print(len(select_rgctype))
-    #     if len(select_rgctype)>0:
-    #         print('Selecting RGC subtypes %s'%select_rgctype)
-    #         f = h5py.File(fname_data_train_val_test_all,'r')
-    #         uname_all = np.array(f['data_quality']['uname_selectedUnits'],dtype='bytes')
-    #         uname_all = list(model.utils_si.h5_tostring(uname_all))
-    #         uname_new = list()
-    #         for t in select_rgctype:
-    #             r = re.compile(r'.*%s'%t) 
-    #             rgb = list(filter(r.match,uname_all))
-    #             uname_new.extend(rgb)
-    #         idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
-    #         f.close()
-    #         idx_unitsToTake = idx_selectedRGCtypes.copy()
 
     print(idx_unitsToTake)
     print(len(idx_unitsToTake))
@@ -221,26 +184,44 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     modelNames_all = model.models_primate.model_definitions()    # get all model names
     modelNames_2D = modelNames_all[0]
     modelNames_3D = modelNames_all[1]
-    
+
     # prepare data according to model. Roll and adjust dimensions according to 2D or 3D model
-    if mdl_name in modelNames_2D:
-        data_train = prepare_data_cnn2d(data_train,temporal_width_prepData,idx_unitsToTake)     # [samples,temporal_width,rows,columns]
-        data_test = prepare_data_cnn2d(data_test,temporal_width_prepData,idx_unitsToTake)
-        data_val = prepare_data_cnn2d(data_val,temporal_width_prepData,idx_unitsToTake)   
-        
-        filt1_3rdDim=0
-        filt2_3rdDim=0
-        filt3_3rdDim=0
+    d=0
+    for d in range(len(fname_data_train_val_test_all)):
+        data_train = dict_train[fname_data_train_val_test_all[d]]
+        data_test = dict_test[fname_data_train_val_test_all[d]]
+        data_val = dict_val[fname_data_train_val_test_all[d]]
 
-        
-    elif mdl_name in modelNames_3D:
-        data_train = prepare_data_cnn3d(data_train,temporal_width_prepData,idx_unitsToTake)
-        data_test = prepare_data_cnn3d(data_test,temporal_width_prepData,idx_unitsToTake)
-        data_val = prepare_data_cnn3d(data_val,temporal_width_prepData,idx_unitsToTake)
-
-    else:
-        raise ValueError('model not found')
+        if mdl_name in modelNames_2D:
+            data_train = prepare_data_cnn2d(data_train,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)     # [samples,temporal_width,rows,columns]
+            data_test = prepare_data_cnn2d(data_test,temporal_width_prepData,idx_unitsToTake)
+            data_val = prepare_data_cnn2d(data_val,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)   
+            
+            filt1_3rdDim=0
+            filt2_3rdDim=0
+            filt3_3rdDim=0
     
+            
+        elif mdl_name in modelNames_3D:
+            data_train = prepare_data_cnn3d(data_train,temporal_width_prepData,idx_unitsToTake)
+            data_test = prepare_data_cnn3d(data_test,temporal_width_prepData,idx_unitsToTake)
+            data_val = prepare_data_cnn3d(data_val,temporal_width_prepData,idx_unitsToTake)
+    
+        else:
+            raise ValueError('model not found')
+    
+        dict_train[fname_data_train_val_test_all[d]] = data_train
+        dict_test[fname_data_train_val_test_all[d]] = data_test
+        dict_val[fname_data_train_val_test_all[d]] = data_val
+
+    
+    # Merge datasets if multiple datasets or simply unfold them from dict if just one dataset
+    data_train = merge_datasets(dict_train)
+    data_val = merge_datasets(dict_val)
+    data_test = merge_datasets(dict_test)
+    
+    rgb = [];dict_train={};dict_val={};dict_test={};
+
     """
     y = data_train.y
     a = np.nanmedian(y,axis=0)
@@ -485,10 +466,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     rrCorr_allUnits_allEpochs[:] = np.nan
     
     # for compatibility with greg's dataset
+    
+    
     if isintuple(data_test,'y_trials'):
-        obs_rate_allStimTrials = np.moveaxis(data_test.y_trials,-1,0)
-        obs_noise = None
-        num_iters = 5
+        obs_noise = estimate_noise(data_test.y_trials)
+        obs_rate_allStimTrials = data_test.y
+        num_iters = 1
         
     elif 'stim_0' in dataset_rr and dataset_rr['stim_0']['val'][:,:,idx_unitsToTake].shape[0]>1:
         obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake]
@@ -501,6 +484,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         else:
             obs_noise = 0
         num_iters = 1
+    
+    if isintuple(data_test,'dset_names'):
+        rgb = data_test.dset_names
+        idx_natstim = [i for i,n in enumerate(rgb) if re.search(r'NATSTIM',n)]
+        idx_cb = [i for i,n in enumerate(rgb) if re.search(r'CB',n)]
+        
     
     
     samps_shift = 0 # number of samples to shift the response by. This was to correct some timestamp error in gregs data
@@ -581,7 +570,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     fname_bestWeight = np.array(fname_bestWeight,dtype='bytes')
     fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
 
-    
+    if len(idx_natstim)>0:
+        fev_val_natstim, _, predCorr_val_natstim, _ = model_evaluate_new(obs_rate_allStimTrials[idx_natstim],pred_rate[idx_natstim],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+        fev_val_cb, _, predCorr_val_cb, _ = model_evaluate_new(obs_rate_allStimTrials[idx_cb],pred_rate[idx_cb],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
 
 # %% Save performance
     # data_test=data_val
@@ -723,3 +714,39 @@ if __name__ == "__main__":
 
 
 
+# %% Recycle bin
+
+    # if len(select_rgctype)!=0 or select_rgctype!='0' or select_rgctype!=0:   # for cluster
+    #     select_rgctype = re.findall(r'(\w+)',select_rgctype)
+    #     # print(len(select_rgctype))
+    #     if len(select_rgctype)>0:
+    #         print('Selecting RGC subtypes %s'%select_rgctype)
+    #         f = h5py.File(fname_data_train_val_test_all,'r')
+    #         uname_all = np.array(f['data_quality']['uname_selectedUnits'],dtype='bytes')
+    #         uname_all = list(model.utils_si.h5_tostring(uname_all))
+    #         uname_new = list()
+    #         for t in select_rgctype:
+    #             r = re.compile(r'.*%s'%t) 
+    #             rgb = list(filter(r.match,uname_all))
+    #             uname_new.extend(rgb)
+    #         idx_selectedRGCtypes = np.intersect1d(uname_all,uname_new,return_indices=True)[1]
+    #         f.close()
+    #         idx_unitsToTake = idx_selectedRGCtypes.copy()
+
+
+
+
+
+    # Set up the gpu
+    # config = tf.compat.v1.ConfigProto(log_device_placement=True)
+    # config.gpu_options.allow_growth = True
+    # config.gpu_options.per_process_gpu_memory_fraction = .9
+    # tf.compat.v1.Session(config=config)
+    # gpus = tf.config.experimental.list_physical_devices('GPU')
+    # tf.compat.v1.disable_eager_execution()
+    # if not 'FR' in mdl_name:
+    #     tf.config.experimental.set_memory_growth(gpus[0], True)
+    #     tf.compat.v1.disable_eager_execution()
+    #     tf.compat.v1.experimental.output_all_intermediates(True) 
+    #     USE_CHUNKER = 0
+    
