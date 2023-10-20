@@ -573,6 +573,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if len(idx_natstim)>0:
         fev_val_natstim, _, predCorr_val_natstim, _ = model_evaluate_new(obs_rate_allStimTrials[idx_natstim],pred_rate[idx_natstim],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
         fev_val_cb, _, predCorr_val_cb, _ = model_evaluate_new(obs_rate_allStimTrials[idx_cb],pred_rate[idx_cb],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+        print('FEV_NATSTIM = %0.2f' %np.nanmean(fev_val_natstim)*100)
+        print('FEV_CB = %0.2f' %np.nanmean(fev_val_cb)*100)
+
 
 # %% Save performance
     # data_test=data_val
