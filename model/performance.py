@@ -354,6 +354,36 @@ def model_evaluate(obs_rate_allStimTrials,pred_rate,filt_temporal_width,RR_ONLY=
 
     return fev, fracExplainableVar, pred_corr, rr_corr
 
+
+def estimate_noise(resp,n_loops=100):
+    if resp.ndim<3:
+        obs_noise=0
+    else:
+        n_trials = resp.shape[-1]
+        idx_valid = ~np.isnan(resp[:,0,0])
+        if idx_valid.sum()==0:
+            obs_noise=0
+        else:
+            resp_valid = resp[idx_valid]
+            resp_valid = np.moveaxis(resp_valid,-1,0)
+            
+            noise_trialAveraged = np.zeros((n_loops,resp_valid.shape[-1]))
+            for i in range(0,n_loops):
+                idx_allTrials = np.arange(n_trials)
+                idx_trials_r1 = np.array(random.sample(range(0,n_trials),int(np.ceil(n_trials/2))))
+                assert(np.unique(idx_trials_r1).shape[0] == idx_trials_r1.shape[0])
+                idx_trials_r2 = np.setdiff1d(idx_allTrials,idx_trials_r1)
+    
+                r1 = np.mean(resp_valid[idx_trials_r1,:,:],axis=0)
+                r2 = np.mean(resp_valid[idx_trials_r2,:,:],axis=0)
+                
+                noise_trialAveraged[i] = np.mean((r1-r2)**2,axis=0)
+                
+            obs_noise = np.mean(noise_trialAveraged,axis=0)
+    return obs_noise
+                
+        
+
 def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False,lag = 0,obs_noise=None):
     numCells = obs_rate_allStimTrials.shape[-1]
     if obs_rate_allStimTrials.ndim>2:
@@ -383,7 +413,9 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False
         r1 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r1,:,:],axis=0)
         r2 = np.mean(obs_rate_allStimTrials_corrected[idx_trials_r2,:,:],axis=0)
         
-        noise_trialAveraged = np.mean((r1-r2)**2,axis=0)
+        if obs_noise!=None:
+            noise_trialAveraged = np.mean((r1-r2)**2,axis=0)
+            
         fracExplainableVar = (np.var(r2,axis=0) - noise_trialAveraged)/(np.var(r2,axis=0)+1e-5)
         
         if RR_ONLY is True:
