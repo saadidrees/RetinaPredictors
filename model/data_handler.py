@@ -11,7 +11,6 @@ import os
 import h5py
 import math
 from scipy.stats import zscore
-from collections import namedtuple
 from model import utils_si
 from model.performance import model_evaluate
 import re
@@ -19,6 +18,7 @@ import json
 # from tqdm import tqdm
 import gc
 
+from collections import namedtuple
 
 
 def rolling_window(array, window, time_axis=0):
@@ -1495,26 +1495,40 @@ def get_index_contamination(stimFrames_train_flattened,stimFrames_val_flattened)
     return idx_discard
 
 
-def merge_datasets(dict_train):
-    Exptdata = namedtuple('Exptdata', ['X', 'y'])
-    keys = list(dict_train.keys())
+def merge_datasets(dict_data):
+
+    keys = list(dict_data.keys())
     key = keys[0]
     
-    X = np.zeros(([0,*dict_train[key].X.shape[1:]]),dtype='float32')
-    y = np.zeros(([0,*dict_train[key].y.shape[1:]]),dtype='float32')
-    spikes = np.zeros(([0,*dict_train[key].spikes.shape[1:]]),dtype='float32')
+    X = np.zeros(([0,*dict_data[key].X.shape[1:]]),dtype=dict_data[key].X.dtype)
+    y = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
+    spikes = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
+    if isintuple(dict_data[key],'y_trials'):
+        y_trials = np.zeros(([0,*dict_data[key].y_trials.shape[1:]]),dtype=dict_data[key].X.dtype)
     num_units = []
     
     for key in keys:
-        X = np.concatenate((X,dict_train[key].X),axis=0)
-        y = np.concatenate((y,dict_train[key].y),axis=0)
+        X = np.concatenate((X,dict_data[key].X),axis=0)
+        y = np.concatenate((y,dict_data[key].y),axis=0)
         try:
-            spikes = np.concatenate((spikes,dict_train[key].spikes),axis=0)
+            spikes = np.concatenate((spikes,dict_data[key].spikes),axis=0)
         except:
             print('skipping spikes dataset')
+        if isintuple(dict_data[key],'y_trials'):
+            y_trials = np.concatenate((y_trials,dict_data[key].y_trials),axis=0)
         
         num_units.append(y.shape[1])
-    data_train = Exptdata(X,y)
-    if np.prod(num_units)/num_units[0]!=num_units[0]:
-        raise ValueError('num of units do not match across datasets')
-    return data_train
+    
+    data_vars = ['X','y','spikes','y_trials']
+
+    dataDict = {}
+    for var in data_vars:
+        if var in locals():
+            dataDict[var]=eval(var)
+            
+    data_tuple = namedtuple('Exptdata',dataDict)
+    data=data_tuple(**dataDict)
+
+    return data
+
+
