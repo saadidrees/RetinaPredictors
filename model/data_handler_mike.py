@@ -577,6 +577,9 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_v
         nsamps_val = int((nsamps_val*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
         idx_val_start = 0
         idx_val_end = idx_val_start+nsamps_val
+        if idx_val_end>=int(f['data_val']['X'].shape[0]):   # if the duration provided is longer than dataset size
+            idx_val_end = int(f['data_val']['X'].shape[0])
+
         
     idx_train_start = int((idx_train_start*60*1000)/(t_frame))    # mins to frames
     if nsamps_train==-1 or nsamps_train==0 :
