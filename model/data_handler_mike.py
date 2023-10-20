@@ -15,11 +15,12 @@ from collections import namedtuple
 from model import utils_si
 from model.performance import model_evaluate
 import re
-from model.data_handler import rolling_window, check_trainVal_contamination
+from model.data_handler import rolling_window, check_trainVal_contamination, isintuple
 from model import utils_si
 import gc
 
-def load_data_allLightLevels_cb(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False):
+def load_data_allLightLevels_cb(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,
+                                idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False,NORM_RESP=True,resp_med_grand=None):
     
     # valSets = ['scotopic','photopic']   # embed this in h5 file
     
@@ -57,11 +58,28 @@ def load_data_allLightLevels_cb(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         idx_time = np.arange(t_start,stim_len)
           
         # firing rates
-        resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
+        # resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
         spikes = np.array(f[code_stim+'/spikeCounts'])[idx_time]
-        resp_orig = np.squeeze(np.array(f[code_stim+'/spikeRate_orig'])[idx_time])
+        spikeRate_cells = np.squeeze(np.array(f[code_stim+'/spikeRate_orig'])[idx_time])
         resp_median = np.array(f[code_stim+'/spikeRate_median'])
-        # resp = resp.T
+        
+        if NORM_RESP==True:
+            if np.all(resp_med_grand!=None):
+                print('normalizing to GRAND median')
+                resp = spikeRate_cells/resp_med_grand[None,:]
+            else:
+                print('normalizing to LOCAL median')
+                resp = spikeRate_cells/resp_median[None,:]
+
+            resp_orig = spikeRate_cells
+        else:
+            resp = spikeRate_cells
+            resp_orig = spikeRate_cells
+            
+        resp[np.isnan(resp)] = 0
+        resp_orig[np.isnan(resp_orig)] = 0
+
+        
         if resp.ndim == 2:
             resp = resp[:,idx_cells][filt_temporal_width:]
             spikes = spikes[:,idx_cells][filt_temporal_width:]
@@ -190,7 +208,8 @@ def load_data_allLightLevels_cb(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
     return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig
 
 
-def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False):
+def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,
+                                     idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False,resp_med_grand=None,NORM_RESP=True):
     
     # valSets = ['scotopic','photopic']   # embed this in h5 file
     
@@ -229,10 +248,29 @@ def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_te
         idx_time = np.arange(t_start,stim_len)
           
         # firing rates
-        resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
+        # resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
         spikes = np.array(f[code_stim+'/spikeCounts'])[idx_time]
-        resp_orig = np.squeeze(np.array(f[code_stim+'/spikeRate_orig'])[idx_time])
+        spikeRate_cells = np.squeeze(np.array(f[code_stim+'/spikeRate_orig'])[idx_time])
         resp_median = np.array(f[code_stim+'/spikeRate_median'])
+        resp_median = np.squeeze(np.nanmedian(resp_median,axis=(-1,-2)))
+        
+        if NORM_RESP==True:
+            if np.all(resp_med_grand!=None):
+                print('normalizing to GRAND median')
+                resp = spikeRate_cells/resp_med_grand[None,:,None,None]
+            else:
+                print('normalizing to LOCAL median')
+                resp = spikeRate_cells/resp_median[None,:,None,None]
+                
+            resp_orig = spikeRate_cells
+        else:
+            resp = spikeRate_cells
+            resp_orig = spikeRate_cells
+
+        resp[np.isnan(resp)] = 0
+        resp_orig[np.isnan(resp_orig)] = 0
+
+        
         # resp = resp.T
         # if resp.ndim == 2:
         resp = resp[:,idx_cells][filt_temporal_width:]
@@ -321,6 +359,7 @@ def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_te
         'fracExVar_allUnits': fracExVar_allUnits,
         'corr_allUnits': corr_allUnits,
         'resp_median_allUnits' : resp_median_allUnits,
+        'resp_median_grand':resp_med_grand
         }
     print('Retinal Reliability - FEV: '+str(np.round(retinalReliability_fev,2)))
     print('Retinal Reliability - Corr: '+str(np.round(retinalReliability_corr,2)))
@@ -463,7 +502,8 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         grp.create_dataset('X',data=data_test.X.astype(dtype),dtype=h5dtype,compression='gzip')
         grp.create_dataset('y',data=data_test.y.astype(dtype),dtype=h5dtype,compression='gzip')
         grp.create_dataset('spikes',data=data_test.spikes,compression='gzip')
-        grp.create_dataset('y_trials',data=data_test.y_trials.astype(dtype),dtype=h5dtype,compression='gzip')
+        if isintuple(data_test,'y_trials'):
+            grp.create_dataset('y_trials',data=data_test.y_trials.astype(dtype),dtype=h5dtype,compression='gzip')
         
     # Training data info
     if type(data_train_info)==dict: # if the training set is divided into multiple datasets
@@ -546,6 +586,9 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_v
     else:
         nsamps_train = int((nsamps_train*60*1000)/t_frame)
         idx_train_end = idx_train_start+nsamps_train
+        
+        if idx_train_end>=int(f['data_train']['X'].shape[0]):   # if the duration provided is longer than dataset size
+            idx_train_end = int(f['data_train']['X'].shape[0])
     
     
     # Training data
