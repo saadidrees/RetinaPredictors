@@ -946,7 +946,7 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
     f.close()
     
 # NEED TO TIDY THIS UP
-def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,RETURN_VALINFO=False,
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL_TR=False,nsamps_val=-1,nsamps_train=-1,nsamps_test=-1,RETURN_VALINFO=False,
                    idx_train_start=0,VALFROMTRAIN=False,LOADFROMBOOL=False,dtype='float16'):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
     FLAG_VALFROMTRAIN=False
     f = h5py.File(fname_data_train_val_test,'r')
@@ -974,8 +974,17 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,LOAD_ALL
         idx_val_end = -1
     else:
         nsamps_val = int((nsamps_val*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
-        idx_val_start = 1000
+        idx_val_start = 0
         idx_val_end = idx_val_start+nsamps_val
+        
+    if nsamps_test==-1 or nsamps_test==0:
+        idx_test_start = 0
+        idx_test_end = -1
+    else:
+        nsamps_test = int((nsamps_test*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
+        idx_test_start = f['data_test']['X'].shape[0]-nsamps_test
+        idx_test_end = idx_test_start+nsamps_test
+
         
     idx_train_start = int((idx_train_start*60*1000)/(t_frame))    # mins to frames
     if nsamps_train==-1 or nsamps_train==0 :

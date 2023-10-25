@@ -21,7 +21,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
                             chan4_n=0, filt4_size=0, filt4_3rdDim=0,
                             pr_temporal_width = 180,
-                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0.3,idx_unitsToTake=0,
+                            nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0.3,testSamps_dur=0.3,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
                             select_rgctype='',
@@ -60,6 +60,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     import gc
     import datetime
+    
     
     from collections import namedtuple
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
@@ -120,6 +121,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     trainingSamps_dur_orig = trainingSamps_dur
     if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
         trainingSamps_dur = 4
+        
     
     # Check whether the filename has multiple datasets that need to be merged
     fname_data_train_val_test_all = fname_data_train_val_test.split('+')
@@ -131,7 +133,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dict_val = {}
     dict_test = {}
     for d in range(len(fname_data_train_val_test_all)):
-        rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,   # THIS NEEDS TO BE TIDIED UP
+        rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,nsamps_test=testSamps_dur,  # THIS NEEDS TO BE TIDIED UP
                              idx_train_start=idx_train_start,dtype=DTYPE)
         data_train=rgb[0];
         data_val = rgb[1];
@@ -277,7 +279,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         os.makedirs(path_model_save)
         
     
-    if CONTINUE_TRAINING==1:       # if to continue a halted or previous training
+    if CONTINUE_TRAINING==1 or nb_epochs==0:       # if to continue a halted or previous training
         initial_epoch = len(glob.glob(path_model_save+'/*.index'))
         if initial_epoch == 0:
             initial_epoch = len(glob.glob(path_model_save+'/weights_*'))    # This is for backwards compatibility
@@ -502,13 +504,13 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     print('-----EVALUATING PERFORMANCE-----')
     i=0
     for i in range(0,nb_epochs):
+        print('evaluating epoch %d of %d'%(i,nb_epochs))
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
         mdl.load_weights(os.path.join(path_model_save,weight_file))
         # gen = chunker(data_test.X,bz,mode='predict') # use generators to generate batches of data
         # pred_rate = mdl.predict(gen,steps=int(np.ceil(data_test.X.shape[0]/bz)))
         pred_rate = mdl.predict(data_test.X)
-        _ = gc.collect()
         val_loss = None
         val_loss_allEpochs[i] = val_loss
         
@@ -573,8 +575,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if len(idx_natstim)>0:
         fev_val_natstim, _, predCorr_val_natstim, _ = model_evaluate_new(obs_rate_allStimTrials[idx_natstim],pred_rate[idx_natstim],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
         fev_val_cb, _, predCorr_val_cb, _ = model_evaluate_new(obs_rate_allStimTrials[idx_cb],pred_rate[idx_cb],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
-        print('FEV_NATSTIM = %0.2f' %np.nanmean(fev_val_natstim)*100)
-        print('FEV_CB = %0.2f' %np.nanmean(fev_val_cb)*100)
+        print('FEV_NATSTIM = %0.2f' %(np.nanmean(fev_val_natstim)*100))
+        print('FEV_CB = %0.2f' %(np.nanmean(fev_val_cb)*100))
 
 
 # %% Save performance

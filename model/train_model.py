@@ -70,11 +70,11 @@ def lr_scheduler(epoch,lr):
     #                       [50,10]])
     
     # for new rat data
-    arr_scheduler = np.array([[1,10],
+    arr_scheduler = np.array([[3,10],
                           [10,1],
-                          [20,1],
-                          [30,10],
-                          [60,10],
+                          [20,10],
+                          [30,1],
+                          [60,1],
                           [100,10],
                           [200,10],
                           [300,1]])

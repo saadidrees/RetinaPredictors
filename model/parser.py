@@ -42,6 +42,7 @@ def parser_run_model():
     parser.add_argument('--USE_CHUNKER',type=int,default=0)
     parser.add_argument('--trainingSamps_dur',type=int,default=0)
     parser.add_argument('--validationSamps_dur',type=int,default=0.3)
+    parser.add_argument('--testSamps_dur',type=int,default=0.3)
     parser.add_argument('--CONTINUE_TRAINING',type=int,default=0)
     parser.add_argument('--idxStart_fixedLayers',type=int,default=0)
     parser.add_argument('--idxEnd_fixedLayers',type=int,default=-1)

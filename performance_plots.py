@@ -9,10 +9,17 @@ import h5py
 import numpy as np
 import os
 import re
-from global_scripts import utils_si
+from model import utils_si
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
+import socket
+hostname=socket.gethostname()
+if hostname=='sandwolf':
+    base = '/home/saad/data_hdd/'
+elif hostname=='sandhound':
+    base = '/home/saad/postdoc_db/'
+
 
 from scipy.stats import wilcoxon
 import gc
@@ -27,7 +34,7 @@ from model.performance import getModelParams, model_evaluate,model_evaluate_new,
 from model import metrics
 from model import featureMaps
 from model.models import modelFileName
-from pyret.filtertools import sta, decompose
+# from pyret.filtertools import sta, decompose
 import seaborn
 
 import tensorflow as tf
@@ -37,16 +44,18 @@ for device in gpu_devices:
 from tensorflow.keras import Model
 from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 
-# expDates = ('20180502_s3',)    # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3'
-expDates = ('monkey01',)
-subFold = 'ICLR2023' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = ''
-lightLevel_1 = 'scot-0.3-30-Rstar' #_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' 
-models_all = ('PRFR_CNN2D_RODS',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
+data_pers = 'mike'
+expDates = ('20230725C',)
+subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
+mdl_subFold = 'cluster'
+# lightLevel_1 = 'CB_photopic-Rstar' 
+lightLevel_1 = ('CB_photopic-Rstar','NATSTIM_photopic-Rstar')
+models_all = ('CNN_2D_NORM',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
+
 
 writeToCSV = False
 
-path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance'
+path_save_performance = '/home/saad/postdoc_db/projects/RetinaPredictors/performance_mike'
 
 models_list = []
 
@@ -65,29 +74,43 @@ cols_lightLevels = {
     'scot-30-':'g'
     }
 
+# Dataset info
+dataset_nameForPaths = ''
+for i in range(len(lightLevel_1)):
+    dataset_nameForPaths = dataset_nameForPaths+lightLevel_1[i]+'+'
+
+dataset_nameForPaths = dataset_nameForPaths[:-1]
+
+path_dataset_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDates[0],subFold)
+
+name_datasetFile = expDates[0]+'_dataset_train_val_test_'+lightLevel_1[0]+'.h5'
+fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',name_datasetFile) + '+'
 
 perf_allExps = {}   # Performance dict for all experiments, models, conditions
 params_allExps = {} # Dict containing parameter values for all experiments, models, conditions
 paramNames_allExps = {} #Dict containing the folder name of the model, which is basically concatenating the params together
+# %%
+idx_exp = 0
+mdl_select = models_all[0]
 
 for idx_exp in range(len(expDates)):
     
-    path_mdl_base = os.path.join('/home/saad/data/analyses/data_kiersten/',expDates[idx_exp],subFold)
-    path_dataset_base = path_mdl_base
+    path_mdl_base = os.path.join(base,'analyses/data_'+data_pers+'/',expDates[idx_exp],'models',subFold)
+    path_dataset_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDates[idx_exp],subFold)
 
     perf_allModels = {}
     params_allModels = {}
     paramNames_allModels = {}
     exp_select = expDates[idx_exp]
     
-    path_mdl_drive = os.path.join(path_mdl_base,lightLevel_1,mdl_subFold)
+    path_mdl_drive = os.path.join(path_mdl_base,dataset_nameForPaths,mdl_subFold)
 
     
     ## -- this is temporary here for extracting median response of units
-    path_dataset = os.path.join(path_dataset_base,'datasets')
-    fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+lightLevel_1+'.h5'))
-    _,_,_,data_quality,_,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False,LOAD_VAL=False)
-    resp_median_allUnits = data_quality['resp_median_allUnits']
+    # path_dataset = os.path.join(path_dataset_base,'datasets')
+    # fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+lightLevel_1+'.h5'))
+    # _,_,_,data_quality,_,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False,LOAD_VAL=False)
+    # resp_median_allUnits = data_quality['resp_median_allUnits']
     # -- this is temporary here for extracting median response of units
 
     
@@ -268,7 +291,7 @@ for idx_exp in range(len(expDates)):
                 'pred_rate': np.array(f['dataset_pred']['pred_rate']),
                 }
             performance['dataset_pred'] = dataset_pred
-            performance['resp_median_trainingData_allUnits'] = resp_median_allUnits
+            # performance['resp_median_trainingData_allUnits'] = resp_median_allUnits
             perf_paramNames[paramNames_unique[param_unique_idx]] = performance
             
             
@@ -308,11 +331,11 @@ val_dataset_1 = lightLevel_1 #'scot-3-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.0
 correctMedian = False
 
 select_LR = '0.001'
-select_U = 37#31#0.15
-select_P = 180#180
+select_U = 57#31#0.15
+select_P = 0#180
 select_T = 120#120
 select_BN = 1
-select_MP = 1
+select_MP = 2
 # select_TR = 1
 select_CB = 0
 select_C1_n = 8#1#2#13 #13 #20
@@ -321,8 +344,8 @@ select_C1_3d = 0#50#25
 select_C2_n = 16#40#26 #26 #24
 select_C2_s = 7#2#2
 select_C2_3d = 0#10#5
-select_C3_n = 18 #36 #24 #22
-select_C3_s = 5#1#1
+select_C3_n = 20 #36 #24 #22
+select_C3_s = 7#1#1
 select_C3_3d = 0#62#32
 select_TRSAMPS = 40
 
@@ -396,23 +419,6 @@ obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1[:,:,idx_unitsToTake]
 
 obs_rate = data_val.y
 obs_rate = obs_rate[:,idx_unitsToTake]
-
-# mdl_new = mdl
-# idx_CNN_start = 5
-# x = data_val.X
-# x = np.reshape(x,(x.shape[0],x.shape[1],x.shape[2]*x.shape[3]))
-# inputs = Input(shape=x.shape[1:])
-# n_cells = data_val.y.shape[1]
-# y = inputs#[:,x.shape[1]-filt_temporal_width:,:,:]
-# for layer in mdl.layers[2:5]:
-#     layer.trainable = False
-#     y = layer(y)
-# # y = inputs-y
-# y = y[:,inputs.shape[1]-filt_temporal_width:,:]
-# mdl_new = Model(inputs,y)
-# x_pred = mdl_new.predict(x)
-# # x_pred = (x_pred - x_pred.min())/(x_pred.max()-x_pred.min())
-# # x_pred = x_pred - x_pred.mean()
 
 if correctMedian==True:
     fname_data_train_val_test_d1 = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
