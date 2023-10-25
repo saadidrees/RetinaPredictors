@@ -18,6 +18,7 @@ import re
 from model.data_handler import rolling_window, check_trainVal_contamination, isintuple
 from model import utils_si
 import gc
+from model.performance import estimate_noise
 
 def load_data_allLightLevels_cb(fname_dataFile,dataset,frac_val=0.2,frac_test=0.05,filt_temporal_width=60,
                                 idx_cells_orig=None,thresh_rr=0.15,N_split=0,CHECK_CONTAM=False,NORM_RESP=True,resp_med_grand=None):
@@ -387,7 +388,7 @@ def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_te
         resp_test = resp_val[idx_test,:,idx_stimToTakeAsTest]
         resp_test_allTrials = resp_val_allTrials[idx_test,:,idx_stimToTakeAsTest,:]
         spikes_test = spikes_val[idx_test,:,idx_stimToTakeAsTest,:]
-
+        
         data_test = Exptdata_trials(stim_test,resp_test,resp_test_allTrials,spikes_test)
         data_val = Exptdata_trials(stim_val,resp_val,resp_val_allTrials,spikes_val)
 
@@ -412,8 +413,17 @@ def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_te
         check_trainVal_contamination(data_train.X,data_test.X)
         
     
+    # NOte that noise is estimated from the normalized response
+    resp_forNoise = np.concatenate((data_train.y,data_val.y_trials),axis=2)
+    resp_forNoise = np.moveaxis(resp_forNoise,0,-1)
+    resp_forNoise = np.moveaxis(resp_forNoise,1,2)
+    resp_forNoise = resp_forNoise.reshape(resp_forNoise.shape[0],resp_forNoise.shape[1],-1)
+    resp_forNoise = np.moveaxis(resp_forNoise,-1,0)
+    obs_noise = estimate_noise(resp_forNoise)
+    data_quality['var_noise']  = obs_noise
+    
     # dataset_rr={};
-    return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig
+    return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig,obs_noise
 
 
 def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None,data_train_info=None,data_val_info=None,dtype='float16'):
@@ -561,7 +571,7 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
             
     f.close()
               
-def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_val=-1,nsamps_train=-1,idx_train_start=0,dtype='float16'):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_val=-1,nsamps_train=-1,nsamps_test=0.1,idx_train_start=0,dtype='float16'):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
 
     f = h5py.File(fname_data_train_val_test,'r')
     t_frame = np.array(f['parameters']['t_frame'])
@@ -580,7 +590,17 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_v
         if idx_val_end>=int(f['data_val']['X'].shape[0]):   # if the duration provided is longer than dataset size
             idx_val_end = int(f['data_val']['X'].shape[0])
 
-        
+    if nsamps_test==-1 or nsamps_test==0:
+        idx_test_start = 0
+        idx_test_end = -1
+    else:
+        nsamps_test = int((nsamps_test*60*1000)/t_frame)      # nsamps arg is in minutes so convert to samples
+        idx_test_start = 0
+        idx_test_end = idx_test_start+nsamps_test
+        if idx_test_end>=int(f['data_test']['X'].shape[0]):   # if the duration provided is longer than dataset size
+            idx_test_end = int(f['data_test']['X'].shape[0])
+
+    
     idx_train_start = int((idx_train_start*60*1000)/(t_frame))    # mins to frames
     if nsamps_train==-1 or nsamps_train==0 :
         # idx_train_start = 0
@@ -619,15 +639,16 @@ def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_v
             
             
         # test data
-        X = np.array(f['data_test']['X'],dtype=dtype)
-        y = np.array(f['data_test']['y'],dtype=dtype)
+        idx = np.arange(idx_test_start,idx_test_end)
+        X = np.array(f['data_test']['X'][idx],dtype=dtype)
+        y = np.array(f['data_test']['y'][idx],dtype=dtype)
         if 'spikes' in f['data_test']:
-            spikes = np.array(f['data_test']['spikes'],dtype=dtype)
+            spikes = np.array(f['data_test']['spikes'][idx],dtype=dtype)
         else:
             spikes = np.zeroslike(y); spikes[:]=np.nan
             
         if 'y_trials' in f['data_test']:
-            y_trials = np.array(f['data_test']['y_trials'],dtype=dtype)
+            y_trials = np.array(f['data_test']['y_trials'][idx],dtype=dtype)
             data_test = Exptdata_trials(X,y,y_trials,spikes)
         else:
             data_test = Exptdata_spikes(X,y,spikes)
