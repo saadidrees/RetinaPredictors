@@ -48,7 +48,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     from tensorflow.keras.layers import Input
     
-    from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets,isintuple
+    from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets,isintuple, dataset_shuffle
     from model.data_handler_mike import load_h5Dataset
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer, estimate_noise
     import model.metrics as metrics
@@ -252,6 +252,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     n_cells = out_shape[0]         # number of units in output layer
     
     dset_details = dict(n_train=n_train,inp_shape=inp_shape,out_shape=out_shape)
+    
+    
+    
+    data_train = dataset_shuffle(data_train,n_train)
+    
+
 
 # %% Select model 
     """
@@ -422,6 +428,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=use_lrscheduler,lr_fac=lr_fac)  
         mdl_history = mdl_history.history
         _ = gc.collect()
+        
         
     t_elapsed = time.time()-t
     print('time elapsed: '+str(t_elapsed)+' seconds')

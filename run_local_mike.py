@@ -23,24 +23,24 @@ data_pers = 'mike' #'kiersten'
 expDate = '20230725C'
 expFold = expDate
 subFold = '' 
-dataset = ('CB_photopic-Rstar',)#'NATSTIM_mesopic-Rstar') #'photopic-Rstar',) #'scotopic-Rstar')
+dataset = ('NATSTIM_photopic-Rstar','CB_photopic-Rstar')#'NATSTIM_mesopic-Rstar') #'photopic-Rstar',) #'scotopic-Rstar')
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
-mdl_subFold = ''
-mdl_name = 'CNN_2D_NORM' #'CNN_2D_NORM' #'BP_CNN2D' #'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
+mdl_subFold = 'test'
+mdl_name = 'CNN_2D_NORM2' #'CNN_2D_NORM' #'BP_CNN2D' #'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
 path_existing_mdl = ''
 
-info = 'with lr scheduler'
+info = ''
 idxStart_fixedLayers = 0#1
 idxEnd_fixedLayers = -1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
-CONTINUE_TRAINING = 0
+CONTINUE_TRAINING = 1
 
-lr = 0.001
+lr = 0.0001
 lr_fac = 1# how much to divide the learning rate when training is resumed
 use_lrscheduler=1
 USE_CHUNKER=1
-pr_temporal_width = 180
+pr_temporal_width = 0
 temporal_width=120
 thresh_rr=0
 chans_bp = 0
@@ -50,13 +50,13 @@ filt1_3rdDim=0
 chan2_n=16
 filt2_size=7
 filt2_3rdDim=0
-chan3_n=20
+chan3_n=18
 filt3_size=5
 filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
-nb_epochs=105#42         # setting this to 0 only runs evaluation
+nb_epochs=200#42         # setting this to 0 only runs evaluation
 bz_ms=5000#5000
 BatchNorm=1
 MaxPool=2
@@ -65,7 +65,7 @@ num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur = 50#20 #-1 #0.05 # minutes per dataset
+trainingSamps_dur = 20#20 #-1 #0.05 # minutes per dataset
 validationSamps_dur=0.1
 testSamps_dur=0.1
 

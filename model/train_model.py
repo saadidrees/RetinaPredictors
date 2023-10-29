@@ -59,7 +59,6 @@ class CustomCallback(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         print("LR - {}".format(self.model.optimizer.learning_rate))
-        
 
 def lr_scheduler(epoch,lr):
     # arr_scheduler = np.array([[3,10],
@@ -70,13 +69,13 @@ def lr_scheduler(epoch,lr):
     #                       [50,10]])
     
     # for new rat data
-    arr_scheduler = np.array([[10,10],
-                          [10,1],
+    arr_scheduler = np.array([[5,1],
+                          [10,10],
                           [20,1],
                           [30,1],
                           [60,1],
-                          [100,10],
-                          [200,10],
+                          [100,1],
+                          [200,1],
                           [300,1]])
 
 

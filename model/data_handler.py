@@ -1533,7 +1533,12 @@ def merge_datasets(dict_data):
             islist+=1
         if isintuple(dict_data[key],'y_trials'):
             has_y_trials+=1
-            n_trials = dict_data[key].y_trials.shape[-1]
+            if isinstance(dict_data[key].X,list):
+                n_trials = len(dict_data[key].y_trials)
+                y_trials_shape = dict_data[key].y_trials[0].shape
+            else:
+                n_trials = dict_data[key].y_trials.shape[-1]
+                y_trials_shape = dict_data[key].y_trials.shape[1:]
         if isintuple(dict_data[key],'spikes'):
             has_spikes+=1
             
@@ -1567,7 +1572,7 @@ def merge_datasets(dict_data):
         y = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
         spikes = np.zeros(([0,*dict_data[key].y.shape[1:]]),dtype=dict_data[key].X.dtype)
         if has_y_trials>0:
-            y_trials = np.zeros(([0,*dict_data[key].y_trials.shape[1:]]),dtype=dict_data[key].X.dtype)
+            y_trials = np.zeros(([0,*y_trials_shape]),dtype=dict_data[key].X.dtype)
         
         for key in keys:
             X = np.concatenate((X,dict_data[key].X),axis=0)
@@ -1599,3 +1604,25 @@ def merge_datasets(dict_data):
     return data
 
 
+def dataset_shuffle(data,n_train):
+    
+    X = []
+    y = []
+    idx_shuffle = list(range(n_train))
+    for i in idx_shuffle:
+        X.append(data.X[i])
+        y.append(data.y[i])
+        
+    
+        
+    data_vars = ['X','y','spikes','y_trials','dset_names']
+
+    dataDict = {}
+    for var in data_vars:
+        if var in locals():
+            dataDict[var]=eval(var)
+            
+    data_tuple = namedtuple('Exptdata',dataDict)
+    data=data_tuple(**dataDict)
+
+    return data

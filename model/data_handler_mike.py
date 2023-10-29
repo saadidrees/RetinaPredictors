@@ -506,6 +506,9 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
         grp.create_dataset('X',data=data_val.X.astype(dtype),dtype=h5dtype,compression='gzip')
         grp.create_dataset('y',data=data_val.y.astype(dtype),dtype=h5dtype,compression='gzip')
         grp.create_dataset('spikes',data=data_val.spikes,compression='gzip')
+        if isintuple(data_val,'y_trials'):
+            grp.create_dataset('y_trials',data=data_val.y_trials.astype(dtype),dtype=h5dtype,compression='gzip')
+
     
     if data_test != None:  # data_test is None if it does not exist. So if it doesn't exist, don't save it.
         grp = f.create_group('/data_test')
