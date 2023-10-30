@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 import socket
+
 hostname=socket.gethostname()
 if hostname=='sandwolf':
     base = '/home/saad/data_hdd/'
@@ -45,13 +46,15 @@ for device in gpu_devices:
 from tensorflow.keras import Model
 from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 
+
+
 # %%
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
 mdl_subFold = 'test'
 # lightLevel_1 = 'CB_photopic-Rstar' 
-lightLevel_1 = ('NATSTIM_photopic-Rstar','CB_photopic-Rstar') #('CB_photopic-Rstar','NATSTIM_photopic-Rstar') # ('NATSTIM_photopic-Rstar',)
+lightLevel_1 = ('NATSTIM_photopic-Rstar',)#'CB_photopic-Rstar') #('CB_photopic-Rstar','NATSTIM_photopic-Rstar') # ('NATSTIM_photopic-Rstar',)
 models_all = ('CNN_2D_NORM2',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
 
 writeToCSV = False
@@ -354,7 +357,7 @@ select_C2_3d = 0
 select_C3_n = 18 
 select_C3_s = 5
 select_C3_3d = 0
-select_TRSAMPS = 20
+select_TRSAMPS = -1#20
 
 paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP=select_MP,LR=select_LR,CB_n=select_CB,
                  C1_n=select_C1_n,C1_s=select_C1_s,C1_3d=select_C1_3d,
@@ -369,6 +372,7 @@ paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP
 
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
 idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+# idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
 trial_num = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
 plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 select_TR = int(trial_num)
@@ -471,7 +475,7 @@ if isintuple(data_val_select,'dset_names'):
     unique_dsets = np.unique(data_val_select.dset_names)
     dset_name = unique_dsets[0]
     for dset_name in unique_dsets:
-        idx = [i for i,n in enumerate(rgb) if re.search(dset_name,n)]
+        idx = [i for i,n in enumerate(data_val_select.dset_names) if re.search(dset_name,n)]
         dict_dsetPerf[dset_name] = dict(idx=idx)
 
 
@@ -482,7 +486,7 @@ if data_val_select.y.ndim==3:
 else:
     obs_rate_allStimTrials_d1 = data_val_select.y[:,idx_unitsToTake]
 
-obs_rate = obs_rate_allStimTrials_d1
+obs_rate = obs_rate_allStimTrials_d1.copy()
 # obs_rate = obs_rate[:,idx_unitsToTake]
 
 if correctMedian==True:
@@ -517,7 +521,7 @@ rrCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
 
 for i in range(num_iters):
     fev_d1_allUnits[:,i], fracExplainableVar[:,i], predCorr_d1_allUnits[:,i], rrCorr_d1_allUnits[:,i] = model_evaluate_new(
-        obs_rate_allStimTrials_d1,pred_rate,0,RR_ONLY=False,lag = samps_shift,obs_noise=obs_noise)
+        obs_rate_allStimTrials_d1.copy(),pred_rate.copy(),0,RR_ONLY=False,lag = samps_shift,obs_noise=obs_noise)
 
 
 fev_d1_allUnits = np.mean(fev_d1_allUnits,axis=1)
@@ -549,24 +553,25 @@ rrCorr_d1_medianUnits = np.median(rrCorr_d1_allUnits[idx_d1_valid])
 rrCorr_d1_stdUnits = np.std(rrCorr_d1_allUnits[idx_d1_valid])
 rrCorr_d1_ci = 1.96*(rrCorr_d1_stdUnits/len(idx_d1_valid)**.5)
 
+
+if len(dict_dsetPerf)>0:
+    for key in dict_dsetPerf.keys():
+        idx = np.asarray(dict_dsetPerf[key]['idx'])
+        rgb_fev_d1_allUnits,_, rgb_predCorr_d1_allUnits, _ = model_evaluate_new(
+            obs_rate_allStimTrials_d1[idx,:].copy(),pred_rate[idx,:].copy(),0,RR_ONLY=False,lag=samps_shift,obs_noise=obs_noise)
+        dict_dsetPerf[key]['fev_d1_allUnits'] = rgb_fev_d1_allUnits
+        dict_dsetPerf[key]['fev_d1_medianUnits'] = np.nanmedian(rgb_fev_d1_allUnits[idx_d1_valid])
+        dict_dsetPerf[key]['predCorr_d1_allUnits'] = rgb_predCorr_d1_allUnits
+        dict_dsetPerf[key]['predCorr_d1_medianUnits'] = np.nanmedian(rgb_predCorr_d1_allUnits[idx_d1_valid])
+        
+        print('%s: FEV = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_medianUnits']*100))
+        print('%s: R = %0.2f'%(key,dict_dsetPerf[key]['predCorr_d1_medianUnits']))
+
+
 idx_units_sorted = np.argsort(predCorr_d1_allUnits[idx_d1_valid])
 idx_units_sorted = idx_d1_valid[idx_units_sorted]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[-3],idx_units_sorted[-4]]
 # idx_unitsToPred = [54,31,30,40]
-
-if len(dict_dsetPerf)>0:
-    for key in dict_dsetPerf.keys():
-        idx = dict_dsetPerf[key]['idx']
-        rgb_fev_d1_allUnits,_, rgb_predCorr_d1_allUnits, _ = model_evaluate_new(
-            obs_rate_allStimTrials_d1[idx],pred_rate[idx],0,RR_ONLY=False,lag = samps_shift,obs_noise=obs_noise)
-        dict_dsetPerf[key]['fev_d1_allUnits'] = rgb_fev_d1_allUnits
-        dict_dsetPerf[key]['fev_d1_medianUnits'] = np.median(rgb_fev_d1_allUnits[idx_d1_valid])
-        dict_dsetPerf[key]['predCorr_d1_allUnits'] = rgb_predCorr_d1_allUnits
-        dict_dsetPerf[key]['predCorr_d1_medianUnits'] = np.median(rgb_predCorr_d1_allUnits[idx_d1_valid])
-        
-        print('%s: FEV = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_medianUnits']*100))
-        print('%s: R = %0.2f'%(key,dict_dsetPerf[key]['predCorr_d1_medianUnits']*100))
-
 t_start = 10
 t_dur = obs_rate.shape[0]
 t_end = t_dur-20
