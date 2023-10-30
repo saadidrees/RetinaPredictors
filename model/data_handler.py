@@ -1589,7 +1589,7 @@ def merge_datasets(dict_data):
                 y_trials = np.concatenate((y_trials,dict_data[key].y_trials),axis=0)
                 
             elif isintuple(dict_data[key],'y_trials')==False and has_y_trials>0:
-                rgb = np.zeros((dict_data[key].y.shape[0],dict_data[key].y.shape[1],n_trials),dtype=dict_data[key].y.dtype)
+                rgb = np.zeros((dict_data[key].y.shape[0],*y_trials_shape),dtype=dict_data[key].y.dtype)
                 rgb[:]=np.nan
                 y_trials = np.concatenate((y_trials,rgb),axis=0)
 
