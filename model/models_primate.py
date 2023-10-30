@@ -564,8 +564,8 @@ def cnn_2d(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, c
 
         
     y = Flatten()(y)
-    if BatchNorm is True: 
-        y = BatchNormalization(axis=-1)(y)
+    # if BatchNorm is True: 
+    #     y = BatchNormalization(axis=-1)(y)
     y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
     outputs = Activation('softplus')(y)
     # outputs = Activation('relu')(y)
