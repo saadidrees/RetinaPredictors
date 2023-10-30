@@ -1553,8 +1553,12 @@ def merge_datasets(dict_data):
             spikes = []
 
         for key in keys:
-            X = X + dict_data[key].X
-            y = y + dict_data[key].y
+            if isinstance(dict_data[key].X,list)==False:
+                X = X + list(dict_data[key].X)
+                y = y + list(dict_data[key].y)
+            else:
+                X = X + dict_data[key].X
+                y = y + dict_data[key].y
             try:
                 spikes = spikes + dict_data[key].spikes
             except:
