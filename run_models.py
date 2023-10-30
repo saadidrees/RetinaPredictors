@@ -79,6 +79,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     tf.compat.v1.disable_eager_execution()
     
+    
+    if runOnCluster==0:
+        import wandb
+        wandb.init(project='RetinaPredictors_'+expFold)
+    
+    
     DTYPE='float16'
     
     # if only 1 layer cnn then set all parameters for next layers to 0

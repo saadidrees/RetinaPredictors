@@ -70,11 +70,11 @@ def lr_scheduler(epoch,lr):
     
     # for new rat data
     arr_scheduler = np.array([[5,1],
-                          [10,10],
+                          [10,1],
                           [20,1],
                           [30,1],
                           [60,1],
-                          [100,1],
+                          [100,10],
                           [200,1],
                           [300,1]])
 
@@ -90,8 +90,12 @@ def lr_scheduler(epoch,lr):
 
 
 # %%
-def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, dset_details, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0):
+def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, dset_details, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0,runOnCluster=0):
     
+    if runOnCluster==0:
+        import wandb
+        from wandb.keras import WandbMetricsLogger, WandbModelCheckpoint
+
     optimizer = Adam(lr)
     mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
 
@@ -122,7 +126,10 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
            cb.CSVLogger(os.path.join(path_model_save, fname_excel)),
            CustomCallback()]
             # cb.ReduceLROnPlateau(monitor='loss',min_lr=1e-6, factor=0.2, patience=5),
-   
+    if runOnCluster==0:
+       cbs.append(WandbMetricsLogger())
+
+    
     if use_lrscheduler==1:
         cbs.append(cb.LearningRateScheduler(lr_scheduler))
 
