@@ -28,7 +28,7 @@ dataset = ('NATSTIM_photopic-Rstar','CB_photopic-Rstar')#'NATSTIM_mesopic-Rstar'
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
 mdl_subFold = 'test'
-mdl_name = 'CNN_2D_NORM2' #'CNN_2D_NORM' #'BP_CNN2D' #'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
+mdl_name = 'CNN_2D_NORM2' #'
 path_existing_mdl = ''
 
 info = ''
@@ -56,8 +56,8 @@ filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
-nb_epochs=200#42         # setting this to 0 only runs evaluation
-bz_ms=5000#5000
+nb_epochs=100#42         # setting this to 0 only runs evaluation
+bz_ms=10000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
@@ -65,9 +65,12 @@ num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur = 20#20 #-1 #0.05 # minutes per dataset
-validationSamps_dur=0.1
-testSamps_dur=0.1
+trainingSamps_dur = 40#20 #-1 #0.05 # minutes per dataset
+validationSamps_dur=0.05
+testSamps_dur=0.05
+
+USE_WANDB=1
+
 
 dataset_nameForPaths = ''
 for i in range(len(dataset)):
@@ -104,7 +107,7 @@ for c_trial in range(1,num_trials+1):
                             path_existing_mdl = path_existing_mdl, idxStart_fixedLayers=idxStart_fixedLayers, idxEnd_fixedLayers=idxEnd_fixedLayers,
                             CONTINUE_TRAINING=CONTINUE_TRAINING,info=info,
                             trainingSamps_dur=trainingSamps_dur,validationSamps_dur=validationSamps_dur,idx_unitsToTake=idx_unitsToTake,
-                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler)
+                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,USE_WANDB=USE_WANDB)
     
 plt.plot(model_performance['fev_medianUnits_allEpochs']);plt.ylabel('FEV');plt.xlabel('Epochs')
 print('FEV = %0.2f' %(np.nanmax(model_performance['fev_medianUnits_allEpochs'])*100))

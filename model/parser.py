@@ -17,6 +17,7 @@ def parser_run_model():
     parser.add_argument('--select_rgctype',type=str)
     parser.add_argument('--path_dataset_base',type=str,default='/home/saad/data/analyses/data_kiersten')
     parser.add_argument('--path_existing_mdl',type=str,default='')
+    parser.add_argument('--transfer_mode',type=str,default='finetuning')
     parser.add_argument('--saveToCSV',type=int,default=1)
     parser.add_argument('--temporal_width',type=int,default=40)
     parser.add_argument('--pr_temporal_width',type=int,default=180)
@@ -52,6 +53,7 @@ def parser_run_model():
     parser.add_argument('--use_lrscheduler',type=str2int,default=1)
     parser.add_argument('--idx_unitsToTake',type=int,default=0)
     parser.add_argument('--job_id',type=int,default=0)
+    parser.add_argument('--USE_WANDB',type=int,default=0)
     
 
     args = parser.parse_args()

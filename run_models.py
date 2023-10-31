@@ -12,7 +12,7 @@ from model.parser import parser_run_model
 
 
 def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
-                            path_existing_mdl='',idxStart_fixedLayers=0,idxEnd_fixedLayers=-1,
+                            path_existing_mdl='',idxStart_fixedLayers=0,idxEnd_fixedLayers=-1,transfer_mode='finetuning',
                             saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chans_bp=1,
@@ -24,7 +24,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0.3,testSamps_dur=0.3,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
-                            select_rgctype='',
+                            select_rgctype='',USE_WANDB=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 # %% prepare data
@@ -80,9 +80,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     tf.compat.v1.disable_eager_execution()
     
     
-    if runOnCluster==0:
+    if runOnCluster==0 and USE_WANDB==1 and nb_epochs>0:
         import wandb
-        wandb.init(project='RetinaPredictors_'+expFold)
+        wandb.init(project='RetinaPredictors_'+expFold+'_'+mdl_name)
     
     
     DTYPE='float16'
@@ -319,7 +319,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # mdl.summary()
 
         # Transfer weights to new model from an existing model
-        if path_existing_mdl != '' and idxStart_fixedLayers>0:     
+        if path_existing_mdl != '':# and idxStart_fixedLayers>0:     
             fname_model_existing = os.path.basename(path_existing_mdl)
             print('\n')
             print(path_existing_mdl)
@@ -339,13 +339,13 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             mdl_existing.load_weights(os.path.join(path_existing_mdl,fname_bestWeight))     # would need to add .h5 in the end for backwards compatibility
 
             # set the required layers to non trainable and load weights from existing model
-            for l in range(len(mdl.layers)-2):
+            for l in range(len(mdl.layers)):
                 mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
                 
             list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
-            for l in list_idx:
-                # mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
-                mdl.layers[l].trainable = False         # Parameterize this
+            if transfer_mode!='finetuning':
+                for l in list_idx:
+                    mdl.layers[l].trainable = False         # Parameterize this
                 
         
     path_save_model_performance = os.path.join(path_model_save,'performance')

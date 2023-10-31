@@ -313,7 +313,7 @@ def cnn_2d_norm2(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size
 
     # first layer  
     y = inputs
-    y = LayerNormalization(axis=-3,epsilon=1e-7,trainable=False)(y)        # z-score the input across spatial dimensions
+    y = LayerNormalization(axis=-3,epsilon=1e-7,trainable=False)(y)        # z-score the input across temporal dimension
     # y = LayerNormalization(epsilon=1e-7)(y)        # z-score the input
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     

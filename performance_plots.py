@@ -35,7 +35,7 @@ from model import metrics
 from model import featureMaps
 from model.models import modelFileName
 # from pyret.filtertools import sta, decompose
-import seaborn
+# import seaborn
 
 import tensorflow as tf
 gpu_devices = tf.config.experimental.list_physical_devices("GPU")
@@ -47,10 +47,10 @@ from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = 'cluster'
+mdl_subFold = ''
 # lightLevel_1 = 'CB_photopic-Rstar' 
 lightLevel_1 = ('CB_photopic-Rstar','NATSTIM_photopic-Rstar')
-models_all = ('CNN_2D_NORM',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
+models_all = ('CNN_2D_NORM3',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
 
 
 writeToCSV = False

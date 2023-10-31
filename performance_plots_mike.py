@@ -52,10 +52,10 @@ from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = 'test'
+mdl_subFold = 'cluster'
 # lightLevel_1 = 'CB_photopic-Rstar' 
-lightLevel_1 = ('NATSTIM_photopic-Rstar',)#'CB_photopic-Rstar') #('CB_photopic-Rstar','NATSTIM_photopic-Rstar') # ('NATSTIM_photopic-Rstar',)
-models_all = ('CNN_2D_NORM2',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
+lightLevel_1 = ('CB_photopic-Rstar',)#'CB_photopic-Rstar') #('CB_photopic-Rstar','NATSTIM_photopic-Rstar') # ('NATSTIM_photopic-Rstar',)
+models_all = ('CNN_2D_NORM',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
 
 writeToCSV = False
 
@@ -279,7 +279,8 @@ for idx_exp in range(len(expDates)):
                         
                 performance[j] = perf_group
                     
-            filt_temporal_width = np.array(f['stim_info']['temporal_width'])
+            # filt_temporal_width = np.array(f['stim_info']['temporal_width'])
+            filt_temporal_width = 120
             performance['model_params']['thresh_rr'] = np.array(f['thresh_rr'])
             performance['model_params']['idx_unitsToTake'] = np.array(f['idx_unitsToTake'])
             performance['model_params']['temporal_width'] = filt_temporal_width
@@ -296,11 +297,11 @@ for idx_exp in range(len(expDates)):
                 param_list[i].append(rgb[i])
             
             
-            dataset_pred = {
-                'obs_rate': np.array(f['dataset_pred']['obs_rate']),
-                'pred_rate': np.array(f['dataset_pred']['pred_rate']),
-                }
-            performance['dataset_pred'] = dataset_pred
+            # dataset_pred = {
+            #     'obs_rate': np.array(f['dataset_pred']['obs_rate']),
+            #     'pred_rate': np.array(f['dataset_pred']['pred_rate']),
+            #     }
+            # performance['dataset_pred'] = dataset_pred
             # performance['resp_median_trainingData_allUnits'] = resp_median_allUnits
             perf_paramNames[paramNames_unique[param_unique_idx]] = performance
             
@@ -357,7 +358,7 @@ select_C2_3d = 0
 select_C3_n = 18 
 select_C3_s = 5
 select_C3_3d = 0
-select_TRSAMPS = -1#20
+select_TRSAMPS = 40#20
 
 paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP=select_MP,LR=select_LR,CB_n=select_CB,
                  C1_n=select_C1_n,C1_s=select_C1_s,C1_3d=select_C1_3d,
@@ -374,7 +375,7 @@ idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]
 idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 # idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
 trial_num = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
-plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][1:,idx_bestTrial])
 select_TR = int(trial_num)
 
 mdlFolder = paramFileName+'_TR-%02d' % select_TR
@@ -568,10 +569,10 @@ if len(dict_dsetPerf)>0:
         print('%s: R = %0.2f'%(key,dict_dsetPerf[key]['predCorr_d1_medianUnits']))
 
 
-idx_units_sorted = np.argsort(predCorr_d1_allUnits[idx_d1_valid])
+idx_units_sorted = np.argsort(fev_d1_allUnits[idx_d1_valid])
 idx_units_sorted = idx_d1_valid[idx_units_sorted]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[-3],idx_units_sorted[-4]]
-# idx_unitsToPred = [54,31,30,40]
+# idx_unitsToPred = [53,24,37,51]
 t_start = 10
 t_dur = obs_rate.shape[0]
 t_end = t_dur-20
