@@ -82,7 +82,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     if runOnCluster==0 and USE_WANDB==1 and nb_epochs>0:
         import wandb
-        wandb.init(project='RetinaPredictors_'+expFold+'_'+mdl_name)
+        wandb.init(dir=path_model_save_base,project='RetinaPredictors_'+expFold+'_'+mdl_name)
     
     
     DTYPE='float16'
