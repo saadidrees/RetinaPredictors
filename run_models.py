@@ -86,7 +86,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     DTYPE='float16'
-    
+    if path_existing_mdl==0:
+        path_existing_mdl=''
+        
     # if only 1 layer cnn then set all parameters for next layers to 0
     if chan2_n == 0:
         filt2_size = 0
@@ -262,6 +264,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     data_train = dataset_shuffle(data_train,n_train)
+    
+    print('Training data duration: %0.2f mins'%(n_train*t_frame/1000/60))
     
 
 
