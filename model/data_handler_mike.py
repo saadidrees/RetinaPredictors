@@ -251,7 +251,8 @@ def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_te
         # firing rates
         # resp = np.array(f[code_stim+'/spikeRate'])[idx_time]
         spikes = np.array(f[code_stim+'/spikeCounts'])[idx_time]
-        spikeRate_cells = np.squeeze(np.array(f[code_stim+'/spikeRate_orig'])[idx_time])
+        # spikeRate_cells = np.squeeze(np.array(f[code_stim+'/spikeRate_orig'])[idx_time])
+        spikeRate_cells = np.array(f[code_stim+'/spikeRate_orig'])[idx_time]
         resp_median = np.array(f[code_stim+'/spikeRate_median'])
         resp_median = np.squeeze(np.nanmedian(resp_median,axis=(-1,-2)))
         
