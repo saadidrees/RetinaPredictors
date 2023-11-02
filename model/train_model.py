@@ -21,6 +21,7 @@ import re
 from tensorflow import keras
 from model.load_savedModel import load
 import gc
+import model.LRschedulers
 
 def chunker(data,batch_size,mode='default'):
     if isinstance(data.X,list):
@@ -30,8 +31,6 @@ def chunker(data,batch_size,mode='default'):
             counter = (counter + 1) % nsamps
             cbatch=0
             for cbatch in range(0, nsamps, batch_size):
-                # X = np.asarray(data.X[cbatch:(cbatch + batch_size)])
-                # y = np.asarray(data.y[cbatch:(cbatch + batch_size)])
                 yield (np.asarray(data.X[cbatch:(cbatch + batch_size)]), np.asarray(data.y[cbatch:(cbatch + batch_size)]))
 
     else:
@@ -55,52 +54,49 @@ def chunker(data,batch_size,mode='default'):
     
     
 
-class CustomCallback(keras.callbacks.Callback):
 
-    def on_epoch_end(self, epoch, logs=None):
-        print("LR - {}".format(self.model.optimizer.learning_rate))
 
-def lr_scheduler(epoch,lr):
-    # arr_scheduler = np.array([[3,10],
-    #                       [10,10],
-    #                       [15,1],
-    #                       [20,10],
-    #                       [30,1],
-    #                       [50,10]])
+
+# def lr_scheduler(epoch,lr):
+#     arr_scheduler = np.array([[1,1],
+#                           [10,1],
+#                           [20,1],
+#                           [30,1],
+#                           [50,5],
+#                           [100,5],
+#                           [200,5],
+#                           [300,5]])
+
+
+#     idx = np.where(arr_scheduler[:,0]==epoch)[0]
     
-    # for new rat data
-    arr_scheduler = np.array([[1,1],
-                          [10,10],
-                          [20,1],
-                          [30,1],
-                          [50,10],
-                          [70,10],
-                          [200,1],
-                          [300,1]])
-
-
-    idx = np.where(arr_scheduler[:,0]==epoch)[0]
+#     if idx.size>0:
+#         idx = idx[0]
+#         lr_fac = arr_scheduler[idx,1]
+#         lr = lr/lr_fac
     
-    if idx.size>0:
-        idx = idx[0]
-        lr_fac = arr_scheduler[idx,1]
-        lr = lr/lr_fac
-    
-    return lr
+#     return lr
 
 
 # %%
-def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, dset_details, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,USE_CHUNKER=0,initial_epoch=1,lr=0.001,lr_fac=1,use_lrscheduler=0,runOnCluster=0):
+def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, dset_details, bz=588, nb_epochs=200, validation_batch_size=5000,validation_freq=10,
+          USE_CHUNKER=0,initial_epoch=1,USE_WANDB=0,
+          lr=0.001,lr_fac=1,use_lrscheduler=0,lr_scheduler_config=dict()):
     
-    if runOnCluster==0:
+    if USE_WANDB!=0:
         import wandb
         from wandb.keras import WandbMetricsLogger, WandbModelCheckpoint
 
+    if lr_scheduler_config['scheduler']=='constant':
+        lr = lr
+    else:
+        print(lr_scheduler_config['scheduler'])
+        lr = model.LRschedulers.CustomLRSchedule(lr_scheduler_config)
+    
+
+
     optimizer = Adam(lr)
     mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
-
-    # if initial_epoch==1: # 
-        # mdl.save(os.path.join(path_model_save,fname_model)) # save model architecture
 
     if initial_epoch>0:
         try:
@@ -124,14 +120,14 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
     cbs = [cb.ModelCheckpoint(os.path.join(path_model_save, fname_cb),save_weights_only=True),
            cb.TensorBoard(log_dir=path_model_save, histogram_freq=0, write_grads=True),
            cb.CSVLogger(os.path.join(path_model_save, fname_excel)),
-           CustomCallback()]
+           model.LRschedulers.printLR_constant(lr_scheduler_config['scheduler'])]
             # cb.ReduceLROnPlateau(monitor='loss',min_lr=1e-6, factor=0.2, patience=5),
-    if runOnCluster==0:
+    if USE_WANDB!=0:
        cbs.append(WandbMetricsLogger())
 
     
-    if use_lrscheduler==1:
-        cbs.append(cb.LearningRateScheduler(lr_scheduler))
+    # if use_lrscheduler==1:
+    #     cbs.append(cb.LearningRateScheduler(lr_scheduler))
 
     if USE_CHUNKER==0:  # load all data into gpu ram
         mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,

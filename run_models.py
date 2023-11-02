@@ -20,10 +20,11 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             chan2_n=0, filt2_size=0, filt2_3rdDim=0,
                             chan3_n=0, filt3_size=0, filt3_3rdDim=0,
                             chan4_n=0, filt4_size=0, filt4_3rdDim=0,
-                            pr_temporal_width = 180,
+                            pr_temporal_width = 180,pr_params_name='',
                             nb_epochs=100,bz_ms=10000,trainingSamps_dur=0,validationSamps_dur=0.3,testSamps_dur=0.3,idx_unitsToTake=0,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
-                            lr=0.01,lr_fac=1,use_lrscheduler=1,USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
+                            lr=0.01,lr_fac=1,use_lrscheduler=1,lrscheduler='constant',
+                            USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
                             select_rgctype='',USE_WANDB=0,
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
@@ -57,6 +58,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     from model.train_model import train, chunker
     from model.load_savedModel import load
+    import model.prfr_params
     
     import gc
     import datetime
@@ -79,6 +81,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     tf.compat.v1.disable_eager_execution()
     
+    if runOnCluster==1:
+        USE_WANDB=0
     
     if runOnCluster==0 and USE_WANDB==1 and nb_epochs>0:
         import wandb
@@ -136,7 +140,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     idx_train_start = 0    # mins to chop off in the begining.
-    d=0
+    d=1
     dict_train = {}
     dict_val = {}
     dict_test = {}
@@ -283,11 +287,13 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                                                         C3_n=chan3_n,C3_s=filt3_size,C3_3d=filt3_3rdDim,
                                                         C4_n=chan4_n,C4_s=filt4_size,C4_3d=filt4_3rdDim,
                                                         BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial,TRSAMPS=trainingSamps_dur_orig)
+    if mdl_name[:4] == 'PRFR':
+        pr_params_fun = getattr(model.prfr_params,pr_params_name)
+        pr_params = pr_params_fun()
+        dict_params['pr_params'] = pr_params
+    
     dict_params['filt_temporal_width'] = temporal_width
     dict_params['dtype'] = DTYPE
-    
-    # filt_temporal_width = dict_params['filt_temporal_width']; chan1_n = dict_params['chan1_n']; filt1_size = dict_params['filt1_size']; chan2_n = dict_params['chan2_n']; filt2_size = dict_params['filt2_size']
-    # chan3_n = dict_params['chan3_n']; filt3_size = dict_params['filt3_size']; BatchNorm = bool(dict_params['BatchNorm']); MaxPool = dict_params['MaxPool']
     
     
     path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)   # the model save directory is the fname_model appened to save path
@@ -346,8 +352,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             for l in range(len(mdl.layers)):
                 mdl.layers[l].set_weights(mdl_existing.layers[l].get_weights())
                 
-            list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
-            if transfer_mode!='finetuning':
+            if transfer_mode=='TransferLearning':     
+                list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
                 for l in list_idx:
                     mdl.layers[l].trainable = False         # Parameterize this
                 
@@ -361,6 +367,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     mdl.summary()
     
+    # Get LR Scheduler configuration
+    lr_scheduler_config = model.LRschedulers.getConfig(lr,lrscheduler)
+    
 # %% Log all params and hyperparams
     
     
@@ -368,7 +377,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                       path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,nb_epochs=nb_epochs,bz_ms=bz_ms,runOnCluster=runOnCluster,USE_CHUNKER=USE_CHUNKER,
                       trainingSamps_dur=trainingSamps_dur_orig,validationSamps_dur=validationSamps_dur,CONTINUE_TRAINING=CONTINUE_TRAINING,
                       idxStart_fixedLayers=idxStart_fixedLayers,idxEnd_fixedLayers=idxEnd_fixedLayers,
-                      info=info,lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,idx_unitsToTake=idx_unitsToTake,initial_epoch=initial_epoch)
+                      info=info,lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lr_scheduler_config=lr_scheduler_config,
+                      idx_unitsToTake=idx_unitsToTake,initial_epoch=initial_epoch)
     for key in dict_params.keys():
         params_txt[key] = dict_params[key]
     
@@ -376,9 +386,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # if runOnCluster==1:
     #     fname_script = '/home/sidrees/scratch/RetinaPredictors/grid_scripts/from_git/model/train_model.py'
     # else:
-    fname_script = 'model/train_model.py'
-    code_snippet = model.paramsLogger.extractCodeSnippet(fname_script,'def lr_scheduler','return lr')
-    params_txt['lr_schedule'] = code_snippet
+    # fname_script = 'model/train_model.py'
+    # code_snippet = model.paramsLogger.extractCodeSnippet(fname_script,'def lr_scheduler','return lr')
+    # params_txt['lr_schedule'] = code_snippet
 
     
     fname_paramsTxt = os.path.join(path_model_save,'model_params.txt')
@@ -430,12 +440,15 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     gbytes_usage = model.models_primate.get_model_memory_usage(bz, mdl)  # for PRFR layer models, this is not a good estimate.
     print('Memory required = %0.2f GB' %gbytes_usage)
     # continue a halted training: load existing model checkpoint and initial_epoch value to pass on for continuing the training
+    validation_batch_size = 100 # samples
+    validation_freq = 1
     
+        
     if initial_epoch < nb_epochs:
         print('-----RUNNING MODEL-----')
-        validation_batch_size = 100 # samples
-        mdl_history = train(mdl, data_train, data_test, fname_excel,path_model_save, fname_model, dset_details, bz=bz, nb_epochs=nb_epochs,validation_batch_size=validation_batch_size,validation_freq=1,
-                            USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=use_lrscheduler,lr_fac=lr_fac)  
+        mdl_history = train(mdl, data_train, data_test, fname_excel,path_model_save, fname_model, dset_details, bz=bz, nb_epochs=nb_epochs,
+                            validation_batch_size=validation_batch_size,validation_freq=validation_freq,USE_WANDB=USE_WANDB,
+                            USE_CHUNKER=USE_CHUNKER,initial_epoch=initial_epoch,lr=lr,use_lrscheduler=use_lrscheduler,lr_fac=lr_fac,lr_scheduler_config=lr_scheduler_config)  
         mdl_history = mdl_history.history
         _ = gc.collect()
         

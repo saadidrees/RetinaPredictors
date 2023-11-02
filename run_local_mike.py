@@ -23,12 +23,12 @@ data_pers = 'mike' #'kiersten'
 expDate = '20230725C'
 expFold = expDate
 subFold = '' 
-dataset = ('NATSTIM_photopic-Rstar','CB_photopic-Rstar')#'NATSTIM_mesopic-Rstar') #'photopic-Rstar',) #'scotopic-Rstar')
+dataset = ('NATSTIM2_photopic-Rstar','CB_photopic-Rstar',)#'
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
-mdl_subFold = 'test'
-mdl_name = 'CNN_2D_NORM2' #'
+mdl_subFold = ''
+mdl_name = 'CNN_2D_BN' #'
 path_existing_mdl = ''
 
 info = ''
@@ -36,9 +36,10 @@ idxStart_fixedLayers = 0#1
 idxEnd_fixedLayers = -1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
 CONTINUE_TRAINING = 1
 
-lr = 0.0001
+lr = 0.01
 lr_fac = 1# how much to divide the learning rate when training is resumed
-use_lrscheduler=1
+use_lrscheduler=0
+lrscheduler='stepLR'
 USE_CHUNKER=1
 pr_temporal_width = 0
 temporal_width=120
@@ -57,7 +58,7 @@ chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
 nb_epochs=100#42         # setting this to 0 only runs evaluation
-bz_ms=10000#5000
+bz_ms=10000#10000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
@@ -65,7 +66,7 @@ num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur = 40#20 #-1 #0.05 # minutes per dataset
+trainingSamps_dur = 20#20 #-1 #0.05 # minutes per dataset
 validationSamps_dur=0.05
 testSamps_dur=0.05
 
@@ -93,11 +94,14 @@ c_trial = 1
 if path_existing_mdl=='' and idxStart_fixedLayers>0:
     raise ValueError('Transfer learning set. Define existing model path')
 
+pr_params_name = 'mike_phot'
+
     
 # %%
 for c_trial in range(1,num_trials+1):
     model_performance,mdl = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
-                            temporal_width=temporal_width, pr_temporal_width=pr_temporal_width, thresh_rr=thresh_rr,
+                            temporal_width=temporal_width, thresh_rr=thresh_rr,
+                            pr_temporal_width=pr_temporal_width,pr_params_name=pr_params_name,
                             chans_bp=chans_bp,
                             chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                             chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
@@ -111,7 +115,6 @@ for c_trial in range(1,num_trials+1):
     
 plt.plot(model_performance['fev_medianUnits_allEpochs']);plt.ylabel('FEV');plt.xlabel('Epochs')
 print('FEV = %0.2f' %(np.nanmax(model_performance['fev_medianUnits_allEpochs'])*100))
-
 
 
 # %% Evaluate several models in loop
