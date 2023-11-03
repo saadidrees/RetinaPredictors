@@ -62,7 +62,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     import gc
     import datetime
-    
+    from tensorflow import keras
     
     from collections import namedtuple
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
@@ -80,6 +80,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         print(e)
         
     tf.compat.v1.disable_eager_execution()
+    tf.compat.v1.experimental.output_all_intermediates(True) 
     
     if runOnCluster==1:
         USE_WANDB=0
@@ -288,6 +289,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                                                         C4_n=chan4_n,C4_s=filt4_size,C4_3d=filt4_3rdDim,
                                                         BN=BatchNorm,MP=MaxPool,LR=lr,TR=c_trial,TRSAMPS=trainingSamps_dur_orig)
     if mdl_name[:4] == 'PRFR':
+        if pr_params_name=='':
+            raise ValueError('Invalid PR model parameters')
         pr_params_fun = getattr(model.prfr_params,pr_params_name)
         pr_params = pr_params_fun()
         dict_params['pr_params'] = pr_params
@@ -354,8 +357,13 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                 
             if transfer_mode=='TransferLearning':     
                 list_idx = np.arange(idxStart_fixedLayers,len(list(mdl.layers[:idxEnd_fixedLayers])))
+                trainableLayers_idx = np.setdiff1d(np.arange(len(list(mdl.layers))),list_idx)
                 for l in list_idx:
                     mdl.layers[l].trainable = False         # Parameterize this
+                for l in trainableLayers_idx:
+                    mdl.layers[l].trainable = True
+                    mdl.layers[l].set_weights([keras.initializers.RandomNormal()(shape=w.shape) for w in mdl.layers[l].get_weights()])
+                    
                 
         
     path_save_model_performance = os.path.join(path_model_save,'performance')
@@ -369,6 +377,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     # Get LR Scheduler configuration
     lr_scheduler_config = model.LRschedulers.getConfig(lr,lrscheduler)
+    print(lr_scheduler_config['scheduler'])
     
 # %% Log all params and hyperparams
     
