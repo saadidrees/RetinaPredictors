@@ -86,6 +86,9 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
     if USE_WANDB!=0:
         import wandb
         from wandb.keras import WandbMetricsLogger, WandbModelCheckpoint
+        wandb.init(dir=path_model_save,project='RetinaPredictors_'+mdl.name)
+
+
 
     if lr_scheduler_config['scheduler']=='constant':
         lr = lr
@@ -108,7 +111,8 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
             mdl.load_weights(os.path.join(path_model_save,weight_file))
             
 
-        tf.keras.backend.set_value(mdl.optimizer.learning_rate, lr/lr_fac)  # lr_fac controls how much to divide the learning rate whenever training is resumed
+        if lr_scheduler_config['scheduler']=='constant':
+            tf.keras.backend.set_value(mdl.optimizer.learning_rate, lr/lr_fac)  # lr_fac controls how much to divide the learning rate whenever training is resumed
 
             
     # mdl.compile(loss='mean_squared_error', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
