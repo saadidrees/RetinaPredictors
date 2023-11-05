@@ -448,18 +448,30 @@ def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False
             pred_corr = correlation_coefficient_distribution(r2,r_pred)
             
     else:
-        resid = obs_rate_allStimTrials - pred_rate
+        t_start = 10
+        
+        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials
+        t_end = obs_rate_allStimTrials_corrected.shape[0]-10
+        obs_rate_allStimTrials_corrected = obs_rate_allStimTrials_corrected[t_start:t_end-lag,:]
+        
+        # if RR_ONLY is False:
+        pred_rate_corrected = pred_rate[t_start+lag:t_end,:]
+
+        resid = obs_rate_allStimTrials_corrected - pred_rate_corrected
         mse_resid = np.mean(resid**2,axis=0)
-        var_test = np.var(obs_rate_allStimTrials,axis=0)
-        fev = 1 - ((mse_resid - obs_noise)/(var_test-obs_noise))
+        var_test = np.var(obs_rate_allStimTrials_corrected,axis=0)
+        fev = 1 - ((mse_resid - obs_noise)/(var_test+1e-5-obs_noise))
         fracExplainableVar = None #(var_test-obs_noise)/var_test
         
-        pred_corr = correlation_coefficient_distribution(obs_rate_allStimTrials,pred_rate)
+        pred_corr = correlation_coefficient_distribution(obs_rate_allStimTrials_corrected,pred_rate_corrected)
         rr_corr = None
    
 
     return fev, fracExplainableVar, pred_corr, rr_corr
-
+"""
+FUEV can be >1 if the variance is too small like in case of sparse activitiy
+FUEV can be <0 if noise is higher than the variance which can again happen in case of sparse activity
+"""
 
 # fig,axs = plt.subplots(1,1)
 # axs.plot(r2[:,0])
@@ -470,7 +482,7 @@ def correlation_coefficient_distribution(obs_rate,est_rate):
     x_std = np.std(obs_rate, axis=0)
     y_mu = est_rate - np.mean(est_rate, axis=0)
     y_std = np.std(est_rate, axis=0)
-    cc_allUnits = np.mean(x_mu * y_mu,axis=0) / (x_std * y_std)
+    cc_allUnits = np.mean(x_mu * y_mu,axis=0) / (x_std * y_std+1e-6)
     
     return cc_allUnits
 

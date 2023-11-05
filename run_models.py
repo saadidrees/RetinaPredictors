@@ -358,7 +358,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                     mdl.layers[l].trainable = False         # Parameterize this
                 for l in trainableLayers_idx:
                     mdl.layers[l].trainable = True
-                    mdl.layers[l].set_weights([keras.initializers.RandomNormal()(shape=w.shape) for w in mdl.layers[l].get_weights()])
+                    mdl.layers[l].set_weights([np.random.normal(size=w.shape) for w in mdl.layers[l].get_weights()])
                     
                 
         
