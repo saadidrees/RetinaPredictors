@@ -57,25 +57,25 @@ def chunker(data,batch_size,mode='default'):
 
 
 
-# def lr_scheduler(epoch,lr):
-#     arr_scheduler = np.array([[1,1],
-#                           [10,1],
-#                           [20,1],
-#                           [30,1],
-#                           [50,5],
-#                           [100,5],
-#                           [200,5],
-#                           [300,5]])
+def lr_scheduler(epoch,lr):
+    arr_scheduler = np.array([[3,1],
+                          [10,1],
+                          [15,10],
+                          [30,10],
+                          [50,10],
+                          [100,1],
+                          [200,1],
+                          [300,1]])
 
 
-#     idx = np.where(arr_scheduler[:,0]==epoch)[0]
+    idx = np.where(arr_scheduler[:,0]==epoch)[0]
     
-#     if idx.size>0:
-#         idx = idx[0]
-#         lr_fac = arr_scheduler[idx,1]
-#         lr = lr/lr_fac
+    if idx.size>0:
+        idx = idx[0]
+        lr_fac = arr_scheduler[idx,1]
+        lr = lr/lr_fac
     
-#     return lr
+    return lr
 
 
 # %%
@@ -130,8 +130,8 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
        cbs.append(WandbMetricsLogger())
 
     
-    # if use_lrscheduler==1:
-    #     cbs.append(cb.LearningRateScheduler(lr_scheduler))
+    if use_lrscheduler==1:
+        cbs.append(cb.LearningRateScheduler(lr_scheduler))
 
     if USE_CHUNKER==0:  # load all data into gpu ram
         mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
