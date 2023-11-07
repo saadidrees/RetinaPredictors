@@ -20,7 +20,7 @@ class printLR_constant(keras.callbacks.Callback):
             lr = tf.keras.backend.eval(self.model.optimizer.learning_rate)
         else:
             lr = tf.keras.backend.eval(self.model.optimizer.learning_rate(epoch))
-        print("LR - {:.2E}".format(lr))
+        print("Epoch - {:d} | LR - {:.2E}".format(epoch,lr))
             
 
 @tf.function
@@ -45,6 +45,7 @@ class CustomLRSchedule(LearningRateSchedule):
         
     def __call__(self,step):
         if self.config['scheduler']=='stepLR':
+            print(step)
             lr_new = stepLR(step,self.config)
         
 
@@ -66,7 +67,7 @@ def getConfig(lr,scheduler):
             initial_lr=lr,
             scheduler=scheduler,
             drop=0.5,
-            epochs_drop=30)
+            epochs_drop=10)
 
     elif scheduler=='linearLR':
         config = dict(
