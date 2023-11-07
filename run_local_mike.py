@@ -18,17 +18,20 @@ if hostname=='sandwolf':
 elif hostname=='sandhound':
     base = '/home/saad/postdoc_db/'
 
+base = '/home/saad/postdoc_db/'
+# base = '/home/saad/data_hdd/'
+
 
 data_pers = 'mike' #'kiersten'
 expDate = '20230725C'
 expFold = expDate
-subFold = '' 
-dataset = ('NATSTIM2_photopic-Rstar','CB_photopic-Rstar',)#'
+subFold = 'cluster' 
+dataset = ('CB3_photopic-Rstar',)#'
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
 mdl_subFold = ''
-mdl_name = 'CNN_2D_BN' #'
+mdl_name = 'CNN_2D_NORM2' #'
 path_existing_mdl = ''
 
 info = ''
@@ -36,28 +39,28 @@ idxStart_fixedLayers = 0#1
 idxEnd_fixedLayers = -1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
 CONTINUE_TRAINING = 1
 
-lr = 0.01
+lr = 0.001
 lr_fac = 1# how much to divide the learning rate when training is resumed
-use_lrscheduler=0
-lrscheduler='stepLR'
+use_lrscheduler=1
+lrscheduler='constant' #dict(scheduler='stepLR',drop=0.01,epochs_drop=20,initial_lr=lr)
 USE_CHUNKER=1
 pr_temporal_width = 0
 temporal_width=120
 thresh_rr=0
 chans_bp = 0
-chan1_n=8
-filt1_size=9
+chan1_n=10
+filt1_size=15
 filt1_3rdDim=0
-chan2_n=16
+chan2_n=20
 filt2_size=7
 filt2_3rdDim=0
-chan3_n=18
+chan3_n=30
 filt3_size=5
 filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
-nb_epochs=100#42         # setting this to 0 only runs evaluation
+nb_epochs=0#42         # setting this to 0 only runs evaluation
 bz_ms=10000#10000#5000
 BatchNorm=1
 MaxPool=2
@@ -66,9 +69,9 @@ num_trials=1
 
 BatchNorm_train = 0
 saveToCSV=1
-trainingSamps_dur = 20#20 #-1 #0.05 # minutes per dataset
+trainingSamps_dur = -1#20 #-1 #0.05 # minutes per dataset
 validationSamps_dur=0.05
-testSamps_dur=0.05
+testSamps_dur=0.01
 
 USE_WANDB=1
 
@@ -111,7 +114,7 @@ for c_trial in range(1,num_trials+1):
                             path_existing_mdl = path_existing_mdl, idxStart_fixedLayers=idxStart_fixedLayers, idxEnd_fixedLayers=idxEnd_fixedLayers,
                             CONTINUE_TRAINING=CONTINUE_TRAINING,info=info,
                             trainingSamps_dur=trainingSamps_dur,validationSamps_dur=validationSamps_dur,idx_unitsToTake=idx_unitsToTake,
-                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,USE_WANDB=USE_WANDB)
+                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lrscheduler=lrscheduler,USE_WANDB=USE_WANDB)
     
 plt.plot(model_performance['fev_medianUnits_allEpochs']);plt.ylabel('FEV');plt.xlabel('Epochs')
 print('FEV = %0.2f' %(np.nanmax(model_performance['fev_medianUnits_allEpochs'])*100))
@@ -130,13 +133,13 @@ if hostname=='sandwolf':
 elif hostname=='sandhound':
     base = '/home/saad/postdoc_db/'
 
-min_nepochs = 70
+min_nepochs = 40
 
 data_pers = 'mike'
 expDate = '20230725C'
 expFold = expDate
 subFold = ''
-dataset = ('CB_photopic-Rstar','NATSTIM_photopic-Rstar')
+dataset = ('CB3_photopic-Rstar',)
 path_existing_mdl = ''
 info = ''
 
@@ -218,7 +221,7 @@ for fname_param in fname_allParams:
         saveToCSV=1
         # trainingSamps_dur=0
         validationSamps_dur=0
-        testSamps_dur=0.1
+        testSamps_dur=0.05
         
         idx_unitsToTake = np.array([0])#idx_units_ON_train #[0] #idx_units_train
         select_rgctype=0

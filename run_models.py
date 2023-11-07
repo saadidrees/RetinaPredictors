@@ -372,7 +372,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     mdl.summary()
     
     # Get LR Scheduler configuration
-    lr_scheduler_config = model.LRschedulers.getConfig(lr,lrscheduler)
+    if isinstance(lrscheduler,dict):
+        lr_scheduler_config = lrscheduler
+    else:
+        lr_scheduler_config = model.LRschedulers.getConfig(lr,lrscheduler)
     print(lr_scheduler_config['scheduler'])
     
 # %% Log all params and hyperparams

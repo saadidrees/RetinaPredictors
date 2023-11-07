@@ -23,41 +23,44 @@ data_pers = 'mike' #'kiersten'
 expDate = '20230725C'
 expFold = expDate
 subFold = '' 
-dataset = ('NATSTIM2_photopic-Rstar',) # #'photopic-Rstar',) #'scotopic-Rstar')
+dataset = ('CB_photopic-Rstar',) # #'photopic-Rstar',) #'scotopic-Rstar')
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
-mdl_subFold = 'finetuning' #'finetuning'
-mdl_name = 'CNN_2D_NORM2' #'CNN_2D_NORM' #'BP_CNN2D' #'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
-path_existing_mdl = '/home/saad/postdoc_db/analyses/data_mike/20230725C/models/CB_photopic-Rstar/finetuning/CNN_2D_NORM2/U-57_T-120_C1-08-15_C2-16-07_C3-18-05_BN-1_MP-2_LR-0.0001_TRSAMPS--01_TR-01'
-transfer_mode = 'finetuning'
+mdl_subFold = ''#'finetuning'
+mdl_name = 'CNN_2D_NORM3' #'CNN_2D_NORM' 
+path_existing_mdl = ''#'/home/saad/postdoc_db/analyses/data_mike/20230725C/models/CB2_photopic-Rstar/CNN_2D_NORM2/U-57_T-120_C1-10-15_C2-20-07_C3-30-05_BN-1_MP-2_LR-0.001_TRSAMPS--01_TR-01'
+# '/home/saad/postdoc_db/analyses/data_mike/20230725C/models/CB_photopic-Rstar/finetuning/CNN_2D_NORM2/U-57_T-120_C1-08-15_C2-16-07_C3-18-05_BN-1_MP-2_LR-0.0001_TRSAMPS--01_TR-01'
+transfer_mode = ''#'finetuning'
 info = ''
 idxStart_fixedLayers = 0#1
 idxEnd_fixedLayers = -1 #-1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
 CONTINUE_TRAINING = 1
 
-lr = 0.0001
+lr = 0.001
 lr_fac = 1# how much to divide the learning rate when training is resumed
 use_lrscheduler=1
+lrscheduler='constant' #dict(scheduler='linearLR',decay=0.00001,initial_lr=lr)  #drop=0.5,epochs_drop=10,
 USE_CHUNKER=1
 pr_temporal_width = 0
+pr_params_name = ''#'mike_phot'
 temporal_width=120
 thresh_rr=0
 chans_bp = 0
-chan1_n=8
+chan1_n=10
 filt1_size=15
 filt1_3rdDim=0
-chan2_n=16
+chan2_n=20
 filt2_size=7
 filt2_3rdDim=0
-chan3_n=18
+chan3_n=30
 filt3_size=5
 filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
-nb_epochs=400#42         # setting this to 0 only runs evaluation
-bz_ms=5000#5000
+nb_epochs=70#42         # setting this to 0 only runs evaluation
+bz_ms=8000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
@@ -66,7 +69,7 @@ num_trials=1
 BatchNorm_train = 0
 saveToCSV=1
 trainingSamps_dur = -1#20 #-1 #0.05 # minutes per dataset
-validationSamps_dur=0.1
+validationSamps_dur=0.05
 testSamps_dur=0.05
 USE_WANDB = 1
 
@@ -91,12 +94,12 @@ c_trial = 1
 if path_existing_mdl=='' and idxStart_fixedLayers>0:
     raise ValueError('Transfer learning set. Define existing model path')
 
-    
+
 # %%
 for c_trial in range(1,num_trials+1):
     model_performance,mdl = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
-                            temporal_width=temporal_width, pr_temporal_width=pr_temporal_width, thresh_rr=thresh_rr,
-                            chans_bp=chans_bp,
+                            temporal_width=temporal_width, pr_temporal_width=pr_temporal_width, pr_params_name=pr_params_name,
+                            thresh_rr=thresh_rr,chans_bp=chans_bp,
                             chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                             chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
                             chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
@@ -106,7 +109,7 @@ for c_trial in range(1,num_trials+1):
                             path_existing_mdl = path_existing_mdl, idxStart_fixedLayers=idxStart_fixedLayers, idxEnd_fixedLayers=idxEnd_fixedLayers,
                             CONTINUE_TRAINING=CONTINUE_TRAINING,info=info,
                             trainingSamps_dur=trainingSamps_dur,validationSamps_dur=validationSamps_dur,idx_unitsToTake=idx_unitsToTake,
-                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,USE_WANDB=USE_WANDB)
+                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lrscheduler=lrscheduler,USE_WANDB=USE_WANDB)
     
 plt.plot(model_performance['fev_medianUnits_allEpochs']);plt.ylabel('FEV');plt.xlabel('Epochs')
 print('FEV = %0.2f' %(np.nanmax(model_performance['fev_medianUnits_allEpochs'])*100))
