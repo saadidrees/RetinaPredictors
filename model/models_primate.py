@@ -24,7 +24,8 @@ def model_definitions():
     """
     
     models_2D = ('CNN_2D','CNN_2D_NORM','CNN_2D_NORM2','CNN_2D_NORM3',
-                 'CNN_2D_BN','CNN_2D_BN2')
+                 'CNN_2D_BN','CNN_2D_BN2',
+                 'PRFR_CNN2D')
     
     models_3D = ('CNN_3D','PR_CNN3D')
     
@@ -410,8 +411,8 @@ def cnn_2d_norm3(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size
 
     # first layer  
     y = inputs
-    # y = LayerNormalization(axis=[-3,-2,-1],epsilon=1e-7,trainable=False)(y)        # z-score the input across spatio-temporal dimensions
-    y = LayerNormalization(epsilon=1e-7,trainable=False)(y)        # z-score the input
+    y = LayerNormalization(axis=[-3,-2,-1],epsilon=1e-7,trainable=False)(y)        # z-score the input across spatio-temporal dimensions
+    # y = LayerNormalization(epsilon=1e-7,trainable=False)(y)        # z-score the input
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     
     if MaxPool > 0:
@@ -789,7 +790,7 @@ def riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlo
     smax = eta/phi * gdark * (1 + (cdark / hillaffinity) **hillcoef)		# get smax using steady state
     
     n_spatialDims = X_fun.shape[-1]
-    tme = tf.range(0,X_fun.shape[1],dtype='float32')*TimeStep
+    tme = tf.range(0,X_fun.shape[1],dtype=X_fun.dtype)*TimeStep
     NumPts = tme.shape[0]
     
 # initial conditions   
@@ -832,10 +833,11 @@ def riekeModel(X_fun,TimeStep,sigma,phi,eta,cgmp2cur,cgmphill,cdark,beta,betaSlo
     return outputs
  
 class photoreceptor_REIKE(tf.keras.layers.Layer):
-    def __init__(self,pr_params,units=1):
+    def __init__(self,pr_params,units=1,dtype='foat16'):
         super(photoreceptor_REIKE,self).__init__()
         self.units = units
         self.pr_params = pr_params
+        # self.dtype='float16'
         
 
     def get_config(self):
@@ -846,7 +848,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         return config
 
     def build(self,input_shape):
-        dtype = 'float16'
+        dtype = self.dtype
         
         sigma_init = tf.keras.initializers.Constant(self.pr_params['sigma'])
         self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype=dtype),trainable=False)
@@ -868,7 +870,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         beta_scaleFac = tf.keras.initializers.Constant(self.pr_params['beta_scaleFac'])
         self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
 
-        cgmp2cur_init = tf.keras.initializers.Constant(self.pr_params['cgmp2cur_init'])
+        cgmp2cur_init = tf.keras.initializers.Constant(self.pr_params['cgmp2cur'])
         self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype=dtype),trainable=False)
         
         cgmphill_init = tf.keras.initializers.Constant(self.pr_params['cgmphill'])
@@ -902,14 +904,14 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         gdark_init = tf.keras.initializers.Constant(self.pr_params['gdark'])
         self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype=dtype),trainable=False)
         gdark_scaleFac = tf.keras.initializers.Constant(self.pr_params['gdark_scaleFac'])
-        self.gdark_scaleFac = tf.Variable(name='gdark_scaleFac',initial_value=gdark_scaleFac(shape=(1,self.units),dtype='float32'),trainable=False)
+        self.gdark_scaleFac = tf.Variable(name='gdark_scaleFac',initial_value=gdark_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
 
 
  
     def call(self,inputs):
         X_fun = inputs
 
-        timeBin = float(self.timeBin) # ms
+        timeBin = float(self.pr_params['timeBin']) # ms
         frameTime = 8 # ms
         upSamp_fac = int(frameTime/timeBin)
         TimeStep = 1e-3*timeBin
@@ -941,7 +943,7 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
 
 
 def prfr_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
-
+    
     chan1_n = kwargs['chan1_n']
     filt1_size = kwargs['filt1_size']
     chan2_n = kwargs['chan2_n']
@@ -953,7 +955,9 @@ def prfr_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,ch
     MaxPool = kwargs['MaxPool']
     dtype = kwargs['dtype']
     
-    pr_params = kwargs['par_params']
+    filt_temporal_width=kwargs['filt_temporal_width']
+
+    pr_params = kwargs['pr_params']
     
     mdl_params = {}
     keys = ('chan4_n','filt4_size')
@@ -964,14 +968,16 @@ def prfr_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,ch
             mdl_params[k] = 0
     
     sigma = 0.1
-    filt_temporal_width=inputs.shape[1]
     
-    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]))(inputs)
-    y = photoreceptor_REIKE(units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]),dtype=dtype)(inputs)
+    print(y.shape)
+    y = photoreceptor_REIKE(pr_params,units=1)(y)
+    print(y.shape)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    print(y.shape)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
-    
-    y = LayerNormalization(axis=[1,2,3],epsilon=1e-7)(y)
+    print(y.shape)
+    y = LayerNormalization(axis=1,epsilon=1e-7)(y)
     
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
@@ -1007,5 +1013,5 @@ def prfr_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,ch
 
     outputs = Activation('softplus',dtype='float32')(y)
 
-    mdl_name = 'PRFR_PHOT_CNN2D'
+    mdl_name = 'PRFR_CNN2D'
     return Model(inputs, outputs, name=mdl_name)
