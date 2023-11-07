@@ -86,7 +86,8 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
     if USE_WANDB!=0:
         import wandb
         from wandb.keras import WandbMetricsLogger, WandbModelCheckpoint
-        wandb.init(dir=path_model_save,project='RetinaPredictors_'+mdl.name)
+        dset_name = os.path.split(os.path.split(path_model_save)[0])[-1]
+        wandb.init(dir=path_model_save,project='RetinaPredictors_'+mdl.name,name=dset_name)
 
 
 
