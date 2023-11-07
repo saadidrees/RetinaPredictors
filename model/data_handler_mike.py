@@ -429,9 +429,9 @@ def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_te
 
 def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,parameters,resp_orig=None,data_train_info=None,data_val_info=None,dtype='float16'):
     
-    if dtype=='float32':
+    if dtype=='float32' or dtype=='f4':
         h5dtype='f4'
-    elif dtype=='float16':
+    elif dtype=='float16' or dtype=='f2':
         h5dtype='f2'
     
     f = h5py.File(fname,'a')
