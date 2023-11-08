@@ -30,7 +30,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
 # %% prepare data
     print('In main function body')
-    
 # import needed modules
     import numpy as np
     import os
@@ -299,8 +298,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dict_params['filt_temporal_width'] = temporal_width
     dict_params['dtype'] = DTYPE
     
+    if pr_params_name!='':
+        path_model_save_base = os.path.join(path_model_save_base,mdl_name,pr_params_name,fname_model)   # the model save directory is the fname_model appened to save path
+    else:
+        path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)   # the model save directory is the fname_model appened to save path
+
     
-    path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)   # the model save directory is the fname_model appened to save path
     if not os.path.exists(path_model_save):
         os.makedirs(path_model_save)
         
