@@ -299,7 +299,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dict_params['dtype'] = DTYPE
     
     if pr_params_name!='':
-        path_model_save_base = os.path.join(path_model_save_base,mdl_name,pr_params_name,fname_model)   # the model save directory is the fname_model appened to save path
+        path_model_save = os.path.join(path_model_save_base,mdl_name,pr_params_name,fname_model)   # the model save directory is the fname_model appened to save path
     else:
         path_model_save = os.path.join(path_model_save_base,mdl_name,fname_model)   # the model save directory is the fname_model appened to save path
 
