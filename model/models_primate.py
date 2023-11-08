@@ -969,7 +969,7 @@ def prfr_cnn2d_norm2(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=
     sigma = 0.1
     
     y = inputs
-    y = BatchNormalization(axis=-3,epsilon=1e-7)(y)
+    # y = BatchNormalization(axis=-3,epsilon=1e-7)(y)
     y = Reshape((y.shape[1],y.shape[-2]*y.shape[-1]),dtype=dtype)(y)
     y = photoreceptor_REIKE(pr_params,units=1)(y)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
