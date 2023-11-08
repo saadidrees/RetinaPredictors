@@ -851,58 +851,58 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         dtype = self.dtype
         
         sigma_init = tf.keras.initializers.Constant(self.pr_params['sigma'])
-        self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.sigma = tf.Variable(name='sigma',initial_value=sigma_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['sigma_trainable'])
         sigma_scaleFac = tf.keras.initializers.Constant(self.pr_params['sigma_scaleFac'])
         self.sigma_scaleFac = tf.Variable(name='sigma_scaleFac',initial_value=sigma_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
         
-        phi_init = tf.keras.initializers.Constant(self.pr_params['sigma'])
-        self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype=dtype),trainable=False)
-        phi_scaleFac = tf.keras.initializers.Constant(self.pr_params['sigma'])
+        phi_init = tf.keras.initializers.Constant(self.pr_params['phi'])
+        self.phi = tf.Variable(name='phi',initial_value=phi_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['phi_trainable'])
+        phi_scaleFac = tf.keras.initializers.Constant(self.pr_params['phi_scaleFac'])
         self.phi_scaleFac = tf.Variable(name='phi_scaleFac',initial_value=phi_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
        
         eta_init = tf.keras.initializers.Constant(self.pr_params['eta'])
-        self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.eta = tf.Variable(name='eta',initial_value=eta_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['eta_trainable'])
         eta_scaleFac = tf.keras.initializers.Constant(self.pr_params['eta_scaleFac'])
         self.eta_scaleFac = tf.Variable(name='eta_scaleFac',initial_value=eta_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
         
         beta_init = tf.keras.initializers.Constant(self.pr_params['beta'])
-        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.beta = tf.Variable(name='beta',initial_value=beta_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['beta_trainable'])
         beta_scaleFac = tf.keras.initializers.Constant(self.pr_params['beta_scaleFac'])
         self.beta_scaleFac = tf.Variable(name='beta_scaleFac',initial_value=beta_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
 
         cgmp2cur_init = tf.keras.initializers.Constant(self.pr_params['cgmp2cur'])
-        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.cgmp2cur = tf.Variable(name='cgmp2cur',initial_value=cgmp2cur_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['cgmp2cur_trainable'])
         
         cgmphill_init = tf.keras.initializers.Constant(self.pr_params['cgmphill'])
-        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.cgmphill = tf.Variable(name='cgmphill',initial_value=cgmphill_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['cgmphill_trainable'])
         cgmphill_scaleFac = tf.keras.initializers.Constant(self.pr_params['cgmphill_scaleFac'])
         self.cgmphill_scaleFac = tf.Variable(name='cgmphill_scaleFac',initial_value=cgmphill_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
         
         cdark_init = tf.keras.initializers.Constant(self.pr_params['cdark'])
-        self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.cdark = tf.Variable(name='cdark',initial_value=cdark_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['cdark_trainable'])
         
         betaSlow_init = tf.keras.initializers.Constant(self.pr_params['betaSlow'])
-        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.betaSlow = tf.Variable(name='betaSlow',initial_value=betaSlow_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['betaSlow_trainable'])
         betaSlow_scaleFac = tf.keras.initializers.Constant(self.pr_params['betaSlow_scaleFac'])
         self.betaSlow_scaleFac = tf.Variable(name='betaSlow_scaleFac',initial_value=betaSlow_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
         
         hillcoef_init = tf.keras.initializers.Constant(self.pr_params['hillcoef'])
-        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.hillcoef = tf.Variable(name='hillcoef',initial_value=hillcoef_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['hillcoef_trainable'])
         hillcoef_scaleFac = tf.keras.initializers.Constant(self.pr_params['hillcoef_scaleFac'])
         self.hillcoef_scaleFac = tf.Variable(name='hillcoef_scaleFac',initial_value=hillcoef_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
         
         hillaffinity_init = tf.keras.initializers.Constant(self.pr_params['hillaffinity'])
-        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.hillaffinity = tf.Variable(name='hillaffinity',initial_value=hillaffinity_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['hillaffinity_trainable'])
         hillaffinity_scaleFac = tf.keras.initializers.Constant(self.pr_params['hillaffinity_scaleFac'])
         self.hillaffinity_scaleFac = tf.Variable(name='hillaffinity_scaleFac',initial_value=hillaffinity_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
         
         gamma_init = tf.keras.initializers.Constant(self.pr_params['gamma'])
-        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype=dtype),trainable=True)
+        self.gamma = tf.Variable(name='gamma',initial_value=gamma_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['gamma_trainable'])
         gamma_scaleFac = tf.keras.initializers.Constant(self.pr_params['gamma_scaleFac'])
         self.gamma_scaleFac = tf.Variable(name='gamma_scaleFac',initial_value=gamma_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
                 
         gdark_init = tf.keras.initializers.Constant(self.pr_params['gdark'])
-        self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype=dtype),trainable=False)
+        self.gdark = tf.Variable(name='gdark',initial_value=gdark_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['gdark_trainable'])
         gdark_scaleFac = tf.keras.initializers.Constant(self.pr_params['gdark_scaleFac'])
         self.gdark_scaleFac = tf.Variable(name='gdark_scaleFac',initial_value=gdark_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
 
