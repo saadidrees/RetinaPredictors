@@ -78,15 +78,15 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
       except RuntimeError as e:
         # Memory growth must be set before GPUs have been initialized
         print(e)
-        
-    tf.compat.v1.disable_eager_execution()
-    tf.compat.v1.experimental.output_all_intermediates(True) 
+    
+    if 'PR' not in mdl_name:
+        tf.compat.v1.disable_eager_execution()
+    # tf.compat.v1.experimental.output_all_intermediates(True) 
     
     if runOnCluster==1:
         USE_WANDB=0
     
     
-    DTYPE='float16'
     if path_existing_mdl==0 or path_existing_mdl=='0':
         path_existing_mdl=''
         
@@ -143,7 +143,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dict_test = {}
     for d in range(len(fname_data_train_val_test_all)):
         rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,nsamps_test=testSamps_dur,  # THIS NEEDS TO BE TIDIED UP
-                             idx_train_start=idx_train_start,dtype=DTYPE)
+                             idx_train_start=idx_train_start)
         data_train=rgb[0];
         data_val = rgb[1];
         data_test = rgb[2]
@@ -257,6 +257,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         inp_shape = data_train.X.shape[1:]
         out_shape = data_train.y.shape[1:]
         
+        
+    DTYPE = data_train.X[0].dtype
+
     x = Input(shape=inp_shape,dtype=DTYPE) # keras input layer
     n_cells = out_shape[0]         # number of units in output layer
     
@@ -267,6 +270,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     data_train = dataset_shuffle(data_train,n_train)
     
     print('Training data duration: %0.2f mins'%(n_train*t_frame/1000/60))
+    
+    
     
 
 

@@ -25,7 +25,7 @@ def model_definitions():
     
     models_2D = ('CNN_2D','CNN_2D_NORM','CNN_2D_NORM2','CNN_2D_NORM3',
                  'CNN_2D_BN','CNN_2D_BN2',
-                 'PRFR_CNN2D')
+                 'PRFR_CNN2D','PRFR_CNN2D_NORM2')
     
     models_3D = ('CNN_3D','PR_CNN3D')
     
@@ -938,11 +938,10 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
         
         if upSamp_fac>1:
             outputs = outputs[:,upSamp_fac-1::upSamp_fac]
-            
         return outputs
 
 
-def prfr_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+def prfr_cnn2d_norm2(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
     chan1_n = kwargs['chan1_n']
     filt1_size = kwargs['filt1_size']
@@ -969,16 +968,14 @@ def prfr_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,ch
     
     sigma = 0.1
     
-    y = Reshape((inputs.shape[1],inputs.shape[-2]*inputs.shape[-1]),dtype=dtype)(inputs)
-    print(y.shape)
+    y = inputs
+    y = BatchNormalization(axis=-3,epsilon=1e-7)(y)
+    y = Reshape((y.shape[1],y.shape[-2]*y.shape[-1]),dtype=dtype)(y)
     y = photoreceptor_REIKE(pr_params,units=1)(y)
-    print(y.shape)
     y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
-    print(y.shape)
     y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
-    print(y.shape)
-    y = LayerNormalization(axis=1,epsilon=1e-7)(y)
-    
+    y = LayerNormalization(axis=-3,epsilon=1e-7)(y)      # Along the temporal axis
+
     # CNN - first layer
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
     if BatchNorm is True:
@@ -1013,5 +1010,5 @@ def prfr_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,ch
 
     outputs = Activation('softplus',dtype='float32')(y)
 
-    mdl_name = 'PRFR_CNN2D'
+    mdl_name = 'PRFR_CNN2D_NORM2'
     return Model(inputs, outputs, name=mdl_name)

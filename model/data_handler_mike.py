@@ -575,13 +575,15 @@ def save_h5Dataset(fname,data_train,data_val,data_test,data_quality,dataset_rr,p
             
     f.close()
               
-def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_val=-1,nsamps_train=-1,nsamps_test=0.1,idx_train_start=0,dtype='float16'):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
+def load_h5Dataset(fname_data_train_val_test,LOAD_TR=True,LOAD_VAL=True,nsamps_val=-1,nsamps_train=-1,nsamps_test=0.1,idx_train_start=0):     # LOAD_TR determines whether to load training data or not. In some cases only validation data is required
 
     f = h5py.File(fname_data_train_val_test,'r')
     t_frame = np.array(f['parameters']['t_frame'])
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
     Exptdata_spikes = namedtuple('Exptdata', ['X', 'y','spikes'])
     Exptdata_trials = namedtuple('Exptdata_trials', ['X', 'y','y_trials','spikes'])
+    
+    dtype = f['data_val']['X'][0].dtype
     
     # some loading parameters
     if nsamps_val==-1 or nsamps_val==0:
