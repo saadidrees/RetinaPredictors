@@ -19,23 +19,26 @@ class printLR_constant(keras.callbacks.Callback):
         if self.scheduler=='constant':
             lr = tf.keras.backend.eval(self.model.optimizer.learning_rate)
         else:
-            lr = tf.keras.backend.eval(self.model.optimizer.learning_rate(epoch))
+            lr = tf.keras.backend.eval(self.model.optimizer.learning_rate(epoch*self.scheduler['bz']))
         print("Epoch - {:d} | LR - {:.2E}".format(epoch,lr))
             
 
 @tf.function
-def stepLR(epoch,config):
+def stepLR(step,config):
     initial_lr = config['initial_lr']
     drop = config['drop']
-    epochs_drop = config['epochs_drop']
-    lr_new = initial_lr*(drop**tf.floor((1+epoch)/epochs_drop))
+    steps_drop = config['steps_drop']
+    lr_new = initial_lr*(drop**tf.floor((1+step)/steps_drop))
     return lr_new
 
 @tf.function
-def linearLR(epoch,config):
+def linearLR(step,config):
     initial_lr = config['initial_lr']
     decay = config['decay']
-    lr_new = initial_lr*(1/1-(decay*epoch))
+    if config['steps_constant'] > step:
+        lr_new = initial_lr
+    else:
+        lr_new = initial_lr*(1/1-(decay*step))
     return lr_new
 
 
@@ -56,7 +59,7 @@ class CustomLRSchedule(LearningRateSchedule):
 
 
 
-def getConfig(lr,scheduler):
+def getConfig(lr,scheduler,bz):
     if scheduler=='constant':
         config = dict(
             initial_lr=lr,
@@ -67,12 +70,13 @@ def getConfig(lr,scheduler):
             initial_lr=lr,
             scheduler=scheduler,
             drop=0.5,
-            epochs_drop=10)
+            steps_drop=10*bz)       # basically epochsxbz = steps
 
     elif scheduler=='linearLR':
         config = dict(
             initial_lr=lr,
             scheduler=scheduler,
+            steps_constant=10,
             decay=0.001)
 
     else:
@@ -88,7 +92,7 @@ def getConfig(lr,scheduler):
 initial_lr = 0.001
 config = {}
 config['drop'] = 0.5
-config['epochs_drop'] = 10
+config['steps_drop'] = 10
 config['decay'] = 0.01
 
 scheduler = 'stepLR'
