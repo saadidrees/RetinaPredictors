@@ -80,7 +80,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     if 'PR' not in mdl_name:
         tf.compat.v1.disable_eager_execution()
-    # tf.compat.v1.experimental.output_all_intermediates(True) 
     
     if runOnCluster==1:
         USE_WANDB=0
@@ -88,6 +87,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     if path_existing_mdl==0 or path_existing_mdl=='0':
         path_existing_mdl=''
+        
+    if pr_params_name==0:
+        pr_params_name==''
         
     # if only 1 layer cnn then set all parameters for next layers to 0
     if chan2_n == 0:
@@ -379,11 +381,13 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     mdl.summary()
     
+    bz = math.ceil(bz_ms/t_frame)   # input batch size (bz_ms) is in ms. Convert into samples
+
     # Get LR Scheduler configuration
     if isinstance(lrscheduler,dict):
         lr_scheduler_config = lrscheduler
     else:
-        lr_scheduler_config = model.LRschedulers.getConfig(lr,lrscheduler)
+        lr_scheduler_config = model.LRschedulers.getConfig(lr,lrscheduler,bz)
     print(lr_scheduler_config['scheduler'])
     
 # %% Log all params and hyperparams
@@ -449,7 +453,11 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
 # %% Train model
-    bz = math.ceil(bz_ms/t_frame)   # input batch size (bz_ms) is in ms. Convert into samples
+
+    if bz not in lr_scheduler_config:
+        lr_scheduler_config['bz'] = bz
+        if 'steps_drop' in lr_scheduler_config:
+            lr_scheduler_config['steps_drop'] = lr_scheduler_config['steps_drop']*bz
 
     t_elapsed = 0
     t = time.time()
@@ -726,8 +734,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if saveToCSV==1:
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
-        csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','RGC_types','idx_units','thresh_rr','RR','temp_window','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
-        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,select_rgctype,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,bn_val,MaxPool,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
+        csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','RGC_types','idx_units','thresh_rr','RR','temp_window','pr_temporal_width','pr_params_name','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
+        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,select_rgctype,len(idx_unitsToTake),thresh_rr,fracExVar_medianUnits,temporal_width,pr_temporal_width,pr_params_name,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,bn_val,MaxPool,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
         
         fname_csv_file = 'performance_'+expFold+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
