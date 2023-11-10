@@ -920,14 +920,14 @@ class photoreceptor_REIKE(tf.keras.layers.Layer):
             X_fun = tf.keras.backend.repeat_elements(X_fun,upSamp_fac,axis=1) 
             X_fun = X_fun/upSamp_fac     # appropriate scaling for photons/ms
 
-        sigma = self.sigma * self.sigma_scaleFac / timeBin
-        phi = self.phi * self.phi_scaleFac / timeBin
-        eta = self.eta * self.eta_scaleFac / timeBin
+        sigma = self.sigma * self.sigma_scaleFac
+        phi = self.phi * self.phi_scaleFac
+        eta = self.eta * self.eta_scaleFac
         cgmp2cur = self.cgmp2cur
         cgmphill = self.cgmphill * self.cgmphill_scaleFac
         cdark = self.cdark
-        beta = self.beta * self.beta_scaleFac / timeBin
-        betaSlow = self.betaSlow * self.betaSlow_scaleFac / timeBin
+        beta = self.beta * self.beta_scaleFac
+        betaSlow = self.betaSlow * self.betaSlow_scaleFac
         hillcoef = self.hillcoef * self.hillcoef_scaleFac
         hillaffinity = self.hillaffinity * self.hillaffinity_scaleFac
         gamma = (self.gamma*self.gamma_scaleFac)/timeBin
