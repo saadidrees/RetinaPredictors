@@ -88,7 +88,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if path_existing_mdl==0 or path_existing_mdl=='0':
         path_existing_mdl=''
         
-    if pr_params_name==0:
+    if pr_params_name==0 or pr_params_name=='0':
         pr_params_name==''
         
     # if only 1 layer cnn then set all parameters for next layers to 0
