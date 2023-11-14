@@ -226,23 +226,23 @@ def mike_phot_trainable_all():
     return pr_params
 
 
-def mike_phot_scale():
+def mike_phot2_trainable():
     pr_params = {}
-    pr_params['sigma'] = 2.2
+    pr_params['sigma'] = 4.2
     pr_params['sigma_scaleFac'] = 10.
-    pr_params['sigma_trainable'] = False
+    pr_params['sigma_trainable'] = True
     
-    pr_params['phi'] = 2.2
+    pr_params['phi'] = 4.2
     pr_params['phi_scaleFac'] = 10.
-    pr_params['phi_trainable'] = False
+    pr_params['phi_trainable'] = True
 
-    pr_params['eta'] = 2.
+    pr_params['eta'] = 4.
     pr_params['eta_scaleFac'] = 1000.
-    pr_params['eta_trainable'] = False
+    pr_params['eta_trainable'] = True
 
-    pr_params['beta'] = 0.9
+    pr_params['beta'] = 1.9
     pr_params['beta_scaleFac'] = 10.
-    pr_params['beta_trainable'] = False
+    pr_params['beta_trainable'] = True
 
     pr_params['cgmp2cur'] = 0.01
     pr_params['cgmp2cur_scaleFac'] = 1.
@@ -268,8 +268,8 @@ def mike_phot_scale():
     pr_params['hillaffinity_scaleFac'] = 1.
     pr_params['hillaffinity_trainable'] = False
 
-    pr_params['gamma'] = 10.
-    pr_params['gamma_scaleFac'] = 100.
+    pr_params['gamma'] = 1.
+    pr_params['gamma_scaleFac'] = 10.
     pr_params['gamma_trainable'] = True
 
     pr_params['gdark'] = 0.35
