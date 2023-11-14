@@ -87,7 +87,10 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
         import wandb
         from wandb.keras import WandbMetricsLogger, WandbModelCheckpoint
         dset_name = os.path.split(os.path.split(path_model_save)[0])[-1]
-        wandb.init(dir=path_model_save,project='RetinaPredictors_'+mdl.name,name=dset_name)
+        dir_wandb = '~/wandb_scratch'
+        if not os.path.exists(dir_wandb):
+            os.makedirs(dir_wandb)
+        wandb.init(dir=dir_wandb,project='RetinaPredictors_'+mdl.name,name=dset_name)
 
 
 
@@ -142,8 +145,9 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
         batch_size = bz
         steps_per_epoch = int(np.ceil(dset_details['n_train']/batch_size))
         gen_train = chunker(data_train,batch_size)
-        # gen_val = chunker(data_val,validation_batch_size)
-        # mdl_history = mdl.fit(gen_train,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs, validation_data=gen_val,shuffle=True,initial_epoch=initial_epoch,use_multiprocessing=True,validation_freq=validation_freq)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
+        gen_val = chunker(data_val,batch_size)
+        # mdl_history = mdl.fit(gen_train,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs,
+        #                       validation_data=gen_val,shuffle=True,initial_epoch=initial_epoch,use_multiprocessing=False,validation_freq=validation_freq)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
         mdl_history = mdl.fit(gen_train,steps_per_epoch=steps_per_epoch,epochs=nb_epochs,callbacks=cbs,
                               validation_data=(data_val.X,data_val.y),shuffle=True,initial_epoch=initial_epoch,use_multiprocessing=False,validation_freq=validation_freq)    # validation_data=(data_test.X,data_test.y)   validation_data=(data_val.X,data_val.y)   validation_batch_size=math.floor(n_val) # steps_per_epoch=steps_per_epoch
 
