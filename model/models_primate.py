@@ -24,7 +24,7 @@ def model_definitions():
     """
     
     models_2D = ('CNN_2D','CNN_2D_NORM','CNN_2D_NORM2','CNN_2D_NORM3',
-                 'CNN_2D_BN','CNN_2D_BN2','CNN2D_NEW'
+                 'CNN_2D_BN','CNN_2D_BN2','CNN2D_NEW',
                  'PRFR_CNN2D','PRFR_CNN2D_NORM2','PRFR_CNN2D_NEW')
     
     models_3D = ('CNN_3D','PR_CNN3D')
