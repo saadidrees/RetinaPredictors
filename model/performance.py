@@ -43,6 +43,13 @@ def get_weightsOfLayer(weights_dict,layer_name):
     
     return weights_layer
         
+def get_layerIdx(mdl,layer_name):
+    # layer_name = 'batch_normalization'
+    layer_idx = []
+    for i in range(len(mdl.layers)):
+        if layer_name in mdl.layers[i].name:
+            layer_idx.append(i)
+    return layer_idx
         
 
   
@@ -204,13 +211,16 @@ def getModelParams(fname_modelFolder):
     rgb = re.compile(r'TR-(\d+)')
     rgb = rgb.search(fname_modelFolder)
     params['TR'] = int(rgb.group(1))
-
-    try:
-        rgb = re.compile(r'TRSAMPS-(\d+)')
-        rgb = rgb.search(fname_modelFolder)
-        params['TRSAMPS'] = int(rgb.group(1))
-    except:
-        pass
+    
+    rgb = re.compile(r'TRSAMPS')
+    rgb = rgb.search(fname_modelFolder)
+    if rgb!=None:
+        try:
+            rgb = re.compile(r'TRSAMPS-(-?\d+)')
+            rgb = rgb.search(fname_modelFolder)
+            params['TRSAMPS'] = int(rgb.group(1))
+        except:
+            pass
     
     try:
         rgb = re.compile(r'LR-(\d+\.\d+)')
