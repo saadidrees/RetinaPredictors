@@ -25,7 +25,7 @@ def model_definitions():
     
     models_2D = ('CNN_2D','CNN_2D_NORM','CNN_2D_NORM2','CNN_2D_NORM3',
                  'CNN_2D_BN','CNN_2D_BN2',
-                 'PRFR_CNN2D','PRFR_CNN2D_NORM2')
+                 'PRFR_CNN2D','PRFR_CNN2D_NORM2','PRFR_CNN2D_NEW')
     
     models_3D = ('CNN_3D','PR_CNN3D')
     
@@ -196,8 +196,7 @@ def get_layerFullNameStr(layer):
     sys.stdout = tmp
     layer_name = layer_name.getvalue()
     return layer_name
-
-# %% Standard models
+# %%  Standard models
 def cnn_2d_norm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
     chan1_n = kwargs['chan1_n']
@@ -1011,4 +1010,84 @@ def prfr_cnn2d_norm2(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=
     outputs = Activation('softplus',dtype='float32')(y)
 
     mdl_name = 'PRFR_CNN2D_NORM2'
+    return Model(inputs, outputs, name=mdl_name)
+
+
+def prfr_cnn2d_new(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+    
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = kwargs['MaxPool']
+    dtype = kwargs['dtype']
+    
+    filt_temporal_width=kwargs['filt_temporal_width']
+
+    pr_params = kwargs['pr_params']
+    
+    mdl_params = {}
+    keys = ('chan4_n','filt4_size')
+    for k in keys:
+        if k in kwargs:
+            mdl_params[k] = kwargs[k]
+        else:
+            mdl_params[k] = 0
+    
+    sigma = 0.1
+    
+    y = inputs
+    # y = BatchNormalization(axis=-3,epsilon=1e-7)(y)
+    y = Reshape((y.shape[1],y.shape[-2]*y.shape[-1]),dtype=dtype)(y)
+    y = photoreceptor_REIKE(pr_params,units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    y = LayerNormalization(axis=-3,epsilon=1e-7)(y)      # Along the temporal axis
+
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+        
+    if MaxPool > 0:
+        if MaxPool==1:  # backwards compatibility
+            MaxPool=2
+        y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
+    if BatchNorm is True: 
+        y_shape = y.shape
+        y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True: 
+            y_shape = y.shape
+            y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True: 
+            y_shape = y.shape
+            y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y_shape = y.shape
+        y = Reshape(y_shape[1:])(BatchNormalization(axis=-1)(Flatten()(y)))
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+
+    outputs = Activation('softplus',dtype='float32')(y)
+
+    mdl_name = 'PRFR_CNN2D_NEW'
     return Model(inputs, outputs, name=mdl_name)
