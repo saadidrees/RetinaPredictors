@@ -50,7 +50,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets,isintuple, dataset_shuffle
     from model.data_handler_mike import load_h5Dataset
-    from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer, estimate_noise
+    from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer, estimate_noise,get_layerIdx
     import model.metrics as metrics
     import model.models_primate  # can improve this by only importing the model that is being used
     import model.paramsLogger
@@ -370,7 +370,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                     mdl.layers[l].trainable = True
                     mdl.layers[l].set_weights([np.random.normal(size=w.shape) for w in mdl.layers[l].get_weights()])
                     
-                
+            if BatchNorm_train==0:
+                bn_layers_idx = get_layerIdx(mdl,'batch_normalization')
+                for l in bn_layers_idx:
+                    mdl.layers[l].trainable = False
+
+            
         
     path_save_model_performance = os.path.join(path_model_save,'performance')
     if not os.path.exists(path_save_model_performance):
@@ -456,8 +461,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     if bz not in lr_scheduler_config:
         lr_scheduler_config['bz'] = bz
-        if 'steps_drop' in lr_scheduler_config:
-            lr_scheduler_config['steps_drop'] = lr_scheduler_config['steps_drop']*bz
+    #     if 'steps_drop' in lr_scheduler_config:
+    #         lr_scheduler_config['steps_drop'] = lr_scheduler_config['steps_drop']*bz
 
     t_elapsed = 0
     t = time.time()

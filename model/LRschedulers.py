@@ -12,14 +12,15 @@ from tensorflow.keras.optimizers.schedules import LearningRateSchedule
 from tensorflow import keras
 
 class printLR_constant(keras.callbacks.Callback):
-    def __init__(self,scheduler):
-        self.scheduler=scheduler
+    def __init__(self,config):
+        self.config=config
         
     def on_epoch_end(self, epoch, logs=None):
-        if self.scheduler=='constant':
-            lr = tf.keras.backend.eval(self.model.optimizer.learning_rate)
-        else:
-            lr = tf.keras.backend.eval(self.model.optimizer.learning_rate(epoch*self.scheduler['bz']))
+        # if self.config['scheduler']=='constant':
+        #     lr = tf.keras.backend.eval(self.model.optimizer.learning_rate)
+        # else:
+            # lr = tf.keras.backend.eval(self.model.optimizer.learning_rate(epoch*self.config['bz']))
+        lr = tf.keras.backend.eval(self.model.optimizer.learning_rate)
         print("Epoch - {:d} | LR - {:.2E}".format(epoch,lr))
             
 
@@ -32,7 +33,7 @@ def stepLR(step,config):
     return lr_new
 
 @tf.function
-def linearLR(step,config):
+def linear(step,config):
     initial_lr = config['initial_lr']
     decay = config['decay']
     if config['steps_constant'] > step:
@@ -70,9 +71,9 @@ def getConfig(lr,scheduler,bz):
             initial_lr=lr,
             scheduler=scheduler,
             drop=0.5,
-            steps_drop=10*bz)       # basically epochsxbz = steps
+            steps_drop=1*bz)       # basically epochsxbz = steps
 
-    elif scheduler=='linearLR':
+    elif scheduler=='linear':
         config = dict(
             initial_lr=lr,
             scheduler=scheduler,
