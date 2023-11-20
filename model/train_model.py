@@ -58,10 +58,10 @@ def chunker(data,batch_size,mode='default'):
 
 
 def lr_scheduler(epoch,lr):
-    arr_scheduler = np.array([[3,1],
+    arr_scheduler = np.array([[1,1],
                           [10,1],
-                          [15,10],
-                          [30,10],
+                          [20,10],
+                          [30,1],
                           [50,10],
                           [100,1],
                           [200,1],
@@ -74,7 +74,16 @@ def lr_scheduler(epoch,lr):
         idx = idx[0]
         lr_fac = arr_scheduler[idx,1]
         lr = lr/lr_fac
-    
+    return lr
+
+
+def lr_scheduler_linear(epoch,lr):
+    if epoch>3:
+        decay = 1.05
+        lr = lr/decay
+    else:
+        lr = lr
+        
     return lr
 
 
@@ -98,11 +107,19 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
         lr = lr
     else:
         print(lr_scheduler_config['scheduler'])
-        lr = model.LRschedulers.CustomLRSchedule(lr_scheduler_config)
+        lr = lr
+        # lr = model.LRschedulers.CustomLRSchedule(lr_scheduler_config)
     
 
+    # lr_scheduler_exp = tf.keras.optimizers.schedules.ExponentialDecay(
+    #                 lr,
+    #                 decay_steps=10,
+    #                 decay_rate=0.96,
+    #                 staircase=True)
 
+    # optimizer = Adam(lr_scheduler_exp)
     optimizer = Adam(lr)
+
     mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
 
     if initial_epoch>0:
@@ -115,8 +132,8 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
             mdl.load_weights(os.path.join(path_model_save,weight_file))
             
 
-        if lr_scheduler_config['scheduler']=='constant':
-            tf.keras.backend.set_value(mdl.optimizer.learning_rate, lr/lr_fac)  # lr_fac controls how much to divide the learning rate whenever training is resumed
+        # if lr_scheduler_config['scheduler']=='constant':
+        tf.keras.backend.set_value(mdl.optimizer.learning_rate, lr/lr_fac)  # lr_fac controls how much to divide the learning rate whenever training is resumed
 
             
     # mdl.compile(loss='mean_squared_error', optimizer=Adam(lr), metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
@@ -128,14 +145,17 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
     cbs = [cb.ModelCheckpoint(os.path.join(path_model_save, fname_cb),save_weights_only=True),
            cb.TensorBoard(log_dir=path_model_save, histogram_freq=0, write_grads=True),
            cb.CSVLogger(os.path.join(path_model_save, fname_excel)),
-           model.LRschedulers.printLR_constant(lr_scheduler_config['scheduler'])]
+           model.LRschedulers.printLR_constant(lr_scheduler_config)]
             # cb.ReduceLROnPlateau(monitor='loss',min_lr=1e-6, factor=0.2, patience=5),
     if USE_WANDB!=0:
        cbs.append(WandbMetricsLogger())
 
     
     if use_lrscheduler==1:
-        cbs.append(cb.LearningRateScheduler(lr_scheduler))
+        if lr_scheduler_config['scheduler']=='constant' :
+            cbs.append(cb.LearningRateScheduler(lr_scheduler))
+        elif lr_scheduler_config['scheduler']=='linear' :
+            cbs.append(cb.LearningRateScheduler(lr_scheduler_linear))
 
     if USE_CHUNKER==0:  # load all data into gpu ram
         mdl_history = mdl.fit(x=data_train.X, y=data_train.y, batch_size=bz, epochs=nb_epochs,
