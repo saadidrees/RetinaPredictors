@@ -80,6 +80,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     if 'PR' not in mdl_name:
         tf.compat.v1.disable_eager_execution()
+        
     
     if runOnCluster==1:
         USE_WANDB=0
@@ -89,7 +90,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         path_existing_mdl=''
         
     if pr_params_name==0 or pr_params_name=='0':
-        pr_params_name==''
+        pr_params_name=''
         
     # if only 1 layer cnn then set all parameters for next layers to 0
     if chan2_n == 0:
