@@ -371,10 +371,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                     mdl.layers[l].trainable = True
                     mdl.layers[l].set_weights([np.random.normal(size=w.shape) for w in mdl.layers[l].get_weights()])
                     
-            if BatchNorm_train==0:
-                bn_layers_idx = get_layerIdx(mdl,'batch_normalization')
-                for l in bn_layers_idx:
-                    mdl.layers[l].trainable = False
+            # if BatchNorm_train==0:
+            #     bn_layers_idx = get_layerIdx(mdl,'batch_normalization')
+            #     for l in bn_layers_idx:
+            #         mdl.layers[l].trainable = False
 
             
         
