@@ -161,7 +161,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         dict_val[fname_data_train_val_test_all[d]] = data_val
         dict_test[fname_data_train_val_test_all[d]] = data_test
 
-    
+# %%   
     # Get RGC type info
     
 # Arrange data according to the model

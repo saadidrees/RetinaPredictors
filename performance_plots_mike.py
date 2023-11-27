@@ -15,14 +15,14 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 import socket
 
-hostname=socket.gethostname()
+hostname=socket.gethostname() 
 if hostname=='sandwolf':
     base = '/home/saad/data_hdd/'
 elif hostname=='sandhound':
     base = '/home/saad/postdoc_db/'
 
-base = '/home/saad/postdoc_db/'
-#base = '/home/saad/data_hdd/'
+# base = '/home/saad/postdoc_db/'
+base = '/home/saad/data_hdd/'
 
 
 from scipy.stats import wilcoxon
@@ -40,6 +40,8 @@ from model.performance import getModelParams, model_evaluate,model_evaluate_new,
 from model import metrics
 from model import featureMaps
 from model.models import modelFileName
+from model.train_model import chunker
+
 # from pyret.filtertools import sta, decompose
 # import seaborn
 
@@ -49,6 +51,7 @@ for device in gpu_devices:
     tf.config.experimental.set_memory_growth(device, True)
 from tensorflow.keras import Model
 from tensorflow.keras.layers import BatchNormalization, Input, Reshape
+from model.train_model import chunker
 
 
 
@@ -56,10 +59,11 @@ from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = 'finetuning'
-lightLevel_1 = ('NATSTIM3_photopic-Rstar',)#'CB_photopic-Rstar') #('CB_photopic-Rstar','NATSTIM_photopic-Rstar') # ('NATSTIM_photopic-Rstar',)
-lightLevel_2 = ('CB_photopic-Rstar',)#('CB_photopic-Rstar',)
-models_all = ('CNN_2D_NORM2',) # (PR_CNN2D, 'CNN_2D','CNN_3D','CNN_3D_LSTM','convLSTM','BP_CNN2D_PRFRTRAINABLEGAMMA','BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA')  
+mdl_subFold = 'cluster'
+lightLevel_1 =  ('CB_CORR_mesopic-Rstar_f4_8ms',)
+lightLevel_2 = ()#('CB_CORR_mesopic-Rstar_f4_8ms',)#('NATSTIM3_photopic-Rstar_f4',)
+models_all = ('CNN2D_NEW','PRFR_CNN2D_NEW') # 
+pr_params_name = 'mike_phot_trainable'
 
 writeToCSV = False
 
@@ -112,7 +116,7 @@ params_allExps = {} # Dict containing parameter values for all experiments, mode
 paramNames_allExps = {} #Dict containing the folder name of the model, which is basically concatenating the params together
 
 idx_exp = 0
-mdl_select = models_all[0]
+select_mdl = models_all[0]
 
 for idx_exp in range(len(expDates)):
     
@@ -135,22 +139,26 @@ for idx_exp in range(len(expDates)):
     # -- this is temporary here for extracting median response of units
 
     
-    # mdl_select = models_all[0]
-    for mdl_select in models_all:
+    # select_mdl = models_all[0]
+    for select_mdl in models_all:
 
         if writeToCSV==True:
-            fname_csv_file = 'performance_'+exp_select+'_'+lightLevel_1+'_avgAcrossTrials_'+mdl_select+'.csv'
+            fname_csv_file = 'performance_'+exp_select+'_'+lightLevel_1+'_avgAcrossTrials_'+select_mdl+'.csv'
             fname_csv_file = os.path.join(path_save_performance,fname_csv_file)
             with open(fname_csv_file,'a',encoding='utf-8') as csvfile:
                 csvwriter = csv.writer(csvfile) 
                 csvwriter.writerow(csv_header) 
 
-        # Get the folder names (paramNames) for the different runs of mdl_select
-        paramNames_temp = os.listdir(os.path.join(path_mdl_drive,mdl_select))
+        # Get the folder names (paramNames) for the different runs of select_mdl
+        path_mdl = os.path.join(path_mdl_drive,select_mdl)
+        if 'PRFR' in select_mdl or pr_params_name=='0':
+            path_mdl = os.path.join(path_mdl,pr_params_name)
+
+        paramNames_temp = os.listdir(path_mdl)
         paramNames = ([])
         for p in paramNames_temp:
             try:     # some model runs are incomplete so don't consider them. They will not contain the performance file
-                if os.listdir(os.path.join(path_mdl_drive,mdl_select,p,'performance')):
+                if os.listdir(os.path.join(path_mdl,p,'performance')):
                     paramNames.append(p)
             except:
                 pass
@@ -198,7 +206,7 @@ for idx_exp in range(len(expDates)):
             for c_tr in range(num_trials):
             
                 paramFileName = paramNames[idx_paramName[param_unique_idx][c_tr]]
-                paramName_path = os.path.join(path_mdl_drive,mdl_select,paramFileName)
+                paramName_path = os.path.join(path_mdl,paramFileName)
                 fname_performanceFile = os.path.join(paramName_path,'performance',exp_select+'_'+paramFileName+'.h5')
         
                 f = h5py.File(fname_performanceFile,'r')
@@ -319,7 +327,7 @@ for idx_exp in range(len(expDates)):
             
             
             if writeToCSV == True:
-                csv_data = [mdl_select,exp_select,filt_temporal_width,rgb['C1_n'], rgb['C1_s'], rgb['C1_3d'], rgb['C2_n'], rgb['C2_s'], rgb['C2_3d'], rgb['C3_n'], rgb['C3_s'], rgb['C3_3d'],np.nanmean(fev_medianUnits_bestEpoch_allTr),fracExVar_medianUnits,np.mean(predCorr_medianUnits_bestEpoch_allTr),rrCorr_medianUnits]
+                csv_data = [select_mdl,exp_select,filt_temporal_width,rgb['C1_n'], rgb['C1_s'], rgb['C1_3d'], rgb['C2_n'], rgb['C2_s'], rgb['C2_3d'], rgb['C3_n'], rgb['C3_s'], rgb['C3_3d'],np.nanmean(fev_medianUnits_bestEpoch_allTr),fracExVar_medianUnits,np.mean(predCorr_medianUnits_bestEpoch_allTr),rrCorr_medianUnits]
                 with open(fname_csv_file,'a',encoding='utf-8') as csvfile:
                         csvwriter = csv.writer(csvfile) 
                         csvwriter.writerow(csv_data) 
@@ -330,9 +338,9 @@ for idx_exp in range(len(expDates)):
             
             # p_U
             
-        perf_allModels[mdl_select] = perf_paramNames
-        params_allModels[mdl_select] = param_list
-        paramNames_allModels[mdl_select] = paramNames_unique
+        perf_allModels[select_mdl] = perf_paramNames
+        params_allModels[select_mdl] = param_list
+        paramNames_allModels[select_mdl] = paramNames_unique
 
         
     perf_allExps[exp_select] = perf_allModels       
@@ -343,18 +351,17 @@ for idx_exp in range(len(expDates)):
 # del perf_allModels, perf_paramNames, performance, perf_group, param_list, params_allModels, paramNames_allModels, paramNames
 
 
- 
 # %% D1: Test model
 select_exp = expDates[0]
-select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
+select_mdl = models_all[1] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 # params_mdl = params_allExps[select_exp][select_mdl]
 
 val_dataset_1 = lightLevel_1 #'scot-3-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' #lightLevel_1  #lightLevel_1 #      # ['scotopic','photopic']
 correctMedian = False
 
-select_LR = '0.0001'
+select_LR = '0.001'
 select_U = 57
-select_P = 0
+select_P = 140
 select_T = 120
 select_BN = 1
 select_MP = 2
@@ -369,7 +376,7 @@ select_C2_3d = 0
 select_C3_n = 30 
 select_C3_s = 5
 select_C3_3d = 0
-select_TRSAMPS = -1
+select_TRSAMPS = 20
 
 paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP=select_MP,LR=select_LR,CB_n=select_CB,
                  C1_n=select_C1_n,C1_s=select_C1_s,C1_3d=select_C1_3d,
@@ -383,14 +390,27 @@ paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP
 # assert val_dataset_1 != val_dataset_1, 'same datasets selected'
 
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
-# idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
-idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
+idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+# idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
 trial_num = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
-plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][1:,idx_bestTrial])
+plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][5:,idx_bestTrial])
 select_TR = int(trial_num)
 
+unames = np.array(perf_allExps[select_exp][select_mdl][paramFileName]['data_quality']['uname_selectedUnits'])
+
+
 mdlFolder = paramFileName+'_TR-%02d' % select_TR
-path_model = os.path.join(path_mdl_drive,select_mdl,mdlFolder)
+path_model = os.path.join(path_mdl_drive,select_mdl)
+if 'PRFR' in select_mdl and pr_params_name !='':
+    path_model = os.path.join(path_model,pr_params_name)
+else:
+    try:
+        tf.compat.v1.disable_eager_execution()
+    except:
+        pass
+
+
+path_model = os.path.join(path_model,mdlFolder)
 mdl = load(os.path.join(path_model,mdlFolder))
 fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
 try:
@@ -413,7 +433,7 @@ dict_test = {}
 dict_val = {}
 dict_train = {}
 for d in range(len(fname_data_train_val_test_all)):
-    rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=0.1,nsamps_test=0.1,nsamps_train=0.05,LOAD_TR=True)
+    rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=0.5,nsamps_test=0.1,nsamps_train=0.05,LOAD_TR=True)
     data_train=rgb[0];
     data_val = rgb[1];
     data_test = rgb[2];
@@ -426,7 +446,7 @@ for d in range(len(fname_data_train_val_test_all)):
 
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
 
-    if select_mdl[:6]=='CNN_2D' or select_mdl == 'replaceDense_2D':
+    if select_mdl[:6]=='CNN_2D' or select_mdl == 'replaceDense_2D' or select_mdl[:5]=='CNN2D':
         data_train = prepare_data_cnn2d(data_train,select_T,np.arange(data_train.y.shape[1]))
         data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
         data_test = prepare_data_cnn2d(data_test,select_T,np.arange(data_test.y.shape[1]))
@@ -434,10 +454,11 @@ for d in range(len(fname_data_train_val_test_all)):
         data_val = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
         # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
         
-    elif select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D' or select_mdl[:8]=='BP_CNN2D' or select_mdl=='BPFELIX_CNN2D':
+    elif 'PR' in select_mdl:
         pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
-        data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
-        obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
+        data_val = prepare_data_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
+        data_test = prepare_data_cnn2d(data_test,pr_temporal_width,np.arange(data_test.y.shape[1]))
+
     
     elif select_mdl[:8]=='PR_CNN3D':
         pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
@@ -448,7 +469,7 @@ for d in range(len(fname_data_train_val_test_all)):
     dict_val[fname_data_train_val_test_all[d]] = data_val
     dict_test[fname_data_train_val_test_all[d]] = data_test
 
-data_train = model.data_handler.merge_datasets(dict_train)
+# data_train = model.data_handler.merge_datasets(dict_train)
 data_val = model.data_handler.merge_datasets(dict_val)
 data_test = model.data_handler.merge_datasets(dict_test)
 
@@ -516,18 +537,18 @@ if correctMedian==True:
 
     
 else:
-    # from model.train_model import chunker
-    # batch_size = 64
-    # gen = chunker(data_val_select,batch_size=batch_size)    
-    # steps_per_epoch = int(np.ceil(len(data_val_select.X)/batch_size))
-    # pred_rate = mdl.predict_generator(gen,steps=steps_per_epoch)
-    pred_rate = mdl.predict(data_val_select.X,batch_size = 4)
-    
+    batch_size = 32
+    gen = chunker(data_val_select,batch_size=batch_size)    
+    steps_per_epoch = int(np.ceil(len(data_val_select.X)/batch_size))
+    pred_rate = mdl.predict_generator(gen,steps=steps_per_epoch)
+    # pred_rate = mdl.predict(data_val_select.X,batch_size = 16)
 
+"""
+pred_rate = pred_rate*10
+"""
 # obs_rate = data_test.y
 # pred_rate = mdl.predict(data_test.X)
-
-# %%
+# 
 samps_shift = 0#parameters['samps_shift']
 num_iters = 1
 fev_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
@@ -547,8 +568,9 @@ rrCorr_d1_allUnits = np.mean(rrCorr_d1_allUnits,axis=1)
 
 idx_allUnits = np.arange(fev_d1_allUnits.shape[0])
 idx_d1_valid = idx_allUnits
-# idx_d1_valid = np.logical_and(fev_d1_allUnits>-1,fev_d1_allUnits<1.1)
-# idx_d1_valid = idx_allUnits[idx_d1_valid]
+idx_d1_valid = fev_d1_allUnits<1.1
+idx_d1_valid = idx_allUnits[idx_d1_valid]
+print('N = %d RGCs'%len(idx_d1_valid))
 
 # fev_d1_validUnits = fev_d1_allUnits[idx_d1_valid]
 # predCorr_d1_validUnits = predCorr_d1_allUnits[idx_d1_valid]
@@ -570,6 +592,19 @@ rrCorr_d1_stdUnits = np.std(rrCorr_d1_allUnits[idx_d1_valid])
 rrCorr_d1_ci = 1.96*(rrCorr_d1_stdUnits/len(idx_d1_valid)**.5)
 
 
+idx_units_sorted = np.argsort(fev_d1_allUnits[idx_d1_valid])
+idx_units_sorted = idx_d1_valid[idx_units_sorted]
+idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[-3],idx_units_sorted[-4]]
+# idx_unitsToPred = [51,27,30,56]
+uname_sorted = unames[idx_units_sorted]
+idx_on = np.intersect1d(np.arange(0,27),idx_d1_valid)
+idx_off = np.intersect1d(np.arange(27,57),idx_d1_valid)
+
+fev_median_on = np.nanmedian(fev_d1_allUnits[idx_on])
+fev_median_off = np.nanmedian(fev_d1_allUnits[idx_off])
+print('FEV_ON = %0.2f' %(fev_median_on*100))
+print('FEV_OFF = %0.2f' %(fev_median_off*100))
+
 
 if len(dict_dsetPerf)>0:
     for key in dict_dsetPerf.keys():
@@ -581,16 +616,19 @@ if len(dict_dsetPerf)>0:
         dict_dsetPerf[key]['predCorr_d1_allUnits'] = rgb_predCorr_d1_allUnits
         dict_dsetPerf[key]['predCorr_d1_medianUnits'] = np.nanmedian(rgb_predCorr_d1_allUnits[idx_d1_valid])
         
+        dict_dsetPerf[key]['fev_d1_median_ON'] = np.nanmedian(rgb_fev_d1_allUnits[idx_on])
+        dict_dsetPerf[key]['fev_d1_median_OFF'] = np.nanmedian(rgb_fev_d1_allUnits[idx_off])
+
         print('%s: FEV = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_medianUnits']*100))
         print('%s: R = %0.2f'%(key,dict_dsetPerf[key]['predCorr_d1_medianUnits']))
+        print('%s: FEV_ON = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_median_ON']*100))
+        print('%s: FEV_OFF = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_median_OFF']*100))
 
-idx_units_sorted = np.argsort(predCorr_d1_allUnits[idx_d1_valid])
-idx_units_sorted = idx_d1_valid[idx_units_sorted]
-idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[-3],idx_units_sorted[-4]]
-# idx_unitsToPred = [48,55,45,44]
-t_start = 10
+
+
+t_start = 0
 t_dur = obs_rate.shape[0]
-t_end = 500#t_dur-20
+t_end = 1000#t_dur-20
 win_display = (t_start,t_start+t_dur)
 font_size_ticks = 12
 font_size_leg = 16
@@ -618,87 +656,77 @@ for i in range(len(idx_unitsToPred)):
     plt.setp(axs[i].get_xticklabels(), fontsize=font_size_ticks)
 
 
-
 # %%
 
-val_select = 'data_val'
-data_val_select = eval(val_select)
-
-print('Validation dataset: %s'%val_select)
-
-if isintuple(data_val_select,'dset_names'):
-    rgb = data_val_select.dset_names
-    idx_natstim = [i for i,n in enumerate(rgb) if re.search(r'NATSTIM',n)]
-    idx_cb = [i for i,n in enumerate(rgb) if re.search(r'CB',n)]
+"""
+idx_valid = fev_d1_allUnits<1.1
+idx_valid = idx_allUnits[idx_valid]
+fev_pr = fev_d1_allUnits[idx_valid].copy()*100
+fev_pr_med = np.median(fev_pr)
+fev_std_pr = np.nanstd(fev_pr)
+fev_ci_pr = 1.96*(fev_std_pr/len(idx_valid)**.5)
 
 
-X = np.moveaxis(data_val.X,0,-1)
-X = np.reshape(X,(X.shape[0],X.shape[1],X.shape[2],int(X.shape[3]/2),2),order='A')
+fev_cnn = fev_d1_allUnits[idx_valid].copy()*100
+fev_cnn_med = np.median(fev_cnn)
+fev_std_cnn = np.nanstd(fev_cnn)
+fev_ci_cnn = 1.96*(fev_std_cnn/len(idx_valid)**.5)
 
-obs_rate = obs_rate_allStimTrials_d1
+--------
 
-if correctMedian==True:
-    fname_data_train_val_test_d1 = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
-    _,_,_,_,_,_,resp_med_d1 = load_h5Dataset(fname_data_train_val_test_d1)
-    resp_med_d1 = np.nanmedian(resp_med_d1['train'],axis=0)
-    resp_med_d2 = np.nanmedian(resp_orig,axis=0)
-    resp_mulFac = resp_med_d2/resp_med_d1;
-    
-    pred_rate = mdl.predict(data_val_select.X)
-    pred_rate = pred_rate * resp_mulFac[None,:]
-
-    
-else:
-    from model.train_model import chunker
-    # batch_size = 128
-    # gen = chunker(data_val_select,batch_size=batch_size)    
-    # steps_per_epoch = int(np.ceil(len(data_val_select.X)/batch_size))
-    # pred_rate = mdl.predict_generator(gen,steps=steps_per_epoch)
-    pred_rate = mdl.predict(data_val_select.X,batch_size = 128)
+idx_valid = dict_dsetPerf['NATSTIM3_CORR_mesopic']['fev_d1_allUnits']<1.1
+idx_valid = idx_allUnits[idx_valid]
+fev_pr = dict_dsetPerf['NATSTIM3_CORR_mesopic']['fev_d1_allUnits'][idx_valid].copy()*100
+fev_pr_med = np.median(fev_pr)
+fev_std_pr = np.nanstd(fev_pr)
+fev_ci_pr = 1.96*(fev_std_pr/len(idx_valid)**.5)
 
 
-# %%
-fevs = [fev_d1_medianUnits,0]
-cis = [fev_d1_ci,0]
-fig,axs = plt.subplots(2,1,figsize=(5,10))
-fig.suptitle('Training: '+lightLevel_1,fontsize=16)
+fev_cnn = dict_dsetPerf['NATSTIM3_CORR_mesopic']['fev_d1_allUnits'][idx_valid].copy()*100
+fev_cnn_med = np.median(fev_cnn)
+fev_std_cnn = np.nanstd(fev_cnn)
+fev_ci_cnn = 1.96*(fev_std_cnn/len(idx_valid)**.5)
+
+
+
+"""
+# import seaborn as sns
+
+fevs = [fev_cnn,fev_pr]
+fevs_med = np.median(fevs,axis=1)
+print('median FEVs: CNN = %0.2f | PR-CNN = %0.2f'%(np.median(fev_cnn),np.median(fev_pr)))
+cis = [fev_ci_cnn,fev_ci_pr]
+fig,axs = plt.subplots(1,1,figsize=(5,5))
+axs = np.ravel(axs)
+fig.suptitle('Training: '+lightLevel_1[0],fontsize=16)
 font_size_ticks = 20
 
-col_scheme = ('darkgrey',cols_lightLevels[val_dataset_1[:8]])
+col_scheme = ('blue','green')
 # ax.yaxis.grid(True)
-xlabel = [val_dataset_1,'']
-axs[0].bar(xlabel,fevs,yerr=cis,align='center',capsize=6,alpha=.7,color=[col_scheme[1]],width=0.4)
-axs[0].set_ylabel('FEV',fontsize=font_size_ticks)
+xlabel = ['CNN','PR-CNN']
+axs[0].boxplot(fevs)
+axs[0].set_xticklabels(xlabel)
+
+# axs[0].boxplot(xlabel,fevs,yerr=cis,align='center',capsize=6,alpha=.7,color=[col_scheme],width=0.4)
+axs[0].set_ylabel('FEV (%)',fontsize=font_size_ticks)
 axs[0].set_title('',fontsize=font_size_ticks)
-axs[0].set_ylim((0,1.1))
-axs[0].set_yticks(np.arange(0,1.1,.2))
-axs[0].text(-0.2,1,'FEV = %0.2f' %fevs[0],fontsize=font_size_ticks)
+axs[0].set_yticks(np.arange(-40,100,10))
+axs[0].set_ylim((-50,100))
+
+# axs[0].text(-0.2,1,'FEV = %0.2f' %fevs[0],fontsize=font_size_ticks)
 axs[0].tick_params(axis='both',labelsize=font_size_ticks)
-
-
-fevs = [predCorr_d1_medianUnits,0]
-cis = [predCorr_d1_ci,0]
-xlabel = [val_dataset_1,'']
-axs[1].bar(xlabel,fevs,yerr=cis,align='center',capsize=6,alpha=.7,color=[col_scheme[1]],width=0.4)
-axs[1].set_ylabel('Correlation Coeff',fontsize=font_size_ticks)
-axs[1].set_title('',fontsize=font_size_ticks)
-axs[1].set_ylim((0,1.1))
-axs[1].set_yticks(np.arange(0,1.1,.2))
-# axs[0].text(.75,.45,'N = %d RGCs' %fev_allUnits.shape[1],fontsize=font_size_ticks)
-axs[1].tick_params(axis='both',labelsize=font_size_ticks)
-
-_ = gc.collect()
+# _ = gc.collect()
 
 # %% D2: Test model
 transferModel = False
 if transferModel == True:
-    mdl_select_d2 = 'PRFR_CNN2D'
+    select_mdl_d2 = 'PRFR_CNN2D'
     subFold_d2 = subFold
     idx_mdl_start = 1
     idx_mdl_end = 4
     
 else:
-    mdl_select_d2 = mdl_select
+    select_mdl_d2 = select_mdl
     subFold_d2 = subFold
     idx_currMdl_start = 0#4
 
@@ -726,19 +754,19 @@ for v_idx in range(len(val_dataset_2_all)):
     
     filt_width = filt_temporal_width
     
-    if mdl_select_d2[:6]=='CNN_2D' or mdl_select_d2 == 'replaceDense_2D':
+    if select_mdl_d2[:6]=='CNN_2D' or select_mdl_d2 == 'replaceDense_2D':
         data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
         # data_test = prepare_data_cnn2d(data_test,select_T,np.arange(data_test.y.shape[1]))
-    elif mdl_select_d2[:6]=='CNN_3D':
+    elif select_mdl_d2[:6]=='CNN_3D':
         data_val = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
         # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
         
-    elif mdl_select_d2[:8]=='PR_CNN2D' or mdl_select_d2[:10]=='PRFR_CNN2D' or mdl_select_d2[:8]=='BP_CNN2D' or select_mdl=='BPFELIX_CNN2D':
+    elif select_mdl_d2[:8]=='PR_CNN2D' or select_mdl_d2[:10]=='PRFR_CNN2D' or select_mdl_d2[:8]=='BP_CNN2D' or select_mdl=='BPFELIX_CNN2D':
         pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
         data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
         obs_rate_allStimTrials_d2 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
     
-    elif mdl_select_d2[:8]=='PR_CNN3D':
+    elif select_mdl_d2[:8]=='PR_CNN3D':
         pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
         data_val = prepare_data_cnn3d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
     
@@ -775,7 +803,7 @@ for v_idx in range(len(val_dataset_2_all)):
             else:
                 y = layer(y)
             
-        mdl_d2 = Model(x, y, name=mdl_select_d2)
+        mdl_d2 = Model(x, y, name=select_mdl_d2)
     else:
         mdl_d2 = mdl
         
@@ -983,18 +1011,20 @@ axs[0].legend(loc='best',fontsize=font_size_labels)
 
 
 # %% D1: Heat maps
-RECALC_PERF = 0
+RECALC_PERF = 1
 select_exp = '20230725C'
-select_mdl = models_all[0]
-select_param_x = 'C2_s'
-select_param_y = 'C3_s'
-select_param_z = 'C1_s'
+select_mdl = models_all[1]
+pr_params_name = 'mike_phot_trainable'
+select_param_x = 'TRSAMPS' #'C2_n'
+select_param_y = 'T' #'C3_n'
+select_param_z = 'C1_n'
 thresh_fev = -1000
 
 params_mdl = params_allExps[select_exp][select_mdl]
 
 select_U = 57
-select_T = 120
+select_P = 0
+select_T = np.array([120]) #np.unique(params_mdl['T'])
 select_BN = 1
 select_MP = 2
 # select_TR = 1
@@ -1007,6 +1037,7 @@ select_C2_3d = np.unique(params_mdl['C2_3d'])
 select_C3_n = np.unique(params_mdl['C3_n'])#25
 select_C3_s = np.unique(params_mdl['C3_s'])
 select_C3_3d = np.unique(params_mdl['C3_3d'])
+select_TRSAMPS = np.unique(params_mdl['TRSAMPS'])
 
 idx_interest = np.in1d(params_mdl['U'],select_U)
 idx_interest = idx_interest & np.in1d(params_mdl['T'],select_T)
@@ -1026,6 +1057,8 @@ idx_interest = idx_interest & np.in1d(params_mdl['C3_n'],select_C3_n)
 idx_interest = idx_interest & np.in1d(params_mdl['C3_s'],select_C3_s)
 idx_interest = idx_interest & np.in1d(params_mdl['C3_3d'],select_C3_3d)
 
+idx_interest = idx_interest  &  np.in1d(params_mdl['TRSAMPS'],select_TRSAMPS)
+
 # make array of all fevs for min max vals
 fev_grand = ([])
 for i in perf_allExps[select_exp][select_mdl]:
@@ -1038,34 +1071,6 @@ for i in perf_allExps[select_exp][select_mdl]:
 fev_min, fev_max = np.round(np.nanmin(fev_grand),2), np.round(np.nanmax(fev_grand),2)
 fev_min, fev_max = fev_min-.01, fev_max+.01
 
-
-# get datasets if recalc_perf==1
-if RECALC_PERF==1:
-    val_dataset_1 = lightLevel_1
-    paramName = paramNames_allExps[select_exp][select_mdl][0]
-    
-    fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
-    _,data_val,_,_,dataset_rr,parameters,resp_orig = load_h5Dataset(fname_data_train_val_test)
-    samps_shift = int(np.array(parameters['samps_shift']))
-    
-    filt_temporal_width = select_T
-    obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
-    
-    
-    if select_mdl[:6]=='CNN_2D' or select_mdl == 'replaceDense_2D':
-        data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
-    elif select_mdl[:6]=='CNN_3D':
-        data_val = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
-        
-    elif select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D' or select_mdl[:8]=='BP_CNN2D' or select_mdl=='BPFELIX_CNN2D':
-        pr_temporal_width = perf_allExps[select_exp][select_mdl][paramName]['model_params']['pr_temporal_width']
-        data_val = prepare_data_pr_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
-        obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
-        
-    else:
-        raise ValueError('model data handler not found')
-    
-    obs_rate = data_val.y
 
 # plot heatmap
 
@@ -1093,7 +1098,73 @@ for i in idx_interest:
             fev_heatmap[idx_y,idx_x,idx_z] = rgb
 
     else:
-        pred_rate = perf_allExps[select_exp][select_mdl][paramName]['dataset_pred']['pred_rate']
+               
+        idx_bestTrial = np.argsort(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
+        select_TR = idx_bestTrial[-1] + 1
+        mdlFolder = paramName+'_TR-%02d' % select_TR
+        idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
+        # idx_bestEpoch = np.argmax(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+        # idx_bestEpoch = np.argsort(np.squeeze(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial]))[-2]
+        fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
+
+        
+        curr_params = getModelParams(mdlFolder)
+        # get datasets if recalc_perf==1
+        if RECALC_PERF==1:
+            val_dataset_1 = lightLevel_1[0]
+            
+            fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
+            rgb = load_h5Dataset(fname_data_train_val_test,nsamps_val=0.5,nsamps_test=0.1,nsamps_train=0.05,LOAD_TR=True)
+            data_val = rgb[1];
+            data_quality = rgb[3]
+
+            if select_mdl[:6]=='CNN_2D' or select_mdl == 'replaceDense_2D' or select_mdl[:5]=='CNN2D':
+                data_val = prepare_data_cnn2d(data_val,curr_params['T'],np.arange(data_val.y.shape[1]))
+
+            elif 'PR' in select_mdl:
+                data_val = prepare_data_cnn2d(data_val,curr_params['P'],np.arange(data_val.y.shape[1]))
+
+            samps_shift = 0
+            
+            if data_val.y.ndim==3:
+                obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1
+            else:
+                obs_rate_allStimTrials_d1 = data_val.y
+
+            # obs_rate = obs_rate_allStimTrials_d1.copy()
+            obs_rate = data_val.y
+            if 'var_noise' in data_quality:
+                obs_noise = data_quality['var_noise'] #estimate_noise(data_test.y_trials)
+            else:
+                obs_noise = 0
+
+
+
+
+        if 'PR' in select_mdl:
+            path_model = os.path.join(path_mdl_drive,select_mdl,pr_params_name,mdlFolder)
+        else:
+            path_model = os.path.join(path_mdl_drive,select_mdl,mdlFolder)
+            try:
+                tf.compat.v1.disable_eager_execution()
+            except:
+                pass
+
+        mdl = load(os.path.join(path_model,mdlFolder))
+
+        try:
+            mdl.load_weights(os.path.join(path_model,fname_bestWeight))
+        except:
+            mdl.load_weights(os.path.join(path_model,fname_bestWeight+'.h5'))
+        weights_dict = get_weightsDict(mdl)
+
+        # pred_rate = mdl.predict(data_val.X)
+        batch_size = 16
+        gen = chunker(data_val,batch_size=batch_size)    
+        steps_per_epoch = int(np.ceil(len(data_val.X)/batch_size))
+        pred_rate = mdl.predict_generator(gen,steps=steps_per_epoch)
+        # pred_rate = mdl.predict(data_val.X,batch_size = 4)
+
 
         num_iters = 1
         fev_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
@@ -1102,15 +1173,16 @@ for i in idx_interest:
         rrCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
         
         for j in range(num_iters):
-            fev_d1_allUnits[:,j], fracExplainableVar[:,j], predCorr_d1_allUnits[:,j], rrCorr_d1_allUnits[:,j] = model_evaluate_new(obs_rate_allStimTrials_d1,pred_rate,0,RR_ONLY=False,lag = samps_shift)
-        
+            fev_d1_allUnits[:,j], fracExplainableVar[:,j], predCorr_d1_allUnits[:,j], rrCorr_d1_allUnits[:,j] = model_evaluate_new(
+                                                                            obs_rate_allStimTrials_d1.copy(),pred_rate.copy(),
+                                                                            0,RR_ONLY=False,lag = samps_shift,obs_noise=obs_noise)        
         
         fev_d1_allUnits = np.mean(fev_d1_allUnits,axis=1)
     
         idx_allUnits = np.arange(fev_d1_allUnits.shape[0])
         idx_d1_valid = idx_allUnits
-        idx_d1_valid = np.logical_and(fev_d1_allUnits>-1,fev_d1_allUnits<1.1)
-        idx_d1_valid = idx_allUnits[idx_d1_valid]
+        # idx_d1_valid = np.logical_and(fev_d1_allUnits>-1,fev_d1_allUnits<1.1)
+        # idx_d1_valid = idx_allUnits[idx_d1_valid]
         
         fev_d1_medianUnits = np.median(fev_d1_allUnits[idx_d1_valid])
         if fev_d1_medianUnits>thresh_fev:
@@ -1175,6 +1247,24 @@ for i in range(N):
     print('FEV: %0.2f - Params:%s=%02d, %s=%02d, %s=%02d' %(curr_fev*100,select_param_x,curr_param_x,select_param_y,curr_param_y,select_param_z,curr_param_z))
 
 
+
+N = 12
+paramNames_all = []
+fev_all = []
+i=0
+for i in range(len(perf_paramNames)):
+    paramName = paramNames_allExps[select_exp][select_mdl][i]
+    paramNames_all.append(paramName)
+    curr_fev = perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_bestEpoch_allTr']
+    fev_all.append(curr_fev)
+fev_all = np.squeeze(np.asarray(fev_all))
+
+idx_sorted = np.argsort(fev_all)
+models_top = []
+for i in idx_sorted[-N:]:
+    models_top.append(paramNames_all[i])
+
+fevs_sorted = fev_all[idx_sorted[-N:]]
 
 # %% D2: heatmaps
 val_dataset_2 = val_dataser_1 #photopic_preproc_cones_norm_1'
@@ -1243,7 +1333,7 @@ for i in idx_interest:
     
     mdlFolder = paramName+'_TR-%02d' % select_TR
     
-    path_model = os.path.join(path_mdl_drive,mdl_select,mdlFolder)
+    path_model = os.path.join(path_mdl_drive,select_mdl,mdlFolder)
     
     try:
         mdl = load(os.path.join(path_model,mdlFolder))
@@ -1253,7 +1343,7 @@ for i in idx_interest:
        
         fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_2+'.h5'))
         _,data_val,data_test,data_quality,dataset_rr,_,_ = load_h5Dataset(fname_data_train_val_test)
-        if mdl_select[:6]=='CNN_2D':
+        if select_mdl[:6]=='CNN_2D':
             data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
         else:
             data_val = prepare_data_cnn3d(data_val,select_T,np.arange(data_val.y.shape[1]))
@@ -1261,13 +1351,13 @@ for i in idx_interest:
         resp_median_scotopic = data_quality['resp_median_allUnits']
         obs_rate_allStimTrials_d2 = dataset_rr['stim_0']['val'][:,filt_temporal_width:,:]
       
-        samps_shift = 2
+        samps_shift = 0
         
         obs_rate = data_val.y
         pred_rate = mdl.predict(data_val.X)
       
         
-        num_iters = 2
+        num_iters = 1
         fev_scot_allUnits = np.empty((pred_rate.shape[1],num_iters))
         
         for i in range(num_iters):
@@ -1366,7 +1456,7 @@ except:
 
 fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+lightLevel_1+'.h5'))
 data_train,_,_,_,_,_,_ = load_h5Dataset(fname_data_train_val_test)
-if mdl_select[:6]=='CNN_2D':
+if select_mdl[:6]=='CNN_2D':
     data_train = prepare_data_cnn2d(data_train,select_T,np.arange(data_train.y.shape[1]))
     chunk_size = data_train.y.shape[0]
     
