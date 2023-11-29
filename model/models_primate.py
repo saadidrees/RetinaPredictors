@@ -24,7 +24,8 @@ def model_definitions():
     """
     
     models_2D = ('CNN2D',
-                 'PRFR_CNN2D','PRFR_CNN2D_NOLN')
+                 'PRFR_CNN2D','PRFR_CNN2D_NOLN',
+                 'PRFR_LN_CNN2D')
     
     models_3D = ('CNN_3D','PR_CNN3D')
     
@@ -601,4 +602,168 @@ def prfr_cnn2d_noln(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=1
     outputs = Activation('softplus',dtype='float32')(y)
 
     mdl_name = 'PRFR_CNN2D_NOLN'
+    return Model(inputs, outputs, name=mdl_name)
+
+
+
+# %% Linear cone model
+
+def generate_linear_filter(alpha,tau_r,tau_d,tau_o,omega,t):
+    a = alpha*(((t/tau_r)**4)/(1+(t/tau_r)**4))
+    b = tf.math.exp(-1*(t/tau_d))
+    c = tf.math.cos(((2*3.142*t)/tau_o)+omega)
+    
+    kern = a*b*c
+
+    return kern
+
+
+def conv_oper(x,kernel_1D):
+    spatial_dims = x.shape[-1]
+    x_reshaped = tf.expand_dims(x,axis=2)
+    kernel_1D = tf.squeeze(kernel_1D)
+    kernel_1D = tf.reverse(kernel_1D,[0])
+    tile_fac = tf.constant([spatial_dims])
+    kernel_reshaped = tf.tile(kernel_1D,tile_fac)
+    kernel_reshaped = tf.reshape(kernel_reshaped,(1,spatial_dims,1,kernel_1D.shape[-1]))
+    kernel_reshaped = tf.experimental.numpy.moveaxis(kernel_reshaped,-1,0)
+    pad_vec = [[0,0],[kernel_1D.shape[-1]-1,0],[0,0],[0,0]]
+    conv_output = tf.nn.depthwise_conv2d(x_reshaped,kernel_reshaped,strides=[1,1,1,1],padding=pad_vec,data_format='NHWC')
+    return conv_output
+
+class photoreceptor_LINEAR(tf.keras.layers.Layer):
+    def __init__(self,pr_params,units=1):
+        super(photoreceptor_LINEAR,self).__init__()
+        self.units = units
+        self.pr_params = pr_params
+
+            
+    def build(self,input_shape):
+        
+        dtype=tf.float32
+        
+        alpha_init = tf.keras.initializers.Constant(self.pr_params['alpha'])
+        self.alpha = tf.Variable(name='alpha',initial_value=alpha_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['alpha_trainable'])
+        alpha_scaleFac = tf.keras.initializers.Constant(self.pr_params['alpha_scaleFac'])
+        self.alpha_scaleFac = tf.Variable(name='alpha_scaleFac',initial_value=alpha_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
+        
+        tau_r_init = tf.keras.initializers.Constant(self.pr_params['tau_r'])
+        self.tau_r = tf.Variable(name='tau_r',initial_value=tau_r_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['tau_r_trainable'])
+        tau_r_scaleFac = tf.keras.initializers.Constant(self.pr_params['tau_r_scaleFac'])
+        self.tau_r_scaleFac = tf.Variable(name='tau_r_scaleFac',initial_value=tau_r_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
+    
+    
+        tau_d_init = tf.keras.initializers.Constant(self.pr_params['tau_d'])
+        self.tau_d = tf.Variable(name='tau_d',initial_value=tau_d_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['tau_d_trainable'])
+        tau_d_scaleFac = tf.keras.initializers.Constant(self.pr_params['tau_d_scaleFac'])
+        self.tau_d_scaleFac = tf.Variable(name='tau_d_scaleFac',initial_value=tau_d_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
+
+
+        tau_o_init = tf.keras.initializers.Constant(self.pr_params['tau_o'])
+        self.tau_o = tf.Variable(name='tau_o',initial_value=tau_o_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['tau_o_trainable'])
+        tau_o_scaleFac = tf.keras.initializers.Constant(self.pr_params['tau_o_scaleFac'])
+        self.tau_o_scaleFac = tf.Variable(name='tau_o_scaleFac',initial_value=tau_o_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
+
+        omega_init = tf.keras.initializers.Constant(self.pr_params['omega'])
+        self.omega = tf.Variable(name='omega',initial_value=omega_init(shape=(1,self.units),dtype=dtype),trainable=self.pr_params['omega_trainable'])
+        omega_scaleFac = tf.keras.initializers.Constant(self.pr_params['omega_scaleFac'])
+        self.omega_scaleFac = tf.Variable(name='omega_scaleFac',initial_value=omega_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
+
+
+    
+    def call(self,inputs):
+       
+        timeBin = 8
+        
+        alpha =  self.alpha / timeBin
+        tau_r = self.tau_r / timeBin
+        tau_d = self.tau_d / timeBin
+        tau_o = self.tau_o / timeBin
+        omega = self.omega / timeBin
+
+        
+        t = tf.range(0,1000/timeBin,dtype='float32')
+        
+        kernel_1D = generate_linear_filter(alpha,tau_r,tau_d,tau_o,omega,t)          
+        y_tf = conv_oper(inputs,kernel_1D)
+   
+        outputs = y_tf
+        
+        return outputs
+    
+
+
+def prfr_ln_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120,chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+    
+    chan1_n = kwargs['chan1_n']
+    filt1_size = kwargs['filt1_size']
+    chan2_n = kwargs['chan2_n']
+    filt2_size = kwargs['filt2_size']
+    chan3_n = kwargs['chan3_n']
+    filt3_size = kwargs['filt3_size']
+    
+    BatchNorm = bool(kwargs['BatchNorm'])
+    MaxPool = kwargs['MaxPool']
+    dtype = kwargs['dtype']
+    
+    filt_temporal_width=kwargs['filt_temporal_width']
+
+    pr_params = kwargs['pr_params']
+    
+    mdl_params = {}
+    keys = ('chan4_n','filt4_size')
+    for k in keys:
+        if k in kwargs:
+            mdl_params[k] = kwargs[k]
+        else:
+            mdl_params[k] = 0
+    
+    sigma = 0.1
+    
+    y = inputs
+    # y = BatchNormalization(axis=-3,epsilon=1e-7)(y)
+    y = Reshape((y.shape[1],y.shape[-2]*y.shape[-1]),dtype=dtype)(y)
+    y = photoreceptor_LINEAR(pr_params,units=1)(y)
+    y = Reshape((inputs.shape[1],inputs.shape[-2],inputs.shape[-1]))(y)
+    y = y[:,inputs.shape[1]-filt_temporal_width:,:,:]
+    y = LayerNormalization(axis=-3,epsilon=1e-7)(y)      # Along the temporal axis
+
+    # CNN - first layer
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3),name='CNNs_start')(y)
+        
+    if MaxPool > 0:
+        if MaxPool==1:  # backwards compatibility
+            MaxPool=2
+        y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+
+    y = Activation('relu')(GaussianNoise(sigma)(y))
+    
+    # CNN - second layer
+    if chan2_n>0:
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True: 
+            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+
+    # CNN - third layer
+    if chan3_n>0:
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+        if BatchNorm is True: 
+            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+        y = Activation('relu')(GaussianNoise(sigma)(y))
+
+    
+    # Dense layer
+    y = Flatten()(y)
+    if BatchNorm is True: 
+        y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+
+    outputs = Activation('softplus',dtype='float32')(y)
+
+    mdl_name = 'PRFR_LN_CNN2D'
     return Model(inputs, outputs, name=mdl_name)
