@@ -58,10 +58,10 @@ def chunker(data,batch_size,mode='default'):
 
 
 def lr_scheduler(epoch,lr):
-    arr_scheduler = np.array([[3,1],
-                          [10,10],
+    arr_scheduler = np.array([[3,10],
+                          [10,1],
                           [20,1],
-                          [30,1],
+                          [30,10],
                           [50,10],
                           [100,10],
                           [200,10],
@@ -144,8 +144,8 @@ def train(mdl, data_train, data_val,fname_excel,path_model_save, fname_model, ds
     
     cbs = [cb.ModelCheckpoint(os.path.join(path_model_save, fname_cb),save_weights_only=True),
            cb.TensorBoard(log_dir=path_model_save, histogram_freq=0, write_grads=True),
-           cb.CSVLogger(os.path.join(path_model_save, fname_excel)),
-           model.LRschedulers.printLR_constant(lr_scheduler_config)]
+           cb.CSVLogger(os.path.join(path_model_save, fname_excel))]
+           #model.LRschedulers.printLR_constant(lr_scheduler_config)]
             # cb.ReduceLROnPlateau(monitor='loss',min_lr=1e-6, factor=0.2, patience=5),
     if USE_WANDB!=0:
        cbs.append(WandbMetricsLogger())
