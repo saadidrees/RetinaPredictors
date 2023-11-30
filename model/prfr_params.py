@@ -350,12 +350,12 @@ def fr_rods_fixed():
     pr_params['phi_scaleFac'] = 10.
     pr_params['phi_trainable'] = False
 
-    pr_params['eta'] = 0.253
-    pr_params['eta_scaleFac'] = 10.
+    pr_params['eta'] = 0.0253
+    pr_params['eta_scaleFac'] = 100.
     pr_params['eta_trainable'] = False
 
-    pr_params['beta'] = 2.5
-    pr_params['beta_scaleFac'] = 10.
+    pr_params['beta'] = 0.25
+    pr_params['beta_scaleFac'] = 100.
     pr_params['beta_trainable'] = False
 
     pr_params['cgmp2cur'] = 0.01
@@ -404,12 +404,12 @@ def fr_rods_trainable():
     pr_params['phi_scaleFac'] = 10.
     pr_params['phi_trainable'] = True
 
-    pr_params['eta'] = 0.253
-    pr_params['eta_scaleFac'] = 10.
+    pr_params['eta'] = 0.0253
+    pr_params['eta_scaleFac'] = 100.
     pr_params['eta_trainable'] = True
 
-    pr_params['beta'] = 2.5
-    pr_params['beta_scaleFac'] = 10.
+    pr_params['beta'] = 0.25
+    pr_params['beta_scaleFac'] = 100.
     pr_params['beta_trainable'] = True
 
     pr_params['cgmp2cur'] = 0.01
