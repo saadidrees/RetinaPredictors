@@ -21,8 +21,8 @@ if hostname=='sandwolf':
 elif hostname=='sandhound':
     base = '/home/saad/postdoc_db/'
 
-# base = '/home/saad/postdoc_db/'
-base = '/home/saad/data_hdd/'
+base = '/home/saad/postdoc_db/'
+# base = '/home/saad/data_hdd/'
 
 
 from scipy.stats import wilcoxon
@@ -59,11 +59,11 @@ from model.train_model import chunker
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = 'cluster'
+mdl_subFold = ''
 lightLevel_1 =  ('CB_CORR_mesopic-Rstar_f4_8ms',)
 lightLevel_2 = ()#('CB_CORR_mesopic-Rstar_f4_8ms',)#('NATSTIM3_photopic-Rstar_f4',)
-models_all = ('CNN2D_NEW','PRFR_CNN2D_NEW') # 
-pr_params_name = 'mike_phot_trainable'
+models_all = ('PRFR_CNN2D',) # 
+pr_params_name = 'fr_rods_trainable'
 
 writeToCSV = False
 
@@ -353,16 +353,16 @@ for idx_exp in range(len(expDates)):
 
 # %% D1: Test model
 select_exp = expDates[0]
-select_mdl = models_all[1] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
+select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 # params_mdl = params_allExps[select_exp][select_mdl]
 
 val_dataset_1 = lightLevel_1 #'scot-3-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' #lightLevel_1  #lightLevel_1 #      # ['scotopic','photopic']
 correctMedian = False
 
-select_LR = '0.001'
+select_LR = '0.0001'
 select_U = 57
-select_P = 140
-select_T = 120
+select_P = 80
+select_T = 60
 select_BN = 1
 select_MP = 2
 # select_TR = 1
@@ -376,7 +376,7 @@ select_C2_3d = 0
 select_C3_n = 30 
 select_C3_s = 5
 select_C3_3d = 0
-select_TRSAMPS = 20
+select_TRSAMPS = -1
 
 paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP=select_MP,LR=select_LR,CB_n=select_CB,
                  C1_n=select_C1_n,C1_s=select_C1_s,C1_3d=select_C1_3d,
@@ -390,8 +390,8 @@ paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP
 # assert val_dataset_1 != val_dataset_1, 'same datasets selected'
 
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
-idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
-# idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
+# idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
 trial_num = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
 plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][5:,idx_bestTrial])
 select_TR = int(trial_num)
@@ -703,7 +703,7 @@ font_size_ticks = 20
 
 col_scheme = ('blue','green')
 # ax.yaxis.grid(True)
-xlabel = ['CNN','PR-CNN']
+xlabel = ['PR-beta0','PR']
 axs[0].boxplot(fevs)
 axs[0].set_xticklabels(xlabel)
 
@@ -711,16 +711,36 @@ axs[0].set_xticklabels(xlabel)
 axs[0].set_ylabel('FEV (%)',fontsize=font_size_ticks)
 axs[0].set_title('',fontsize=font_size_ticks)
 axs[0].set_yticks(np.arange(-40,100,10))
-axs[0].set_ylim((-50,100))
+axs[0].set_ylim((40,100))
 
 # axs[0].text(-0.2,1,'FEV = %0.2f' %fevs[0],fontsize=font_size_ticks)
 axs[0].tick_params(axis='both',labelsize=font_size_ticks)
 # _ = gc.collect()
 
+
+# %% PR output
+idx_mdl_start = 1
+idx_mdl_end = 4
+
+x = Input(shape=data_val.X.shape[1:])
+n_cells = data_val.y.shape[1]
+y = x 
+
+for layer in mdl.layers[idx_mdl_start:idx_mdl_end]:
+    y = layer(y)
+y = y[:,-60:]
+mdl_pr = Model(x, y, name='PRFR')
+
+batch_size = 32
+gen = chunker(data_val_select,batch_size=batch_size)    
+steps_per_epoch = int(np.ceil(len(data_val_select.X)/batch_size))
+pr_out = mdl_pr.predict_generator(gen,steps=steps_per_epoch)
+
+
 # %% D2: Test model
-transferModel = False
+transferModel = True
 if transferModel == True:
-    select_mdl_d2 = 'PRFR_CNN2D'
+    select_mdl_d2 = 'PRFR_CNN2D_NOLN'
     subFold_d2 = subFold
     idx_mdl_start = 1
     idx_mdl_end = 4
@@ -731,8 +751,8 @@ else:
     idx_currMdl_start = 0#4
 
 
-val_dataset_2_all = ('scot-0.3','scot-3','scot-30')
-suffix = '-Rstar' #'-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
+val_dataset_2_all = ('CB_CORR_mesopic-Rstar_f4_8ms',)
+suffix = '' #'-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
 med_fevs = 0
 idx_cells_valid = np.arange(fev_d1_allUnits.shape[0])
 fev_stack = fev_d1_allUnits[idx_cells_valid]
@@ -741,7 +761,7 @@ v_idx = 0
 for v_idx in range(len(val_dataset_2_all)):
     
     val_dataset_2 = val_dataset_2_all[v_idx]+suffix #'scot-30-Rstar'#-Rstar_mdl-rieke_s-25.8898_p-21.1589_e-76.97_k-0.01_h-3_b-47.38_hc-4_gd-28_g-1048.0_preproc-rods_norm-0_tb-8_Euler_RF-2'
-    correctMedian = True
+    correctMedian = False
     samps_shift_2 = 0#samps_shift
     
     path_dataset_d2 = os.path.join('/home/saad/data/analyses/data_kiersten/',expDates[idx_exp],subFold_d2,'datasets')
@@ -959,6 +979,10 @@ axs[0].text(-0.4,100,'N = %d RGCs' %fev_stack_plot.shape[0],fontsize=font_size_t
 axs[0].tick_params(axis='both',labelsize=font_size_labels)
 
 
+
+
+
+
 # %% Sustained, Transient split
 unames_valid = perf_allExps[select_exp][select_mdl][paramFileName]['data_quality']['uname_selectedUnits'][idx_d2_valid]
 idx_sust = np.arange(0,29)
@@ -1010,11 +1034,12 @@ axs[0].tick_params(axis='both',labelsize=16)
 axs[0].legend(loc='best',fontsize=font_size_labels)
 
 
+
 # %% D1: Heat maps
 RECALC_PERF = 1
 select_exp = '20230725C'
-select_mdl = models_all[1]
-pr_params_name = 'mike_phot_trainable'
+select_mdl = models_all[0]
+pr_params_name = 'mike_phot'
 select_param_x = 'TRSAMPS' #'C2_n'
 select_param_y = 'T' #'C3_n'
 select_param_z = 'C1_n'
@@ -1023,8 +1048,8 @@ thresh_fev = -1000
 params_mdl = params_allExps[select_exp][select_mdl]
 
 select_U = 57
-select_P = 0
-select_T = np.array([120]) #np.unique(params_mdl['T'])
+select_P = 80
+select_T = np.array([60]) #np.unique(params_mdl['T'])
 select_BN = 1
 select_MP = 2
 # select_TR = 1
