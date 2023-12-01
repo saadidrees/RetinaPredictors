@@ -61,7 +61,7 @@ def lr_scheduler(epoch,lr):
     arr_scheduler = np.array([[3,10],
                           [10,1],
                           [20,1],
-                          [30,1],
+                          [30,10],
                           [50,1],
                           [100,10],
                           [200,10],
