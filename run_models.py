@@ -161,7 +161,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         dict_val[fname_data_train_val_test_all[d]] = data_val
         dict_test[fname_data_train_val_test_all[d]] = data_test
 
-# %%   
     # Get RGC type info
     
 # Arrange data according to the model
@@ -312,7 +311,16 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     
     if CONTINUE_TRAINING==1 or nb_epochs==0:       # if to continue a halted or previous training
-        initial_epoch = len(glob.glob(path_model_save+'/*.index'))
+        # initial_epoch = len(glob.glob(path_model_save+'/*.index'))
+        allEpochs = glob.glob(path_model_save+'/*.index')
+        allEpochs.sort()
+        if len(allEpochs)!=0:
+            lastEpochFile = os.path.split(allEpochs[-1])[-1]
+            rgb = re.compile(r'_epoch-(\d+)')
+            initial_epoch = int(rgb.search(lastEpochFile)[1])
+        else:
+            initial_epoch = 0
+
         if initial_epoch == 0:
             initial_epoch = len(glob.glob(path_model_save+'/weights_*'))    # This is for backwards compatibility
     else:
@@ -320,9 +328,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
 
     if (initial_epoch>0 and initial_epoch < nb_epochs) or nb_epochs==0:     # Load existing model if true
-        mdl = load(os.path.join(path_model_save,fname_model))
-        rgb = glob.glob(os.path.join(path_model_save,'*.index'))
-        fname_latestWeights = os.path.join(path_model_save,'weights_'+fname_model+'_epoch-%03d' % (len(rgb)))
+        mdl = load(os.path.join(path_model_save,fname_model))             # REVERT THIS
+        # model_func = getattr(model.models_primate,mdl_name.lower())
+        # mdl = model_func(x, n_cells, **dict_params)      
+        fname_latestWeights = os.path.join(path_model_save,'weights_'+fname_model+'_epoch-%03d' % initial_epoch)
         mdl.load_weights(fname_latestWeights)
         # fname_history = os.path.join(path_model_save,'history_'+mdl_name+'.h5')
         # f = h5py.File(fname_history,'r')
@@ -562,48 +571,49 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     print('-----EVALUATING PERFORMANCE-----')
-    i=0
+    i=108
     for i in range(0,nb_epochs):
         print('evaluating epoch %d of %d'%(i,nb_epochs))
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
         weight_file = 'weights_'+fname_model+'_epoch-%03d' % (i+1)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
-        mdl.load_weights(os.path.join(path_model_save,weight_file))
-        # gen = chunker(data_test.X,bz,mode='predict') # use generators to generate batches of data
-        # pred_rate = mdl.predict(gen,steps=int(np.ceil(data_test.X.shape[0]/bz)))
-        pred_rate = mdl.predict(data_test.X)
-        val_loss = None
-        val_loss_allEpochs[i] = val_loss
-        
-        fev_loop = np.zeros((num_iters,n_cells))
-        fracExVar_loop = np.zeros((num_iters,n_cells))
-        predCorr_loop = np.zeros((num_iters,n_cells))
-        rrCorr_loop = np.zeros((num_iters,n_cells))
-
-        for j in range(num_iters):  # nunm_iters is 1 with my dataset. This was mainly for greg's data where we would randomly split the dataset to calculate performance metrics 
-            fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+        if os.path.isfile(os.path.join(path_model_save,weight_file+'.index')):
+            mdl.load_weights(os.path.join(path_model_save,weight_file))
+            # gen = chunker(data_test.X,bz,mode='predict') # use generators to generate batches of data
+            # pred_rate = mdl.predict(gen,steps=int(np.ceil(data_test.X.shape[0]/bz)))
+            pred_rate = mdl.predict(data_test.X)
+            val_loss = None
+            val_loss_allEpochs[i] = val_loss
             
-        fev = np.mean(fev_loop,axis=0)
-        fracExVar = np.mean(fracExVar_loop,axis=0)
-        predCorr = np.mean(predCorr_loop,axis=0)
-        rrCorr = np.mean(rrCorr_loop,axis=0)
-        
-        if np.isnan(rrCorr).all() and 'fracExVar_allUnits' in data_quality:  # if retinal reliability is in quality datasets
-            fracExVar = data_quality['fracExVar_allUnits'][idx_unitsToTake]
-            rrCorr = data_quality['corr_allUnits'][idx_unitsToTake]
-
-
-        fev_allUnits_allEpochs[i,:] = fev
-        fev_medianUnits_allEpochs[i] = np.nanmedian(fev)      
-        fracExVar_allUnits_allEpochs[i,:] = fracExVar
-        fracExVar_medianUnits_allEpochs[i] = np.nanmedian(fracExVar)
-        
-        predCorr_allUnits_allEpochs[i,:] = predCorr
-        predCorr_medianUnits_allEpochs[i] = np.nanmedian(predCorr)
-        rrCorr_allUnits_allEpochs[i,:] = rrCorr
-        rrCorr_medianUnits_allEpochs[i] = np.nanmedian(rrCorr)
-        
-
-        _ = gc.collect()
+            fev_loop = np.zeros((num_iters,n_cells))
+            fracExVar_loop = np.zeros((num_iters,n_cells))
+            predCorr_loop = np.zeros((num_iters,n_cells))
+            rrCorr_loop = np.zeros((num_iters,n_cells))
+    
+            for j in range(num_iters):  # nunm_iters is 1 with my dataset. This was mainly for greg's data where we would randomly split the dataset to calculate performance metrics 
+                fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+                
+            fev = np.mean(fev_loop,axis=0)
+            fracExVar = np.mean(fracExVar_loop,axis=0)
+            predCorr = np.mean(predCorr_loop,axis=0)
+            rrCorr = np.mean(rrCorr_loop,axis=0)
+            
+            if np.isnan(rrCorr).all() and 'fracExVar_allUnits' in data_quality:  # if retinal reliability is in quality datasets
+                fracExVar = data_quality['fracExVar_allUnits'][idx_unitsToTake]
+                rrCorr = data_quality['corr_allUnits'][idx_unitsToTake]
+    
+    
+            fev_allUnits_allEpochs[i,:] = fev
+            fev_medianUnits_allEpochs[i] = np.nanmedian(fev)      
+            fracExVar_allUnits_allEpochs[i,:] = fracExVar
+            fracExVar_medianUnits_allEpochs[i] = np.nanmedian(fracExVar)
+            
+            predCorr_allUnits_allEpochs[i,:] = predCorr
+            predCorr_medianUnits_allEpochs[i] = np.nanmedian(predCorr)
+            rrCorr_allUnits_allEpochs[i,:] = rrCorr
+            rrCorr_medianUnits_allEpochs[i] = np.nanmedian(rrCorr)
+            
+    
+            _ = gc.collect()
     
     """
     plt.plot(fev_medianUnits_allEpochs);plt.show()
