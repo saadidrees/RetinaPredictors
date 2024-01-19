@@ -21,8 +21,8 @@ if hostname=='sandwolf':
 elif hostname=='sandhound':
     base = '/home/saad/postdoc_db/'
 
-base = '/home/saad/postdoc_db/'
-# base = '/home/saad/data_hdd/'
+# base = '/home/saad/postdoc_db/'
+base = '/home/saad/data_hdd/'
 
 
 from scipy.stats import wilcoxon
@@ -59,11 +59,11 @@ from model.train_model import chunker
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = ''
-lightLevel_1 =  ('CB_CORR_mesopic-Rstar_f4_8ms',)
+mdl_subFold = 'control'
+lightLevel_1 =  ('CB_CORR_mesopic-Rstar_f4_8ms',) #CB_CORR_mesopic-Rstar_f4_8ms  NATSTIM3_CORR_mesopic-Rstar_f4_8ms
 lightLevel_2 = ()#('CB_CORR_mesopic-Rstar_f4_8ms',)#('NATSTIM3_photopic-Rstar_f4',)
-models_all = ('PRFR_CNN2D',) # 
-pr_params_name = 'fr_rods_trainable'
+models_all = ('CNN2D',) # 
+pr_params_name = ''
 
 writeToCSV = False
 
@@ -131,14 +131,6 @@ for idx_exp in range(len(expDates)):
     path_mdl_drive = os.path.join(path_mdl_base,dataset_nameForPaths,mdl_subFold)
 
     
-    ## -- this is temporary here for extracting median response of units
-    # path_dataset = os.path.join(path_dataset_base,'datasets')
-    # fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+lightLevel_1+'.h5'))
-    # _,_,_,data_quality,_,_,_ = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False,LOAD_VAL=False)
-    # resp_median_allUnits = data_quality['resp_median_allUnits']
-    # -- this is temporary here for extracting median response of units
-
-    
     # select_mdl = models_all[0]
     for select_mdl in models_all:
 
@@ -162,6 +154,8 @@ for idx_exp in range(len(expDates)):
                     paramNames.append(p)
             except:
                 pass
+        
+        # paramNames = paramNames_temp
         
         # Cut out the trial number to group different trials of same models/params together
         paramNames_cut = []
@@ -316,12 +310,6 @@ for idx_exp in range(len(expDates)):
                 param_list[i].append(rgb[i])
             
             
-            # dataset_pred = {
-            #     'obs_rate': np.array(f['dataset_pred']['obs_rate']),
-            #     'pred_rate': np.array(f['dataset_pred']['pred_rate']),
-            #     }
-            # performance['dataset_pred'] = dataset_pred
-            # performance['resp_median_trainingData_allUnits'] = resp_median_allUnits
             perf_paramNames[paramNames_unique[param_unique_idx]] = performance
             
             
@@ -359,22 +347,22 @@ select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 val_dataset_1 = lightLevel_1 #'scot-3-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' #lightLevel_1  #lightLevel_1 #      # ['scotopic','photopic']
 correctMedian = False
 
-select_LR = '0.0001'
+select_LR = '0.001'
 select_U = 57
-select_P = 80
-select_T = 60
+select_P = 0
+select_T = 64
 select_BN = 1
 select_MP = 2
 # select_TR = 1
 select_CB = 0
 select_C1_n = 10
-select_C1_s = 15#9
+select_C1_s = 11#9
 select_C1_3d = 0
-select_C2_n = 20
+select_C2_n = 15
 select_C2_s = 7
 select_C2_3d = 0
-select_C3_n = 30 
-select_C3_s = 5
+select_C3_n = 20
+select_C3_s = 7
 select_C3_3d = 0
 select_TRSAMPS = -1
 
@@ -388,7 +376,6 @@ paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP
 
 
 # assert val_dataset_1 != val_dataset_1, 'same datasets selected'
-
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
 # idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
@@ -412,7 +399,14 @@ else:
 
 path_model = os.path.join(path_model,mdlFolder)
 mdl = load(os.path.join(path_model,mdlFolder))
-fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
+
+if idx_bestEpoch !=-1:
+    fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
+else:
+    mdl_epochList = np.sort(glob.glob(os.path.join(path_model,'*.index')))
+    lastEpoch = mdl_epochList[-1].split('.index')[0]
+    fname_bestWeight = os.path.split(lastEpoch)[-1]
+
 try:
     mdl.load_weights(os.path.join(path_model,fname_bestWeight))
 except:
@@ -433,7 +427,7 @@ dict_test = {}
 dict_val = {}
 dict_train = {}
 for d in range(len(fname_data_train_val_test_all)):
-    rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=0.5,nsamps_test=0.1,nsamps_train=0.05,LOAD_TR=True)
+    rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=0.5,nsamps_test=0.1,nsamps_train=0.05,LOAD_TR=False)
     data_train=rgb[0];
     data_val = rgb[1];
     data_test = rgb[2];
@@ -447,7 +441,7 @@ for d in range(len(fname_data_train_val_test_all)):
     t_frame = parameters['t_frame']     # time in ms of one frame/sample 
 
     if select_mdl[:6]=='CNN_2D' or select_mdl == 'replaceDense_2D' or select_mdl[:5]=='CNN2D':
-        data_train = prepare_data_cnn2d(data_train,select_T,np.arange(data_train.y.shape[1]))
+        # data_train = prepare_data_cnn2d(data_train,select_T,np.arange(data_train.y.shape[1]))
         data_val = prepare_data_cnn2d(data_val,select_T,np.arange(data_val.y.shape[1]))
         data_test = prepare_data_cnn2d(data_test,select_T,np.arange(data_test.y.shape[1]))
     elif select_mdl[:6]=='CNN_3D':
@@ -455,7 +449,7 @@ for d in range(len(fname_data_train_val_test_all)):
         # data_test = prepare_data_cnn3d(data_test,select_T,np.arange(data_test.y.shape[1]))
         
     elif 'PR' in select_mdl:
-        pr_temporal_width = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['pr_temporal_width']
+        pr_temporal_width = select_P
         data_val = prepare_data_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
         data_test = prepare_data_cnn2d(data_test,pr_temporal_width,np.arange(data_test.y.shape[1]))
 
@@ -474,13 +468,13 @@ data_val = model.data_handler.merge_datasets(dict_val)
 data_test = model.data_handler.merge_datasets(dict_test)
 
 
-if isinstance(data_train.X,list):
-    if len(data_train.X)>1000:
-        X = data_train.X[:1000]
-        X = np.asarray(X)
-        y = data_train.y[:1000]
-        y = np.asarray(y)
-        data_train = Exptdata(X,y)
+# if isinstance(data_train.X,list):
+#     if len(data_train.X)>1000:
+#         X = data_train.X[:1000]
+#         X = np.asarray(X)
+#         y = data_train.y[:1000]
+#         y = np.asarray(y)
+#         data_train = Exptdata(X,y)
 
 if 'var_noise' in data_quality:
     obs_noise = data_quality['var_noise'] #estimate_noise(data_test.y_trials)
@@ -514,7 +508,9 @@ if isintuple(data_val_select,'dset_names'):
         dict_dsetPerf[dset_name] = dict(idx=idx)
 
 
-idx_unitsToTake = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['idx_unitsToTake']
+# idx_unitsToTake = perf_allExps[select_exp][select_mdl][paramFileName]['model_params']['idx_unitsToTake']
+idx_unitsToTake = np.arange(0,57)
+
 if data_val_select.y.ndim==3:
     # obs_rate_allStimTrials_d1 = np.moveaxis(data_val_select.y,-1,0)
     obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1[:,:,idx_unitsToTake]
@@ -595,7 +591,7 @@ rrCorr_d1_ci = 1.96*(rrCorr_d1_stdUnits/len(idx_d1_valid)**.5)
 idx_units_sorted = np.argsort(fev_d1_allUnits[idx_d1_valid])
 idx_units_sorted = idx_d1_valid[idx_units_sorted]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[-3],idx_units_sorted[-4]]
-# idx_unitsToPred = [51,27,30,56]
+idx_unitsToPred = [35,55,41,22]     # Unit 22 is good for natstim comparisons
 uname_sorted = unames[idx_units_sorted]
 idx_on = np.intersect1d(np.arange(0,27),idx_d1_valid)
 idx_off = np.intersect1d(np.arange(27,57),idx_d1_valid)
@@ -661,16 +657,29 @@ for i in range(len(idx_unitsToPred)):
 """
 idx_valid = fev_d1_allUnits<1.1
 idx_valid = idx_allUnits[idx_valid]
-fev_pr = fev_d1_allUnits[idx_valid].copy()*100
-fev_pr_med = np.median(fev_pr)
-fev_std_pr = np.nanstd(fev_pr)
-fev_ci_pr = 1.96*(fev_std_pr/len(idx_valid)**.5)
+fev_pr_fixed = fev_d1_allUnits[idx_valid].copy()*100
+fev_pr_fixed_med = np.median(fev_pr_fixed)
+fev_std_pr_fixed = np.nanstd(fev_pr_fixed)
+fev_ci_pr_fixed = 1.96*(fev_std_pr_fixed/len(idx_valid)**.5)
+
+idx_valid = idx_allUnits[idx_valid]
+fev_pr_trainable = fev_d1_allUnits[idx_valid].copy()*100
+fev_pr_trainable_med = np.median(fev_pr_trainable)
+fev_std_pr_trainable = np.nanstd(fev_pr_trainable)
+fev_ci_pr_trainable = 1.96*(fev_std_pr_trainable/len(idx_valid)**.5)
+
+idx_valid = idx_allUnits[idx_valid]
+fev_pr_ln = fev_d1_allUnits[idx_valid].copy()*100
+fev_pr_ln_med = np.median(fev_pr_ln)
+fev_std_pr_ln = np.nanstd(fev_pr_ln)
+fev_ci_pr_ln = 1.96*(fev_std_pr_ln/len(idx_valid)**.5)
 
 
 fev_cnn = fev_d1_allUnits[idx_valid].copy()*100
 fev_cnn_med = np.median(fev_cnn)
 fev_std_cnn = np.nanstd(fev_cnn)
 fev_ci_cnn = 1.96*(fev_std_cnn/len(idx_valid)**.5)
+
 
 --------
 
@@ -692,30 +701,104 @@ fev_ci_cnn = 1.96*(fev_std_cnn/len(idx_valid)**.5)
 """
 # import seaborn as sns
 
-fevs = [fev_cnn,fev_pr]
+fevs = [fev_cnn,fev_pr_fixed,fev_pr_trainable,fev_pr_ln]
 fevs_med = np.median(fevs,axis=1)
-print('median FEVs: CNN = %0.2f | PR-CNN = %0.2f'%(np.median(fev_cnn),np.median(fev_pr)))
-cis = [fev_ci_cnn,fev_ci_pr]
-fig,axs = plt.subplots(1,1,figsize=(5,5))
+# print('median FEVs: CNN = %0.2f | PR-CNN = %0.2f'%(np.median(fev_cnn),np.median(fev_pr)))
+cis = [fev_ci_cnn,fev_ci_pr_fixed,fev_ci_pr_trainable,fev_ci_pr_ln]
+fig,axs = plt.subplots(1,1,figsize=(12,8))
 axs = np.ravel(axs)
 fig.suptitle('Training: '+lightLevel_1[0],fontsize=16)
 font_size_ticks = 20
 
 col_scheme = ('blue','green')
-# ax.yaxis.grid(True)
-xlabel = ['PR-beta0','PR']
+xlabel = ['CNN','fixedPR_CNN','trainablePR_CNN','linearPR_CNN']
 axs[0].boxplot(fevs)
 axs[0].set_xticklabels(xlabel)
+axs[0].yaxis.grid(True)
 
 # axs[0].boxplot(xlabel,fevs,yerr=cis,align='center',capsize=6,alpha=.7,color=[col_scheme],width=0.4)
-axs[0].set_ylabel('FEV (%)',fontsize=font_size_ticks)
+axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs',fontsize=font_size_ticks)
 axs[0].set_title('',fontsize=font_size_ticks)
-axs[0].set_yticks(np.arange(-40,100,10))
-axs[0].set_ylim((40,100))
+axs[0].set_yticks(np.arange(-40,110,10))
+axs[0].set_ylim((0,110))
 
 # axs[0].text(-0.2,1,'FEV = %0.2f' %fevs[0],fontsize=font_size_ticks)
 axs[0].tick_params(axis='both',labelsize=font_size_ticks)
 # _ = gc.collect()
+
+# %% 
+
+# #Temporal width 60
+# tr = np.array([10,15,20,25,30,35])
+# fev_cnn = np.array([52,60,61,64,64,64])
+# fev_rods_fixed = np.array([55,55,66,70,74,72])
+# fev_rods_trainable = np.array([53,65,65,74,76,76])
+# fev_pr_ln = np.array([49,61,60,62,66,66])
+# # fev_cones_trainable = np.array([53,61,65,67,71,74])
+# # fev_cones_fixed = np.array([44,50,55,58,63,65])
+
+# fig,axs = plt.subplots(1,1,figsize=(5,5))
+# axs = np.ravel(axs)
+# font_size_ticks = 20
+
+# # xlabel = ['cones_fixed','rods_fixed']
+# axs[0].plot(tr,fev_cnn,'-ko',label='cnn')
+# # axs[0].plot(tr,fev_cones_trainable,'-ro',label='cones_train')
+# # axs[0].plot(tr,fev_cones_fixed,'--rx',label='cones_fixed')
+# axs[0].plot(tr,fev_rods_trainable,'-go',label='rods_train')
+# axs[0].plot(tr,fev_rods_fixed,'--gx',label='rods_fixed')
+# axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
+# axs[0].set_xlabel('Training data (minutes)')
+# axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
+# axs[0].legend(loc='best')
+
+
+# Temporal width 120
+tr = np.array([10,15,20,25,30,35])
+fev_cnn = np.array([61,67,70,73,73,76])
+# fev_cones_trainable = np.array([53,70,68,77,78,77])
+# fev_cones_fixed = np.array([56,68,67,73,72,74])
+fev_rods_fixed = np.array([55,65,67,73,76,74])
+fev_rods_trainable = np.array([57,66,71,76,75,76])
+fev_pr_ln = np.array([57,66,66,73,75,76])
+
+fig,axs = plt.subplots(1,1,figsize=(5,5))
+axs = np.ravel(axs)
+font_size_ticks = 20
+
+# xlabel = ['cones_fixed','rods_fixed']
+axs[0].plot(tr,fev_cnn,'-ko',label='cnn')
+# axs[0].plot(tr,fev_cones_trainable,'-ro',label='cones_train')
+# axs[0].plot(tr,fev_cones_fixed,'--rx',label='cones_fixed')
+axs[0].plot(tr,fev_rods_trainable,'-go',label='rods_train')
+axs[0].plot(tr,fev_rods_fixed,'--gx',label='rods_fixed')
+axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
+axs[0].set_xlabel('Training data (minutes)')
+axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
+axs[0].legend(loc='best')
+axs[0].set_title('120 ms')
+
+
+# Temporal width 80 ms
+tr = np.array([10,15,20,25,30,35])
+fev_cnn = np.array([61,67,68,71,72,72])
+fev_rods_fixed = np.array([55,55,66,70,74,72])
+fev_rods_trainable = np.array([53,65,65,74,76,74])
+fev_pr_ln = np.array([49,61,60,62,66,66])
+
+fig,axs = plt.subplots(1,1,figsize=(5,5))
+axs = np.ravel(axs)
+font_size_ticks = 20
+
+# xlabel = ['cones_fixed','rods_fixed']
+axs[0].plot(tr,fev_cnn,'-ko',label='cnn')
+axs[0].plot(tr,fev_rods_trainable,'-go',label='rods_train')
+axs[0].plot(tr,fev_rods_fixed,'--gx',label='rods_fixed')
+axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
+axs[0].set_xlabel('Training data (minutes)')
+axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
+axs[0].legend(loc='best')
+axs[0].set_title('80 ms')
 
 
 # %% PR output
@@ -734,7 +817,33 @@ mdl_pr = Model(x, y, name='PRFR')
 batch_size = 32
 gen = chunker(data_val_select,batch_size=batch_size)    
 steps_per_epoch = int(np.ceil(len(data_val_select.X)/batch_size))
-pr_out = mdl_pr.predict_generator(gen,steps=steps_per_epoch)
+pred_rate = mdl_pr.predict_generator(gen,steps=steps_per_epoch)
+fac = data_val.X.max()/pred_rate.max()
+pred_rate_norm = (pred_rate-pred_rate.min())/(pred_rate.max()-pred_rate.min())
+
+plt.plot(data_val.X[:,-1,20,10]);plt.plot(pred_rate_norm[:,-1,20,10]*2)
+
+
+
+stim_flatten = data_val.X[:,-1].reshape(data_val.X.shape[0],-1)
+pr_flatten = pred_rate_norm[:,-1].reshape(pred_rate_norm.shape[0],-1)
+
+
+lags = np.empty(pr_flatten.shape[1])
+
+for i in range(pr_flatten.shape[1]):
+    a = stim_flatten[:,i]
+    b = pr_flatten[:,i]
+    
+    corr,lags[i] = cross_corr(a, b)
+
+lags_median = np.median(lags)
+print(lags_median)
+
+lags_idx = np.argsort(-lags)
+a = lags[lags_idx]
+
+idx = lags_idx[1400]; plt.plot(stim_flatten[:,idx]);plt.plot(pr_flatten[:,idx]*2)
 
 
 # %% D2: Test model
@@ -1039,16 +1148,278 @@ axs[0].legend(loc='best',fontsize=font_size_labels)
 RECALC_PERF = 1
 select_exp = '20230725C'
 select_mdl = models_all[0]
-pr_params_name = 'mike_phot'
+pr_params_name = ''
 select_param_x = 'TRSAMPS' #'C2_n'
-select_param_y = 'T' #'C3_n'
+select_param_y = 'C3_n' #'C3_n'
 select_param_z = 'C1_n'
 thresh_fev = -1000
 
 params_mdl = params_allExps[select_exp][select_mdl]
 
 select_U = 57
-select_P = 80
+select_P = 0
+select_T = np.array([64]) #np.unique(params_mdl['T'])
+select_BN = 1
+select_MP = 2
+# select_TR = 1
+select_C1_n = np.unique(params_mdl['C1_n'])#13
+select_C1_s = np.unique(params_mdl['C1_s'])
+select_C1_3d = np.unique(params_mdl['C1_3d'])
+select_C2_n = np.unique(params_mdl['C2_n'])#13
+select_C2_s = np.unique(params_mdl['C2_s'])
+select_C2_3d = np.unique(params_mdl['C2_3d'])
+select_C3_n = np.unique(params_mdl['C3_n'])#25
+select_C3_s = np.unique(params_mdl['C3_s'])
+select_C3_3d = np.unique(params_mdl['C3_3d'])
+select_TRSAMPS = np.unique(params_mdl['TRSAMPS'])
+
+idx_interest = np.in1d(params_mdl['U'],select_U)
+idx_interest = idx_interest & np.in1d(params_mdl['T'],select_T)
+idx_interest = idx_interest & np.in1d(params_mdl['BN'],select_BN)
+idx_interest = idx_interest & np.in1d(params_mdl['MP'],select_MP)
+# idx_interest = idx_interest & np.in1d(params_mdl['TR'],select_TR)
+
+idx_interest = idx_interest & np.in1d(params_mdl['C1_n'],select_C1_n)
+idx_interest = idx_interest & np.in1d(params_mdl['C1_s'],select_C1_s)
+idx_interest = idx_interest & np.in1d(params_mdl['C1_3d'],select_C1_3d)
+
+idx_interest = idx_interest & np.in1d(params_mdl['C2_n'],select_C2_n)
+idx_interest = idx_interest & np.in1d(params_mdl['C2_s'],select_C2_s)
+idx_interest = idx_interest & np.in1d(params_mdl['C2_3d'],select_C2_3d)
+
+idx_interest = idx_interest & np.in1d(params_mdl['C3_n'],select_C3_n)
+idx_interest = idx_interest & np.in1d(params_mdl['C3_s'],select_C3_s)
+idx_interest = idx_interest & np.in1d(params_mdl['C3_3d'],select_C3_3d)
+
+idx_interest = idx_interest  &  np.in1d(params_mdl['TRSAMPS'],select_TRSAMPS)
+
+# make array of all fevs for min max vals
+fev_grand = ([])
+for i in perf_allExps[select_exp][select_mdl]:
+    if perf_allExps[select_exp][select_mdl][i]['model_performance']['num_trials'] == 1:
+        rgb = perf_allExps[select_exp][select_mdl][i]['model_performance']['fev_medianUnits_bestEpoch_allTr']
+    else:
+        rgb = np.mean(perf_allExps[select_exp][select_mdl][i]['model_performance']['fev_medianUnits_bestEpoch_allTr'],axis=-1)   # take average across trials
+    
+    fev_grand.append(rgb)
+fev_min, fev_max = np.round(np.nanmin(fev_grand),2), np.round(np.nanmax(fev_grand),2)
+fev_min, fev_max = fev_min-.01, fev_max+.01
+
+
+# plot heatmap
+
+fev_heatmap = np.zeros((len(eval('select_'+select_param_y)),len(eval('select_'+select_param_x)),len(eval('select_'+select_param_z))))
+fev_heatmap[:] = np.nan
+
+totalCombs = sum(idx_interest)
+idx_interest = np.where(idx_interest)[0]
+
+i=idx_interest[0]
+for i in idx_interest:
+    idx_x = np.where(params_mdl[select_param_x][i] == eval('select_'+select_param_x))[0][0]
+    idx_y = np.where(params_mdl[select_param_y][i] == eval('select_'+select_param_y))[0][0]
+    idx_z = np.where(params_mdl[select_param_z][i] == eval('select_'+select_param_z))[0][0]
+    
+    paramName = paramNames_allExps[select_exp][select_mdl][i]
+    
+    if RECALC_PERF == 0:
+        if perf_allExps[select_exp][select_mdl][paramName]['model_performance']['num_trials'] == 1:
+            rgb = perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_allUnits_bestEpoch_allTr']
+        else:
+            rgb = np.mean(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_allUnits_bestEpoch_allTr'],axis=-1)   # take average across trials
+        rgb = np.nanmedian(rgb,axis=0)
+        if rgb>thresh_fev:
+            fev_heatmap[idx_y,idx_x,idx_z] = rgb
+
+    else:
+               
+        idx_bestTrial = np.argsort(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
+        select_TR = idx_bestTrial[-1] + 1
+        mdlFolder = paramName+'_TR-%02d' % select_TR
+        # idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
+        idx_bestEpoch = np.argmax(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+        # idx_bestEpoch = np.argsort(np.squeeze(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial]))[-2]
+        fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
+
+        
+        curr_params = getModelParams(mdlFolder)
+        # get datasets if recalc_perf==1
+        if RECALC_PERF==1:
+            val_dataset_1 = lightLevel_1[0]
+            
+            fname_data_train_val_test = os.path.join(path_dataset,(exp_select+'_dataset_train_val_test_'+val_dataset_1+'.h5'))
+            rgb = load_h5Dataset(fname_data_train_val_test,nsamps_val=0.5,nsamps_test=0.1,nsamps_train=0.05,LOAD_TR=True)
+            data_val = rgb[1];
+            data_quality = rgb[3]
+
+            if select_mdl[:6]=='CNN_2D' or select_mdl == 'replaceDense_2D' or select_mdl[:5]=='CNN2D':
+                data_val = prepare_data_cnn2d(data_val,curr_params['T'],np.arange(data_val.y.shape[1]))
+
+            elif 'PR' in select_mdl:
+                data_val = prepare_data_cnn2d(data_val,curr_params['P'],np.arange(data_val.y.shape[1]))
+
+            samps_shift = 0
+            
+            if data_val.y.ndim==3:
+                obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1
+            else:
+                obs_rate_allStimTrials_d1 = data_val.y
+
+            # obs_rate = obs_rate_allStimTrials_d1.copy()
+            obs_rate = data_val.y
+            if 'var_noise' in data_quality:
+                obs_noise = data_quality['var_noise'] #estimate_noise(data_test.y_trials)
+            else:
+                obs_noise = 0
+
+
+
+
+        if 'PR' in select_mdl:
+            path_model = os.path.join(path_mdl_drive,select_mdl,pr_params_name,mdlFolder)
+        else:
+            path_model = os.path.join(path_mdl_drive,select_mdl,mdlFolder)
+            try:
+                tf.compat.v1.disable_eager_execution()
+            except:
+                pass
+
+        mdl = load(os.path.join(path_model,mdlFolder))
+
+        try:
+            mdl.load_weights(os.path.join(path_model,fname_bestWeight))
+        except:
+            mdl.load_weights(os.path.join(path_model,fname_bestWeight+'.h5'))
+        weights_dict = get_weightsDict(mdl)
+
+        # pred_rate = mdl.predict(data_val.X)
+        batch_size = 16
+        gen = chunker(data_val,batch_size=batch_size)    
+        steps_per_epoch = int(np.ceil(len(data_val.X)/batch_size))
+        pred_rate = mdl.predict_generator(gen,steps=steps_per_epoch)
+        # pred_rate = mdl.predict(data_val.X,batch_size = 4)
+
+
+        num_iters = 1
+        fev_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
+        fracExplainableVar = np.empty((pred_rate.shape[1],num_iters))
+        predCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
+        rrCorr_d1_allUnits = np.empty((pred_rate.shape[1],num_iters))
+        
+        for j in range(num_iters):
+            fev_d1_allUnits[:,j], fracExplainableVar[:,j], predCorr_d1_allUnits[:,j], rrCorr_d1_allUnits[:,j] = model_evaluate_new(
+                                                                            obs_rate_allStimTrials_d1.copy(),pred_rate.copy(),
+                                                                            0,RR_ONLY=False,lag = samps_shift,obs_noise=obs_noise)        
+        
+        fev_d1_allUnits = np.mean(fev_d1_allUnits,axis=1)
+    
+        idx_allUnits = np.arange(fev_d1_allUnits.shape[0])
+        idx_d1_valid = idx_allUnits
+        # idx_d1_valid = np.logical_and(fev_d1_allUnits>-1,fev_d1_allUnits<1.1)
+        # idx_d1_valid = idx_allUnits[idx_d1_valid]
+        
+        fev_d1_medianUnits = np.median(fev_d1_allUnits[idx_d1_valid])
+        if fev_d1_medianUnits>thresh_fev:
+            fev_heatmap[idx_y,idx_x,idx_z] = fev_d1_medianUnits
+
+    
+
+font_size_ticks = 12
+fig_rows = 1
+fig_cols = int(np.ceil(len(eval('select_'+select_param_z))/fig_rows))
+fig,axs = plt.subplots(fig_rows,fig_cols,figsize=(10,5))
+axs = np.ravel(axs)
+axs = axs[:len(eval('select_'+select_param_z))]
+
+color_map = plt.cm.get_cmap('autumn')
+reversed_color_map = color_map.reversed()
+
+for l in range(len(eval('select_'+select_param_z))):
+    param_z = eval('select_'+select_param_z)[l]
+
+    # im = axs[l].imshow(fev_heatmap_sorted[:,:,l],cmap=reversed_color_map,vmin = fev_min, vmax = fev_max)
+    im = axs[l].imshow(fev_heatmap[:,:,l],cmap=reversed_color_map,vmin = fev_min, vmax = fev_max)
+    axs[l].set_yticks(range(0,len(eval('select_'+select_param_y))))
+    axs[l].set_yticklabels(eval('select_'+select_param_y),fontsize=font_size_ticks)
+    axs[l].set_xticks(range(0,len(eval('select_'+select_param_x))))
+    axs[l].set_xticklabels(eval('select_'+select_param_x),fontsize=font_size_ticks)
+    axs[l].set_xlabel(select_param_x)
+    axs[l].set_ylabel(select_param_y)
+    axs[l].set_title(select_param_z+' = '+str(param_z))
+    # axs[l].set_aspect('equal', adjustable='datalim')
+fig.colorbar(im)
+plt.setp(axs,aspect='equal')
+
+rgb = np.nanmax(fev_heatmap)
+[max_y,max_x,max_z] = np.where(fev_heatmap==rgb)
+
+max_param_x = eval('select_'+select_param_x)[max_x][0]
+max_param_y = eval('select_'+select_param_y)[max_y][0]
+max_param_z = eval('select_'+select_param_z)[max_z][0]
+print('Max params:\n%s=%d\n%s=%d\n%s=%d\n' %(select_param_x,max_param_x,select_param_y,max_param_y,select_param_z,max_param_z))
+print('Max FEV: %0.2f' %(fev_heatmap[max_y,max_x,max_z]*100))
+
+# top 10 params
+fev_heatmap_sorted_idx = np.argsort(fev_heatmap,axis=None)
+fev_heatmap_sorted_vals = np.sort(fev_heatmap,axis=None)
+idx_nans = np.isnan(fev_heatmap_sorted_vals)
+fev_heatmap_sorted_idx = fev_heatmap_sorted_idx[~idx_nans]
+fev_heatmap_sorted_vals = fev_heatmap_sorted_vals[~idx_nans]
+fev_heatmap_sorted_idx = np.flip(fev_heatmap_sorted_idx)
+fev_heatmap_sorted_vals = np.flip(fev_heatmap_sorted_vals)
+
+N = 10
+params_top = np.zeros((N,4))
+for i in range(N):
+    curr_fev = fev_heatmap_sorted_vals[i]
+    [curr_y,curr_x,curr_z] = np.where(fev_heatmap==curr_fev)
+    curr_param_x = eval('select_'+select_param_x)[curr_x][0]
+    curr_param_y = eval('select_'+select_param_y)[curr_y][0]
+    curr_param_z = eval('select_'+select_param_z)[curr_z][0]
+    
+    params_top[i,:] = [curr_fev,curr_param_x,curr_param_y,curr_param_z]
+    print('FEV: %0.2f - Params:%s=%02d, %s=%02d, %s=%02d' %(curr_fev*100,select_param_x,curr_param_x,select_param_y,curr_param_y,select_param_z,curr_param_z))
+
+
+
+N = 20
+paramNames_all = []
+fev_all = []
+i=0
+for i in range(len(perf_paramNames)):
+    paramName = paramNames_allExps[select_exp][select_mdl][i]
+    paramNames_all.append(paramName)
+    curr_fev = perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_bestEpoch_allTr']
+    fev_all.append(curr_fev)
+fev_all = np.squeeze(np.asarray(fev_all))
+
+idx_sorted = np.argsort(fev_all)
+models_top = []
+for i in idx_sorted[-N:]:
+    models_top.append(paramNames_all[i])
+
+fevs_sorted = fev_all[idx_sorted[-N:]]
+
+for i in range(N):
+    print('FEV: %0.2f | model: %s'%(fevs_sorted[i],models_top[i]))
+
+# %% Evaluate grid search
+'''
+Evaluate without calculating performance file
+'''
+RECALC_PERF = 0
+select_exp = '20230725C'
+select_mdl = models_all[0]
+pr_params_name = ''
+select_param_x = 'C2_n' #'C2_n'
+select_param_y = 'C3_n' #'C3_n'
+select_param_z = 'C1_n'
+thresh_fev = -1000
+
+params_mdl = params_allExps[select_exp][select_mdl]
+
+select_U = 57
+select_P = 0
 select_T = np.array([60]) #np.unique(params_mdl['T'])
 select_BN = 1
 select_MP = 2
@@ -1273,7 +1644,7 @@ for i in range(N):
 
 
 
-N = 12
+N = 20
 paramNames_all = []
 fev_all = []
 i=0
@@ -1290,6 +1661,10 @@ for i in idx_sorted[-N:]:
     models_top.append(paramNames_all[i])
 
 fevs_sorted = fev_all[idx_sorted[-N:]]
+
+for i in range(N):
+    print('FEV: %0.2f | model: %s'%(fevs_sorted[i],models_top[i]))
+
 
 # %% D2: heatmaps
 val_dataset_2 = val_dataser_1 #photopic_preproc_cones_norm_1'
