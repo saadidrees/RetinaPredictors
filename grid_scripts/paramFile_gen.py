@@ -15,12 +15,13 @@ data_pers = 'mike'
 expDate = '20230725C'
 subFold = ''
 
-dataset = ('CB_photopic-Rstar',)#'NATSTIM_mesopic-Rstar') #'photopic-Rstar',) #'scotopic-Rstar')
+dataset = ('CB_CORR_mesopic-Rstar_f4_8ms',)#'NATSTIM_mesopic-Rstar') #'photopic-Rstar',) #'scotopic-Rstar')
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
 mdl_subFold = ''
-mdl_name = 'CNN_2D_NORM' #'CNN_2D_NORM' #'BP_CNN2D' #'PRFR_CNN2D_RODS'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
+mdl_name = 'PRFR_LN_CNN2D' 
+pr_params_name = 'prln_cones_trainable'
 path_existing_mdl = ''
 
 dataset_nameForPaths = ''
@@ -44,34 +45,33 @@ idxStart_fixedLayers = 0
 idxEnd_fixedLayers = -1
 idx_unitsToTake = 0
 
-mdl_name = 'CNN_2D_NORM'
 thresh_rr=0
-temporal_width=50
-pr_temporal_width=0
-bz_ms=5000
-nb_epochs=75
-TRSAMPS = 50
-VAL_SAMPS=0.3
-lr=0.0001
-use_lrscheduler=0
+temporal_width=60
+pr_temporal_width=80
+bz_ms=2000
+nb_epochs=60
+TRSAMPS = -1
+VAL_SAMPS=0.1
+lr=0.001
+use_lrscheduler=1
 
 USE_CHUNKER=1
 BatchNorm=1
 MaxPool=2
 num_trials=1
 
-chan1_n = np.arange(10,25,5) #np.array((7,8,9,10,11,12,13,14,15,16)) #np.atleast_1d((18)) #np.atleast_1d((18))
-filt1_size = np.arange(9,17,2) #((1,2,3,4,5,6,7,8,9))
+chan1_n = np.arange(10,30,5) #np.array((7,8,9,10,11,12,13,14,15,16)) #np.atleast_1d((18)) #np.atleast_1d((18))
+filt1_size = np.arange(5,17,2) #((1,2,3,4,5,6,7,8,9))
 filt1_3rdDim = np.atleast_1d((0)) #np.atleast_1d((1,10,20,30,40,50,60))
 
 chan2_n = np.arange(15,35,5) #np.atleast_1d((25))     #np.array((8,10,13,15,18,20,22,24,25,26,28,30))
 # chan2_n = np.append(chan2_n,16)
-filt2_size = np.arange(5,13,2)   #((1,2,3,4,5,6,7,8,9))
+filt2_size = np.arange(5,15,2)   #((1,2,3,4,5,6,7,8,9))
 filt2_3rdDim = np.atleast_1d((0)) #np.atleast_1d((1,8,10,12,14,18,20,30,40,50))
 
 chan3_n = np.arange(20,40,5) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
 # chan3_n = np.append([0],chan3_n)
-filt3_size = np.arange(5,9,2)  # ((1,2,3,4,5,6,7,8,9))
+filt3_size = np.arange(5,13,2)  # ((1,2,3,4,5,6,7,8,9))
 filt3_3rdDim = np.atleast_1d((0))#np.atleast_1d((1,8,10,12,14,18,20,30,40,50))
 
 chan4_n = np.atleast_1d((0)) #np.arange(0,120,20) #np.atleast_1d((18))     #np.array((13,15,18,20,22,24,25,26,28,30))
@@ -83,7 +83,7 @@ image_dim = 75
 image_tempDim = temporal_width
 
 
-csv_header = ['expDate','mdl_name','path_model_save_base','name_datasetFile','path_existing_mdl','thresh_rr','temp_width','pr_temporal_width','bz_ms','nc_epochs',
+csv_header = ['expDate','mdl_name','path_model_save_base','name_datasetFile','path_existing_mdl','thresh_rr','temp_width','pr_temporal_width','pr_params_name','bz_ms','nc_epochs',
               'chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool',
               'num_trials','USE_CHUNKER','TRSAMPS','VAL_SAMPS','lr','use_lrscheduler','idx_unitsToTake','idxStart_fixedLayers','idxEnd_fixedLayers','select_rgctype']
 params_array = np.zeros((1000000,3*4))
@@ -220,7 +220,7 @@ fname_model = ([])
 for i in range(params_array.shape[0]):
                         
     rgb = params_array[i,:].astype('int').tolist()
-    csv_data = [expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_existing_mdl,thresh_rr,temporal_width,pr_temporal_width,bz_ms,nb_epochs]
+    csv_data = [expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_existing_mdl,thresh_rr,temporal_width,pr_temporal_width,pr_params_name,bz_ms,nb_epochs]
     csv_data.extend(rgb)
     csv_data.extend([BatchNorm,MaxPool,num_trials,USE_CHUNKER,TRSAMPS,VAL_SAMPS,lr,use_lrscheduler,idx_unitsToTake,idxStart_fixedLayers,idxEnd_fixedLayers,select_rgctype])
                
