@@ -770,7 +770,7 @@ def prfr_ln_cnn2d(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=120
     return Model(inputs, outputs, name=mdl_name)
 
 
-# %%
+# %% Clark model
 
 def generate_simple_filter(tau,n,t):
     f = (t**n)*tf.math.exp(-t/tau) # functional form in paper

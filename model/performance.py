@@ -406,7 +406,7 @@ def estimate_noise(resp,n_loops=100):
                 
         
 
-def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False,lag = 0,obs_noise=None):
+def model_evaluate_new(obs_rate_allStimTrials,pred_rate,filt_width,RR_ONLY=False,lag = 0,obs_noise=0):
     numCells = obs_rate_allStimTrials.shape[-1]
     if obs_rate_allStimTrials.ndim>2:
         num_trials = obs_rate_allStimTrials.shape[0]

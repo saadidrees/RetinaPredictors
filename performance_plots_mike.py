@@ -59,8 +59,8 @@ from model.train_model import chunker
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = 'control'
-lightLevel_1 =  ('CB_CORR_mesopic-Rstar_f4_8ms',) #CB_CORR_mesopic-Rstar_f4_8ms  NATSTIM3_CORR_mesopic-Rstar_f4_8ms
+mdl_subFold = ''
+lightLevel_1 =  ('CB_CORR_photopic-Rstar_f4_8ms',) #CB_CORR_mesopic-Rstar_f4_8ms  NATSTIM3_CORR_mesopic-Rstar_f4_8ms CB_CORR_photopic-Rstar_f4_8ms
 lightLevel_2 = ()#('CB_CORR_mesopic-Rstar_f4_8ms',)#('NATSTIM3_photopic-Rstar_f4',)
 models_all = ('CNN2D',) # 
 pr_params_name = ''
@@ -347,22 +347,22 @@ select_mdl = models_all[0] #'CNN_2D' #'CNN_2D_chansVary'#'CNN_2D_filtsVary'
 val_dataset_1 = lightLevel_1 #'scot-3-Rstar_mdl-rieke_s-7.07_p-7.07_e-2.53_k-0.01_h-3_b-25_hc-4_gd-15.5_g-50.0_preproc-rods_norm-0_tb-8_Euler_RF-2' #lightLevel_1  #lightLevel_1 #      # ['scotopic','photopic']
 correctMedian = False
 
-select_LR = '0.001'
+select_LR = '0.0001'
 select_U = 57
-select_P = 0
-select_T = 64
+select_P = 80
+select_T = 60
 select_BN = 1
 select_MP = 2
 # select_TR = 1
 select_CB = 0
 select_C1_n = 10
-select_C1_s = 11#9
+select_C1_s = 15#9
 select_C1_3d = 0
 select_C2_n = 15
-select_C2_s = 7
+select_C2_s = 11
 select_C2_3d = 0
-select_C3_n = 20
-select_C3_s = 7
+select_C3_n = 25
+select_C3_s = 11
 select_C3_3d = 0
 select_TRSAMPS = -1
 
@@ -377,8 +377,8 @@ paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP
 
 # assert val_dataset_1 != val_dataset_1, 'same datasets selected'
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
-# idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
-idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
+idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+# idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
 trial_num = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
 plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][5:,idx_bestTrial])
 select_TR = int(trial_num)
@@ -564,8 +564,8 @@ rrCorr_d1_allUnits = np.mean(rrCorr_d1_allUnits,axis=1)
 
 idx_allUnits = np.arange(fev_d1_allUnits.shape[0])
 idx_d1_valid = idx_allUnits
-idx_d1_valid = fev_d1_allUnits<1.1
-idx_d1_valid = idx_allUnits[idx_d1_valid]
+# idx_d1_valid = fev_d1_allUnits<1.1
+# idx_d1_valid = idx_allUnits[idx_d1_valid]
 print('N = %d RGCs'%len(idx_d1_valid))
 
 # fev_d1_validUnits = fev_d1_allUnits[idx_d1_valid]
@@ -753,36 +753,37 @@ axs[0].tick_params(axis='both',labelsize=font_size_ticks)
 # axs[0].legend(loc='best')
 
 
-# Temporal width 120
-tr = np.array([10,15,20,25,30,35])
-fev_cnn = np.array([61,67,70,73,73,76])
-# fev_cones_trainable = np.array([53,70,68,77,78,77])
-# fev_cones_fixed = np.array([56,68,67,73,72,74])
-fev_rods_fixed = np.array([55,65,67,73,76,74])
-fev_rods_trainable = np.array([57,66,71,76,75,76])
-fev_pr_ln = np.array([57,66,66,73,75,76])
+# # Temporal width 120
+# tr = np.array([10,15,20,25,30,35])
+# fev_cnn = np.array([61,67,70,73,73,76])
+# # fev_cones_trainable = np.array([53,70,68,77,78,77])
+# # fev_cones_fixed = np.array([56,68,67,73,72,74])
+# fev_rods_fixed = np.array([55,65,67,73,76,74])
+# fev_rods_trainable = np.array([57,66,71,76,75,76])
+# fev_pr_ln = np.array([57,66,66,73,75,76])
 
-fig,axs = plt.subplots(1,1,figsize=(5,5))
-axs = np.ravel(axs)
-font_size_ticks = 20
+# fig,axs = plt.subplots(1,1,figsize=(5,5))
+# axs = np.ravel(axs)
+# font_size_ticks = 20
 
-# xlabel = ['cones_fixed','rods_fixed']
-axs[0].plot(tr,fev_cnn,'-ko',label='cnn')
-# axs[0].plot(tr,fev_cones_trainable,'-ro',label='cones_train')
-# axs[0].plot(tr,fev_cones_fixed,'--rx',label='cones_fixed')
-axs[0].plot(tr,fev_rods_trainable,'-go',label='rods_train')
-axs[0].plot(tr,fev_rods_fixed,'--gx',label='rods_fixed')
-axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
-axs[0].set_xlabel('Training data (minutes)')
-axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
-axs[0].legend(loc='best')
-axs[0].set_title('120 ms')
+# # xlabel = ['cones_fixed','rods_fixed']
+# axs[0].plot(tr,fev_cnn,'-ko',label='cnn')
+# # axs[0].plot(tr,fev_cones_trainable,'-ro',label='cones_train')
+# # axs[0].plot(tr,fev_cones_fixed,'--rx',label='cones_fixed')
+# axs[0].plot(tr,fev_rods_trainable,'-go',label='rods_train')
+# axs[0].plot(tr,fev_rods_fixed,'--gx',label='rods_fixed')
+# axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
+# axs[0].set_xlabel('Training data (minutes)')
+# axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
+# axs[0].legend(loc='best')
+# axs[0].set_title('120 ms')
 
 
-# Temporal width 80 ms
+# Temporal width 80 ms - 60
 tr = np.array([10,15,20,25,30,35])
 fev_cnn = np.array([61,67,68,71,72,72])
-fev_rods_fixed = np.array([55,55,66,70,74,72])
+# fev_rods_fixed = np.array([55,55,66,70,74,72])
+fev_rods_fixed = np.array([47,54,63,69,72,75])
 fev_rods_trainable = np.array([53,65,65,74,76,74])
 fev_pr_ln = np.array([49,61,60,62,66,66])
 
@@ -794,12 +795,34 @@ font_size_ticks = 20
 axs[0].plot(tr,fev_cnn,'-ko',label='cnn')
 axs[0].plot(tr,fev_rods_trainable,'-go',label='rods_train')
 axs[0].plot(tr,fev_rods_fixed,'--gx',label='rods_fixed')
-axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
+# axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
 axs[0].set_xlabel('Training data (minutes)')
 axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
 axs[0].legend(loc='best')
-axs[0].set_title('80 ms')
+axs[0].set_title('MESOPIC 80 - 60 ms')
 
+
+# Temporal width 80 ms - 60
+tr = np.array([10,15,20,25,30,35,40,45,50,55])
+fev_cnn = np.array([17,22,24,18,30,28,30,30,35,33])
+# fev_rods_fixed = np.array([55,55,66,70,74,72])
+# fev_rods_fixed = np.array([47,54,63,69,72,75])
+fev_cones_trainable = np.array([13,30,20,29,36,37,34,34,36,40])
+# fev_pr_ln = np.array([49,61,60,62,66,66])
+
+fig,axs = plt.subplots(1,1,figsize=(5,5))
+axs = np.ravel(axs)
+font_size_ticks = 20
+
+# xlabel = ['cones_fixed','rods_fixed']
+axs[0].plot(tr,fev_cnn,'-ko',label='cnn')
+axs[0].plot(tr,fev_cones_trainable,'-go',label='cones_train')
+# axs[0].plot(tr,fev_rods_fixed,'--gx',label='rods_fixed')
+# axs[0].plot(tr,fev_pr_ln,'-o',label='linear PR')
+axs[0].set_xlabel('Training data (minutes)')
+axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
+axs[0].legend(loc='best')
+axs[0].set_title('PHOTOPIC 80 - 60 ms')
 
 # %% PR output
 idx_mdl_start = 1
@@ -1157,8 +1180,8 @@ thresh_fev = -1000
 params_mdl = params_allExps[select_exp][select_mdl]
 
 select_U = 57
-select_P = 0
-select_T = np.array([64]) #np.unique(params_mdl['T'])
+select_P = 80
+select_T = np.array([60]) #np.unique(params_mdl['T'])
 select_BN = 1
 select_MP = 2
 # select_TR = 1
@@ -1236,8 +1259,8 @@ for i in idx_interest:
         idx_bestTrial = np.argsort(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
         select_TR = idx_bestTrial[-1] + 1
         mdlFolder = paramName+'_TR-%02d' % select_TR
-        # idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
-        idx_bestEpoch = np.argmax(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+        idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
+        # idx_bestEpoch = np.argmax(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
         # idx_bestEpoch = np.argsort(np.squeeze(perf_allExps[select_exp][select_mdl][paramName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial]))[-2]
         fname_bestWeight = 'weights_'+mdlFolder+'_epoch-%03d' % (idx_bestEpoch+1)
 

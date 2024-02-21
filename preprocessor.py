@@ -14,10 +14,10 @@ import os
 from collections import namedtuple 
 Exptdata = namedtuple('Exptdata', ['X', 'y'])
 import multiprocessing as mp
-from joblib import Parallel, delayed
+# from joblib import Parallel, delayed
 import time
 import gc
-from pyret.filtertools import sta, decompose
+# from pyret.filtertools import sta, decompose
 from scipy import signal
 from scipy.signal import convolve
 from scipy.special import gamma as scipy_gamma
@@ -352,7 +352,7 @@ def model_params_trainable(timeBin = 1):
     params_rods['betaSlow'] =  0	  
     params_rods['hillcoef'] =  5.2 #13.8  	  # cooperativity for cyclase, hill coef - default 4
     params_rods['hillaffinity'] = 0.26 #0.22		# affinity for Ca2+
-    params_rods['gamma'] =  10/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
+    params_rods['gamma'] =  2.5/timeBin #2.44/timeBin #2.44/timeBin #8 # so stimulus can be in R*/sec (this is rate of increase in opsin activity per R*/sec) - default 10
     params_rods['timeStep'] =  1e-3 # freds default is 1e-3
     params_rods['darkCurrent'] =  params_rods['gdark']**params_rods['h'] * params_rods['k']/2
 
@@ -838,15 +838,15 @@ def model_params_clark_init():
         
 # %% Single pr type
 
-DEBUG_MODE = 0
-WRITE_TO_H5 = 1
+DEBUG_MODE = 1
+WRITE_TO_H5 = 0
 data_pers = 'kiersten'  #['saad','kiersten']
-expDate = 'monkey01' #'retina1'  20180502_as3
-lightLevel = 'scot-3' #'photopic-10000' #'photopic-10000'  # ['photopic','scotopic','mesopic-2026']
+expDate = 'retina1' #'monkey01' #'retina1'  20180502_as3
+lightLevel = 'photopic-10000' #'photopic-10000' #'photopic-10000'  # ['photopic','scotopic','mesopic-2026']
 if expDate == 'monkey01':
     lightLevel = lightLevel+'-Rstar'
 stimName = ''  # SACC_T2
-folder = '' #'8ms_sampShifted'  # 8ms_sampShifted
+folder = '8ms_sampShifted'  # 8ms_sampShifted
 path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/',expDate,'datasets/'+folder)
 if stimName == '':
     fname_dataset = expDate+'_dataset_train_val_test_'+lightLevel+'.h5'
@@ -857,12 +857,12 @@ fname_data_train_val_test = os.path.join(path_dataset,fname_dataset)
 
 changeIntensities = False
 pr_mdl_name = 'rieke'  # 'rieke' 'clark'
-pr_type = 'rods'   # ['rods','cones']
+pr_type = 'cones'   # ['rods','cones']
 ode_solver = 'Euler' #['hybrid','RungeKutta','Euler']
 
 timeBin = 8
 frameTime = 8
-NORM = 0
+NORM = 1
 NORM_FIXED = 0
 DOWN_SAMP = 1
 ROLLING_FAC = 2
@@ -880,8 +880,8 @@ else:
 # t_frame = .008
 
 if pr_mdl_name == 'rieke':
-    # params_cones,params_rods = model_params_trainable(timeBin)
-    params_cones,params_rods = model_params_monkey_orig(timeBin)
+    params_cones,params_rods = model_params_trainable(timeBin)
+    # params_cones,params_rods = model_params_monkey_orig(timeBin)
     params_cones['timeStep'] = 1e-3*(frameTime/upSampFac)
     params_rods['timeStep'] = 1e-3*(frameTime/upSampFac)
     

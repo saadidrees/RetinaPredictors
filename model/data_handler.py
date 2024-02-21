@@ -624,11 +624,17 @@ def prepare_data_cnn2d(data,filt_temporal_width,idx_unitsToTake,num_chunks=1,MAK
         X = data.X
         y = data.y
 
+
         X_rgb = X.reshape(X.shape[0],X.shape[1],X.shape[2],-1,order='A')
-        X_rgb = rolling_window(X_rgb,filt_temporal_width,time_axis=0)
-        
         y_rgb = y.reshape(y.shape[0],y.shape[1],-1,order='A')
-        y_rgb = y_rgb[filt_temporal_width:]
+
+        
+        if filt_temporal_width==1: # the case when filt_temporal_width=0
+            X_rgb = X_rgb[:,None,:,:,:]
+        else:
+            X_rgb = rolling_window(X_rgb,filt_temporal_width,time_axis=0)
+            y_rgb = y_rgb[filt_temporal_width:]
+        
         
         X_list = []
         y_list = []

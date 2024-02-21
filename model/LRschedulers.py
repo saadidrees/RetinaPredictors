@@ -16,10 +16,6 @@ class printLR_constant(keras.callbacks.Callback):
         self.config=config
         
     def on_epoch_end(self, epoch, logs=None):
-        # if self.config['scheduler']=='constant':
-        #     lr = tf.keras.backend.eval(self.model.optimizer.learning_rate)
-        # else:
-            # lr = tf.keras.backend.eval(self.model.optimizer.learning_rate(epoch*self.config['bz']))
         lr = tf.keras.backend.eval(self.model.optimizer.learning_rate)
         print("Epoch - {:d} | LR - {:.2E}".format(epoch,lr))
             

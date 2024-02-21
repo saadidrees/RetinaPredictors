@@ -215,6 +215,7 @@ def RiekeModel(params,stim_photons,ode_solver='RungeKutta'):
             s[pnt] = smax / (1 + (c[pnt] / params['hillaffinity']) **params['hillcoef'])
             
             rgb_g = g[pnt-1] + TimeStep * (s[pnt-1] - p[pnt-1] * g[pnt-1])
+            # rgb_g = g[pnt-1] + TimeStep * (s[pnt-1] - 1 * g[pnt-1])
             idx_nan = np.isnan(rgb_g)
             rgb_g[idx_nan] = 0 #-(cgmp2cur * params['gdark'] **cgmphill)/2
             g[pnt] = rgb_g

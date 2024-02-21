@@ -8,8 +8,7 @@ Created on Wed May  3 11:25:03 2023
 """
 
 
-path_figs = '/home/saad/postdoc_db/papers/PR_paper/figs/'
-plt.rcParams['svg.fonttype'] = 'none'
+path_figs = '/home/saad/postdoc_db/papers/PR_paper/Figs/figs/'
 
 import seaborn as sns
 import pandas as pd
@@ -20,7 +19,7 @@ import numpy as np
 import os
 import re
   
-from global_scripts import utils_si
+# from global_scripts import utils_si
 import matplotlib.pyplot as plt
 plt.rcParams['svg.fonttype'] = 'none'
 from matplotlib import cm
@@ -39,7 +38,7 @@ from model.performance import getModelParams, model_evaluate,model_evaluate_new,
 from model import metrics
 from model import featureMaps
 from model.models import modelFileName
-from pyret.filtertools import sta, decompose
+# from pyret.filtertools import sta, decompose
 import seaborn
 
 import tensorflow as tf
@@ -52,10 +51,10 @@ from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 # %% Fig. 4: STA vs Grads
 
 fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
-datasets_plot = ('scot-3-Rstar',)#'scot-0.3-Rstar',)#'scot-3-Rstar','scot-0.3-Rstar')
+datasets_plot = ('scot-30-Rstar',)#'scot-0.3-Rstar',)#'scot-3-Rstar','scot-0.3-Rstar')
 mdls_toplot = ('CNN_2D_NORM','PRFR_CNN2D_RODS',) #PRFR_CNN2D_RODS  CNN_2D_NORM
 
-path_gradFiles = '/home/saad/data_hdd/analyses/data_kiersten/monkey01/gradient_analysis/gradients/'
+path_gradFiles = '/home/saad/data2/analyses/data_kiersten/monkey01/gradient_analysis/gradients/'
 
 temporal_width_grads = 50
 temp_window = 50
@@ -66,9 +65,9 @@ u_arr = [0]
 
  
 m = 0
-num_samps = len(idx_samps) 
+num_samps = 400903#len(idx_samps) 
 n_units = 7
-
+u=u_arr[0]
 for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
 
     spatRF_sta = np.zeros((data_alldsets['spat_dims'][0],data_alldsets['spat_dims'][1],len(datasets_plot),len(mdl_names)))
@@ -122,6 +121,18 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
             spatRF_sta[:,:,ctr_d,m] = spatial_feat
             tempRF_sta[:,ctr_d,m]  = temporal_feat[-temp_window:]
             tempRF_sta[:,ctr_d,m]  = tempRF_sta[:,ctr_d,m]/tempRF_sta[:,ctr_d,m].max()
+            
+            """
+            rgb = temporal_feat[-temp_window:]
+            rgb = rgb/rgb.max()
+            plt.plot(rgb[::4])
+            plt.plot(rgb)
+            plt.xticks(np.arange(rgb[::4].shape[0]),labels=np.arange(-rgb[::4].shape[0]*67+67,67,67))
+            fig_name = 'sta_vs_grads_staOnlye'
+            plt.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
+            plt.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
+
+            """
             
             # Method 2: Compute LSTA from model for just one input sample
             select_img = 50 #768 #712
@@ -597,7 +608,7 @@ rgb = np.abs(tempRF_grads_pr_avg[:,2,:] - tempRF_grads_pr_avg[:,1,:])
 a = np.sum(rgb,axis=0)
 idx_max = np.argmax(a)
 
-u = 9 # 14
+u =  14
 d = np.array([0,1,2])
 t_frame = 8
 
@@ -645,9 +656,10 @@ x_ticksLabel_ds = x_ticksLabel[[0,-1]]
 
 fig,axs = plt.subplots(1,3,figsize=(20,5))
 fig.suptitle(uname_gainFile[u])
-axs[0].plot(tempRF_sta[:,d,u],label=np.array(lightLevels_all)[d])
-axs[0].set_xticks(x_ticks)
-axs[0].set_xticklabels(x_ticksLabel)
+temp = tempRF_sta[::dsFac,d,u]
+axs[0].plot(np.arange(temp.shape[0]),temp,label=np.array(lightLevels_all)[d])
+axs[0].set_xticks(x_ticks_ds)
+axs[0].set_xticklabels(x_ticksLabel_ds)
 axs[0].set_title('STA')
 axs[0].set_xlabel('Time from spike onset (ms)')
 axs[0].set_ylabel('Normalized STA')
@@ -677,9 +689,9 @@ fig2 = sns.catplot(
     x='model',hue='lightLevel',
     ci=95)
 
-# fig_name = 'latencies_examp'
-# fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
-# fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
+fig_name = 'latencies_examp_step'
+fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
+fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
 
 # fig_name = 'latencies_pop'
 # fig2.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)

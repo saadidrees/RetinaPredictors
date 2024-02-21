@@ -22,58 +22,60 @@ base = '/home/saad/postdoc_db/'
 # base = '/home/saad/data_hdd/'
 
 
-data_pers = 'mike' #'kiersten'
+
+
+data_pers = 'mike' 
 expDate = '20230725C'
 expFold = expDate
-subFold = 'cluster' 
-dataset = ('CB3_photopic-Rstar',)#'
+subFold = '' 
+dataset = ('NATSTIM3_CORR_mesopic-Rstar_f4_8ms',)#'NATSTIM3_CORR_mesopic-Rstar_f4_8ms  CB_CORR_mesopic-Rstar_f4_8ms
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
-mdl_subFold = ''
-mdl_name = 'CNN_2D_NORM2' #'
-path_existing_mdl = ''
-
+mdl_subFold = 'finetuning'
+mdl_name = 'CNN2D' #PRFR_CNN2D'  #CNN_2D_NORM2' #'
+pr_params_name = ''#'prln_cones_trainable' #'mike_phot_beta0'
+path_existing_mdl = '/home/saad/postdoc_db/analyses/data_mike/20230725C/models/CB_CORR_mesopic-Rstar_f4_8ms/CNN2D/U-57_T-080_C1-10-15_C2-15-11_C3-25-11_BN-1_MP-2_LR-0.001_TRSAMPS--01_TR-01'
+transfer_mode = 'finetuning'
 info = ''
 idxStart_fixedLayers = 0#1
 idxEnd_fixedLayers = -1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
 CONTINUE_TRAINING = 1
 
-lr = 0.001
+lr = 0.0001
 lr_fac = 1# how much to divide the learning rate when training is resumed
 use_lrscheduler=1
-lrscheduler='constant' #dict(scheduler='stepLR',drop=0.01,epochs_drop=20,initial_lr=lr)
+lrscheduler='constant' #dict(scheduler='stepLR',drop=0.01,steps_drop=20,initial_lr=lr)
 USE_CHUNKER=1
 pr_temporal_width = 0
-temporal_width=120
+temporal_width=80
 thresh_rr=0
 chans_bp = 0
 chan1_n=10
 filt1_size=15
 filt1_3rdDim=0
-chan2_n=20
-filt2_size=7
+chan2_n=15
+filt2_size=11
 filt2_3rdDim=0
-chan3_n=30
-filt3_size=5
+chan3_n=25
+filt3_size=11
 filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
-nb_epochs=0#42         # setting this to 0 only runs evaluation
-bz_ms=10000#10000#5000
+nb_epochs=110#42         # setting this to 0 only runs evaluation
+bz_ms=5000#10000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
 num_trials=1
 
-BatchNorm_train = 0
+BatchNorm_train = 1
 saveToCSV=1
 trainingSamps_dur = -1#20 #-1 #0.05 # minutes per dataset
-validationSamps_dur=0.05
-testSamps_dur=0.01
-
-USE_WANDB=1
+validationSamps_dur=0.03
+testSamps_dur=0.03
+USE_WANDB = 1
 
 
 dataset_nameForPaths = ''
@@ -96,11 +98,8 @@ c_trial = 1
 
 if path_existing_mdl=='' and idxStart_fixedLayers>0:
     raise ValueError('Transfer learning set. Define existing model path')
-
-pr_params_name = 'mike_phot'
-
     
-# %%
+
 for c_trial in range(1,num_trials+1):
     model_performance,mdl = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
                             temporal_width=temporal_width, thresh_rr=thresh_rr,
@@ -111,7 +110,7 @@ for c_trial in range(1,num_trials+1):
                             chan3_n=chan3_n, filt3_size=filt3_size, filt3_3rdDim=filt3_3rdDim,
                             nb_epochs=nb_epochs,bz_ms=bz_ms,
                             BatchNorm=BatchNorm,BatchNorm_train = BatchNorm_train,MaxPool=MaxPool,c_trial=c_trial,USE_CHUNKER=USE_CHUNKER,
-                            path_existing_mdl = path_existing_mdl, idxStart_fixedLayers=idxStart_fixedLayers, idxEnd_fixedLayers=idxEnd_fixedLayers,
+                            path_existing_mdl = path_existing_mdl, idxStart_fixedLayers=idxStart_fixedLayers, idxEnd_fixedLayers=idxEnd_fixedLayers,transfer_mode=transfer_mode,
                             CONTINUE_TRAINING=CONTINUE_TRAINING,info=info,
                             trainingSamps_dur=trainingSamps_dur,validationSamps_dur=validationSamps_dur,idx_unitsToTake=idx_unitsToTake,
                             lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lrscheduler=lrscheduler,USE_WANDB=USE_WANDB)
@@ -127,25 +126,32 @@ import os
 from model.performance import getModelParams
 from run_models import run_model
 import socket
+import h5py
+import glob
+import re
 hostname=socket.gethostname()
 if hostname=='sandwolf':
     base = '/home/saad/data_hdd/'
 elif hostname=='sandhound':
     base = '/home/saad/postdoc_db/'
 
-min_nepochs = 40
+base = '/home/saad/data_hdd/'
+
+min_nepochs = 60
 
 data_pers = 'mike'
 expDate = '20230725C'
 expFold = expDate
 subFold = ''
-dataset = ('CB3_photopic-Rstar',)
+dataset = ('CB_CORR_mesopic-Rstar_f4_8ms',)
 path_existing_mdl = ''
 info = ''
 
 
-mdl_subFold = 'cluster'
-mdl_name = 'CNN_2D_NORM'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
+mdl_subFold = 'optimal_narval'
+mdl_name = 'PRFR_LN_CNN2D'#' #'PR_CNN2D_fixed' #'PR_CNN2D'#'CNN_2D' BP_CNN2D_MULTIBP_PRFRTRAINABLEGAMMA
+pr_params_name = 'prln_cones_trainable'#'prln_cones_trainable' #'mike_phot_beta0'
+
 
 dataset_nameForPaths = ''
 for i in range(len(dataset)):
@@ -163,18 +169,26 @@ for i in range(len(dataset)):
     fname_data_train_val_test = fname_data_train_val_test+os.path.join(path_dataset_base,'datasets',name_datasetFile) + '+'
 fname_data_train_val_test = fname_data_train_val_test[:-1]
 
-fname_allParams = os.listdir(os.path.join(path_model_save_base,mdl_name))
+fname_allParams = os.listdir(os.path.join(path_model_save_base,mdl_name,pr_params_name))
 
 recalculate_perf = 0
+
 # %%
 counter = 0
-fname_param = fname_allParams[0]
-for fname_param in fname_allParams:
-    counter = counter+1
+i=0
+for i in range(0,len(fname_allParams)):
+    fname_param = fname_allParams[i]
+
+    counter = i+1
     print('%d of %d\n' %(counter,len(fname_allParams)))
-    current_epoch = len([fname_param for fname_param in os.listdir(os.path.join(path_model_save_base,mdl_name,fname_param)) if fname_param.endswith('index')])
+    allEpochs = glob.glob(os.path.join(path_model_save_base,mdl_name,pr_params_name,fname_param)+'/*.index')
+    allEpochs.sort()
+    lastEpochFile = os.path.split(allEpochs[-1])[-1]
+    rgb = re.compile(r'_epoch-(\d+)')
+    current_epoch = int(rgb.search(lastEpochFile)[1])
+    # current_epoch = len([fname_param for fname_param in os.listdir(os.path.join(path_model_save_base,mdl_name,fname_param)) if fname_param.endswith('index')])
     
-    fname_performance = os.path.join(path_model_save_base,mdl_name,fname_param,'performance',expDate+'_'+fname_param+'.h5')
+    fname_performance = os.path.join(path_model_save_base,mdl_name,pr_params_name,fname_param,'performance',expDate+'_'+fname_param+'.h5')
     perf_exist = os.path.exists(fname_performance)
     try:
         perf = h5py.File(fname_performance,'r')
@@ -186,7 +200,7 @@ for fname_param in fname_allParams:
     
     # if current_epoch>min_nepochs and not(recalculate_perf==0 and perf_exist):
     if current_epoch>min_nepochs and nepochsAtPerfCalc<min_nepochs:
-            
+        print(fname_param)
         params = getModelParams(fname_param)
         
     
@@ -209,7 +223,7 @@ for fname_param in fname_allParams:
 
         trainingSamps_dur = 0 # minutes
         nb_epochs=0         # setting this to 0 only runs evaluation
-        bz_ms=5000#20000 #10000
+        bz_ms=1000#20000 #10000
         USE_CHUNKER = 1
         BatchNorm=params['BN']
         MaxPool=params['MP']
@@ -220,7 +234,7 @@ for fname_param in fname_allParams:
         BatchNorm_train = 0
         saveToCSV=1
         # trainingSamps_dur=0
-        validationSamps_dur=0
+        validationSamps_dur=0.1
         testSamps_dur=0.05
         
         idx_unitsToTake = np.array([0])#idx_units_ON_train #[0] #idx_units_train
@@ -230,6 +244,7 @@ for fname_param in fname_allParams:
 
         model_performance,mdl = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
                                 temporal_width=temporal_width, pr_temporal_width=pr_temporal_width, thresh_rr=thresh_rr,
+                                pr_params_name=pr_params_name,
                                 chans_bp=chans_bp,
                                 chan1_n=chan1_n, filt1_size=filt1_size, filt1_3rdDim=filt1_3rdDim,
                                 chan2_n=chan2_n, filt2_size=filt2_size, filt2_3rdDim=filt2_3rdDim,
