@@ -571,7 +571,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     print('-----EVALUATING PERFORMANCE-----')
-    i=108
+    i=52
     for i in range(0,nb_epochs):
         print('evaluating epoch %d of %d'%(i,nb_epochs))
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
