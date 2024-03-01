@@ -1310,9 +1310,9 @@ def prfr_cnn2d_aru(inputs,n_out,**kwargs): #(inputs,n_out,filt_temporal_width=12
     
     # Dense layer
     y = Flatten()(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
     if BatchNorm is True: 
         y = BatchNormalization(axis=1,epsilon=1e-7)(y)
-    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
 
     # outputs = Activation('softplus',dtype='float32')(y)
     aru_params = {
