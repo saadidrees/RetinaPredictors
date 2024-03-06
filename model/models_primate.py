@@ -23,7 +23,7 @@ def model_definitions():
         How to arrange the datasets depends on which model is being used
     """
     
-    models_2D = ('CNN2D','CNN2D_BNORM','CNN2D_NONORM','CNN2D_NORM3',
+    models_2D = ('CNN2D','CNN2D_TRLNORM','CNN2D_BNORM','CNN2D_NONORM','CNN2D_NORM3',
                  'PRFR_CNN2D','PRFR_CNN2D_NOLN','PRFR_CNN2D_ARU',
                  'PRFR_LN_CNN2D',
                  'PRDA_CNN2D')
