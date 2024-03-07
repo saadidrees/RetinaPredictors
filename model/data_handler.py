@@ -1615,14 +1615,18 @@ def merge_datasets(dict_data):
 
 
 def dataset_shuffle(data,n_train):
+    import random
     
     X = []
     y = []
+    dset_names = []
     idx_shuffle = list(range(n_train))
+    random.shuffle(idx_shuffle)
     for i in idx_shuffle:
         X.append(data.X[i])
         y.append(data.y[i])
-        
+        if isintuple(data,'dset_names'):
+            dset_names.append(data.dset_names[i])
     
         
     data_vars = ['X','y','spikes','y_trials','dset_names']
