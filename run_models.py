@@ -50,6 +50,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets,isintuple, dataset_shuffle
     from model.data_handler_mike import load_h5Dataset
+    from model import data_handler
     from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer, estimate_noise,get_layerIdx
     import model.metrics as metrics
     import model.models_primate  # can improve this by only importing the model that is being used
@@ -78,8 +79,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # Memory growth must be set before GPUs have been initialized
         print(e)
     
-    if 'PR' not in mdl_name:
-        tf.compat.v1.disable_eager_execution()
+    # if 'PR' not in mdl_name:
+    #     tf.compat.v1.disable_eager_execution()
         
     
     if runOnCluster==1:
@@ -268,7 +269,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     
-    data_train = dataset_shuffle(data_train,n_train)
+    # data_train = dataset_shuffle(data_train,n_train)
+    
     
     print('Training data duration: %0.2f mins'%(n_train*t_frame/1000/60))
     
@@ -299,6 +301,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     dict_params['filt_temporal_width'] = temporal_width
     dict_params['dtype'] = DTYPE
+    dict_params['n_out'] = n_cells
+
     
     if pr_params_name!='':
         path_model_save = os.path.join(path_model_save_base,mdl_name,pr_params_name,fname_model)   # the model save directory is the fname_model appened to save path
