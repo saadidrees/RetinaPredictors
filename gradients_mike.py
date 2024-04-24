@@ -298,8 +298,8 @@ for d in dataset_eval:
     f_grads.close()
 
 
+# %% Orthogonal basis projections
 
-#%% Compute LSTA from model for input samples and average
 path_gradFiles = '/home/saad/data/analyses/gradients_mike/'
 
 select_mdl = 'CNN_2D' #'PRFR_CNN2D_RODS' #'CNN_2D_NORM'
@@ -316,113 +316,68 @@ data_select = np.arange(2720,3260)
 
 grads_chunk_allUnits = np.array(f_grads[select_mdl]['NATSTIM2_CORR_mesopic-Rstar_f4_8ms']['grads'][:,data_select[0]:data_select[-1]])
 stim = np.asarray(data_train.X[data_select[0]:data_select[-1]])
+# stim_vec = stim.reshape(stim.shape[0],-1)
 
-rgc_shuftoff = [27,31,30,49,50]
-# rgc_fixed = [2,4,5,10,12] #[10]
-
-_,idx_rgc_shutoff,_ = np.intersect1d(idx_unitsToExtract,rgc_shuftoff,return_indices=True)
-grads_rgc_shut = np.mean(grads_chunk_allUnits[idx_rgc_shutoff],axis=0)
-grads_rgc_shut_vec = grads_rgc_shut.reshape(grads_rgc_shut.shape[0],-1)
-
-spatRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[2],grads_rgc_shut.shape[3]));spatRF_allImg[:]=np.nan
-tempRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[1]));tempRF_allImg[:]=np.nan
-
-
-@jax.jit
-def get_rf(grad_img):
-    spatRF, tempRF = model.featureMaps.decompose(grads_rgc_shut[select_img,:,:,:])
-    mean_rfCent = np.abs(np.nanmean(spatRF))
-    spatRF = spatRF/mean_rfCent
-    tempRF = tempRF*mean_rfCent
-    tempRF = tempRF/tempRF.max()    
-    return spatRF,tempRF
-
-
-for i in range(spatRF_allImg.shape[0]):
-    select_img = i #768 #712
-    spatRF, tempRF = get_rf(grads_rgc_shut[select_img,:,:,:])
-    spatRF_allImg[i] = spatRF
-    tempRF_allImg[i] = tempRF
-
-spatRF_avg = np.nanmean(spatRF_allImg,axis=0)
-tempRF_avg = np.nanmean(tempRF_allImg,axis=0)
-
-plt.imshow(spatRF_avg);plt.show()
-plt.plot(tempRF_avg);plt.show()
-
-idx_temp_peak = np.argmax(np.abs(tempRF_avg))
-idx_peakFromSpkOnset = stim.shape[1]-idx_temp_peak
-
-# %%
-from model.train_model import chunker
-
-grads_rgc_shut_slice = grads_rgc_shut[:,idx_temp_peak]
-
-plt.imshow(grads_rgc_shut_slice[500])
-
-
-# Orig stim response
-tf.compat.v1.disable_eager_execution()
-mdl_cnn = load_model_from_path(path_cnn)
-mdl_totake = mdl_cnn
-y_pred = mdl_totake.predict(stim,batch_size=16)
-y_pred_orig=y_pred[:,rgc_shuftoff]
-plt.plot(y_pred_orig)
-
-# %% Modified stim
-step = 10
-# stim_modified = stim.copy()
-
-@jax.jit
-def modifyStim(stim,grads,step):
-    stim_modified = jnp.subtract(stim,(grads*step))
-    return stim_modified
-
-stim_modified = []#np.zeros((stim.shape[0],stim.shape[1],stim.shape[2],stim.shape[3]));stim_modified[:]=np.nan
-for i in range(len(stim)):
-    rgb = modifyStim(stim[i],grads_rgc_shut[i],step)
-    stim_modified.append(rgb)
-    
-stim_modified = np.array(stim_modified)
-    
-
-# img_idx=68;rgb = stim_modified[img_idx]-stim[img_idx]
-# a=plt.imshow(rgb[idx_temp_peak],cmap='gray',vmin=-0.05,vmax=0.093);plt.colorbar(a);plt.show()
-# plt.imshow(stim[68,idx_temp_peak],cmap='gray',vmin=0.07,vmax=1.34)
-# plt.imshow(stim_modified[68,idx_temp_peak],cmap='gray',vmin=0.07,vmax=1.34)
-
-y_pred_mod = mdl_totake.predict(stim_modified)
-y_pred_mod=y_pred_mod[:,rgc_shuftoff]
-for i in range(y_pred_orig.shape[-1]):
-    plt.plot(y_pred_orig[:,i]);plt.plot(y_pred_mod[:,i],'--');plt.show()
-
-# %% RGC pairs
-os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
-
+rgc_shut = [27,31,30,49,50]
 rgc_fixed = [2,4,5,10,12] #[10]
-            # [2,4,5,10,12]
+
+_,idx_rgc_shut,_ = np.intersect1d(idx_unitsToExtract,rgc_shut,return_indices=True)
+grads_rgc_shut = grads_chunk_allUnits[idx_rgc_shut]
+grads_rgc_shut_vec = grads_rgc_shut.reshape(grads_rgc_shut.shape[0],grads_rgc_shut.shape[1],-1)
+grads_rgc_shut_mean = np.mean(grads_rgc_shut,axis=0)
+
 _,idx_rgc_fixed,_ = np.intersect1d(idx_unitsToExtract,rgc_fixed,return_indices=True)
+grads_rgc_fixed = grads_chunk_allUnits[idx_rgc_fixed]
+grads_rgc_fixed_mean = np.array(jnp.mean(grads_rgc_fixed,axis=0))
+grads_rgc_fixed_vec = grads_rgc_fixed.reshape(grads_rgc_fixed.shape[0],grads_rgc_fixed.shape[1],-1)
 
-grads_rgc_fixed = np.mean(grads_chunk_allUnits[idx_rgc_fixed],axis=0)
-grads_rgc_fixed_vec = grads_rgc_shut.reshape(grads_rgc_fixed.shape[0],-1)
 
+
+# %% gram schmidt basis
 
 @jax.jit
-def vec_proj(grads_rgc_shut_vec,grads_rgc_fixed_vec):
-    out = (jnp.dot(grads_rgc_shut_vec, grads_rgc_fixed_vec) / jnp.linalg.norm(grads_rgc_fixed_vec)**2)*grads_rgc_fixed_vec
-    # out = grads_rgc_fixed_vec * jnp.dot(grads_rgc_shut_vec, grads_rgc_fixed_vec) / jnp.dot(grads_rgc_fixed_vec, grads_rgc_fixed_vec)
-    return out
+def gram_schmidt_basis(vectors):
+    basis = []
+    for v in vectors:
+        # Orthogonalize v against the existing basis vectors
+        for b in basis:
+            v = v - jnp.dot(v, b) / jnp.dot(b, b) * b
+        # Normalize v and add it to the basis
+        basis.append(v / jnp.linalg.norm(v))
+    
+    return basis
 
-grad_proj_vec = []
-for i in range(len(grads_rgc_shut_vec)):
-    rgb = vec_proj(grads_rgc_shut_vec[i],grads_rgc_fixed_vec[i])
-    grad_proj_vec.append(rgb)
-grad_proj_vec = np.array(grad_proj_vec)
+@jax.jit
+def projection_orthogonal_to_basis(A, basis):
+    # Compute the projection of A onto each basis vector
+    projections = [jnp.dot(A, b) / jnp.dot(b, b) * b for b in basis]
+    # Sum up the projections to get the projection onto the orthogonal subspace
+    projections = jnp.array(projections)
+    orthogonal_projection = jnp.sum(projections, axis=0)
+    
+    return orthogonal_projection
 
-grad_shutProjFixed = grad_proj_vec.reshape(grad_proj_vec.shape[0],grads_rgc_fixed.shape[1],grads_rgc_fixed.shape[2],grads_rgc_fixed.shape[3])
 
+# grads_rgc_shut_vec=grads_rgc_shut_vec.astype('float32')
+# grads_rgc_fixed_vec=grads_rgc_fixed_vec.astype('float32')
+grad_shutProjFixed_allUnits_vec = []
+for i in tqdm(range(grads_rgc_shut_vec.shape[0])):        # iterate over units
+    grad_proj_vec = []
+    for j in range(grads_rgc_shut_vec.shape[1]):    # iterate over stim
+        A = grads_rgc_shut_vec[i,j]
+        B = grads_rgc_fixed_vec[:,j]
+        orthogonal_basis = gram_schmidt_basis(B)
+        projection_orthogonal = projection_orthogonal_to_basis(A, orthogonal_basis)
+        grad_proj_vec.append(projection_orthogonal)
 
-# %% Modified stim with one rgc unaffected
+    grad_shutProjFixed_allUnits_vec.append(grad_proj_vec)
+    
+grad_shutProjFixed_allUnits_vec = np.array(grad_shutProjFixed_allUnits_vec)
+grad_proj_vec_meanUnits = np.mean(grad_shutProjFixed_allUnits_vec,axis=0)
+
+# grad_proj_vec_allUnits = grad_proj_vec.reshape(grad_proj_vec.shape[0],grads_rgc_fixed.shape[1],grads_rgc_fixed.shape[2],grads_rgc_fixed.shape[3])
+
+# %% Modified stim with ORTHOGONAL BASIS
 def jax_add(a,b):
     @jax.jit
     def oper_add(a1,b1):
@@ -432,7 +387,9 @@ def jax_add(a,b):
     for i in range(len(a)):
         rgb = oper_add(a[i],b[i])
         out.append(rgb)
+    
     out = np.array(out)
+
     return out
 
 def jax_subtract(a,b):
@@ -447,20 +404,33 @@ def jax_subtract(a,b):
     out = np.array(out)
     return out
 
-grad_toadjust = jax_add(grads_rgc_shut,grad_shutProjFixed)
+# grad_toadjust = jax_add(grads_rgc_shut_vec,grad_shutProjFixed_allUnits_vec)
+# grad_toadjust_mean = jnp.nanmean(grad_toadjust,axis=0)
+
+grad_toadjust_mean = jax_subtract(grads_rgc_shut_mean.reshape(grads_rgc_shut_mean.shape[0],-1),grad_proj_vec_meanUnits)
+grad_toadjust_mean_reshaped = grad_toadjust_mean.reshape(grad_toadjust_mean.shape[0],*stim.shape[1:])
+# stim_modified = jax_add(stim,grad_toadjust_mean_reshaped*step)
+
+# %%
+step = -50
+rgb = jnp.concatenate((stim[None,:,:,:,:],grad_toadjust_mean_reshaped[None,:,:,:,:]*step),axis=0)
+stim_modified = jnp.sum(rgb,axis=0)
+stim_modified = np.array(stim_modified)
 
 
-step = -15
-stim_modified = jax_add(stim,grad_toadjust*step)
-
-
+from model.train_model import chunker
+# Orig stim response
+tf.compat.v1.disable_eager_execution()
+mdl_cnn = load_model_from_path(path_cnn)
+mdl_totake = mdl_cnn
+y_pred = mdl_totake.predict(stim)
 y_pred_mod = mdl_totake.predict(stim_modified)
 # y_pred_shut = y_pred_mod[:,rgc_shuftoff]
 # y_pred_fixed = y_pred_mod[:,rgc_fixed]
 
-fig,axs=plt.subplots(2,5,figsize=(20,5));#axs=np.ravel(axs)
-for i in range(len(rgc_shuftoff)):
-    axs[0,i].plot(y_pred[:,rgc_shuftoff[i]]);axs[0,i].plot(y_pred_mod[:,rgc_shuftoff[i]],'--');axs[0,i].set_title(uname_all[rgc_shuftoff[i]])
+fig,axs=plt.subplots(2,5,figsize=(25,7));#axs=np.ravel(axs)
+for i in range(len(rgc_shut)):
+    axs[0,i].plot(y_pred[:,rgc_shut[i]]);axs[0,i].plot(y_pred_mod[:,rgc_shut[i]],'--');axs[0,i].set_title(uname_all[rgc_shut[i]])
     axs[1,i].plot(y_pred[:,rgc_fixed[i]]);axs[1,i].plot(y_pred_mod[:,rgc_fixed[i]],'--');axs[1,i].set_title(uname_all[rgc_fixed[i]])
 
 # %%
@@ -468,21 +438,41 @@ img_idx=420;
 fig,axs=plt.subplots(2,3,figsize=(20,10));axs=np.ravel(axs)
 vmin_img,vmax_img = stim_modified[img_idx,idx_temp_peak].min(),stim_modified[img_idx,idx_temp_peak].max()
 axs[0].imshow(stim[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[0].set_title('Stim')
-axs[1].imshow(grads_rgc_shut[img_idx,idx_temp_peak],cmap='gray');axs[1].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_shutoff])
-axs[2].imshow(grads_rgc_fixed[img_idx,idx_temp_peak],cmap='gray');axs[2].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_fixed])
+axs[1].imshow(grads_rgc_shut_mean[img_idx,idx_temp_peak],cmap='gray');axs[1].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_shut])
+axs[2].imshow(grads_rgc_fixed_mean[img_idx,idx_temp_peak],cmap='gray');axs[2].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_fixed])
 a=axs[3].imshow(stim_modified[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[3].set_title('New stim')
-a=axs[4].imshow(grad_toadjust[img_idx,idx_temp_peak]*step,cmap='gray');axs[4].set_title('Gradient adjusted')
+a=axs[4].imshow(step*grad_toadjust_mean_reshaped[img_idx,idx_temp_peak],cmap='gray');axs[4].set_title('Gradient adjusted')
 axs[5].axis('off')
 
-# %%
-idx_img=68
-r,c = np.shape(stim[idx_img,67])
-X,Y = np.mgrid[0:c,0:r]
-U,V = np.gradient(grads_rgc_shut_slice[idx_img].T)
-# a = plt.imshow(stim[idx_img,67])
-a = plt.imshow(grads_rgc_shut_slice[idx_img],origin='upper',cmap='gray')
-# plt.quiver(X,Y,U,V,color='blue',alpha=0.2)
-plt.colorbar(a)
+# %%Get LSTAs
+spatRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[2],grads_rgc_shut.shape[3]));spatRF_allImg[:]=np.nan
+tempRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[1]));tempRF_allImg[:]=np.nan
+
+
+@jax.jit
+def get_rf(grad_img):
+    spatRF, tempRF = model.featureMaps.decompose(grads_rgc_shut_mean[select_img,:,:,:])
+    mean_rfCent = np.abs(np.nanmean(spatRF))
+    spatRF = spatRF/mean_rfCent
+    tempRF = tempRF*mean_rfCent
+    tempRF = tempRF/tempRF.max()    
+    return spatRF,tempRF
+
+
+for i in range(spatRF_allImg.shape[0]):
+    select_img = i #768 #712
+    spatRF, tempRF = get_rf(grads_rgc_shut_mean[select_img,:,:,:])
+    spatRF_allImg[i] = spatRF
+    tempRF_allImg[i] = tempRF
+
+spatRF_avg = np.nanmean(spatRF_allImg,axis=0)
+tempRF_avg = np.nanmean(tempRF_allImg,axis=0)
+
+plt.imshow(spatRF_avg);plt.show()
+plt.plot(tempRF_avg);plt.show()
+
+idx_temp_peak = 67 #np.argmax(np.abs(tempRF_avg))
+idx_peakFromSpkOnset = -13#stim.shape[1]-idx_temp_peak
 
 
 
