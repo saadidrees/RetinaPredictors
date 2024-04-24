@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 plt.rcParams['svg.fonttype'] = 'none'
 import time
 from tqdm import tqdm
+from jax.tree_util import Partial
 
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
@@ -116,6 +117,8 @@ data_val = rgb[1];
 parameters = rgb[5]
 data_quality = rgb[3]
 t_frame = parameters['t_frame']     # time in ms of one frame/sample 
+uname_all = data_quality['uname_selectedUnits']
+
 
 rate_sameStim_trials = data_val.y_trials
 rate_sameStim_trials = np.squeeze(np.moveaxis(rate_sameStim_trials,-1,0))
@@ -163,12 +166,24 @@ print('R = %0.2f' %predCorr_cnn_medianUnits)
 predCorr_cnn_stdUnits = np.nanstd(predCorr_cnn_allUnits[idx_d1_valid])
 predCorr_cnn_ci = 1.96*(predCorr_cnn_stdUnits/len(idx_d1_valid)**.5)
 
-# %% Calculate gradients of a subset of RGCs
+# %% Select RGCs and Training data
 
 # idx_unitsToExtract = idx_allUnits
 # idx_unitsToExtract = np.argsort(-1*fev_cnn_allUnits)
 idx_unitsToExtract = [2,4,5,10,12,27,31,30,49,50]
-fev_cnn_allUnits[idx_unitsToExtract]
+fev_unitsToExtract=fev_cnn_allUnits[idx_unitsToExtract]
+uname_unitsToExtract = uname_all[idx_unitsToExtract]
+print(uname_unitsToExtract)
+
+
+rgb = load_h5Dataset(fname_data_train_val_test,nsamps_val=0.5,nsamps_test=0.1,nsamps_train=-1,LOAD_TR=True)
+data_train = rgb[0]
+# Only select 1 trial
+X = data_train.X[:,:,:,:,5:6]
+y = data_train.y[:,:,:,5:6]
+data_train = Exptdata(X,y)
+data_train =  prepare_data_cnn2d(data_train,80,np.arange(data_train.y.shape[1]))
+
 
 # %% Compute gradients for all the datasets (and models?)
 """
@@ -219,7 +234,7 @@ for d in dataset_eval:
     total_batches = int(np.floor((nsamps/batch_size)))
     
     i = 50
-    grads_shape = (data.y[0].shape[-1],None,temporal_width_grads,data.X[0].shape[1],data.X[0].shape[2])
+    grads_shape = (n_units,None,temporal_width_grads,data.X[0].shape[1],data.X[0].shape[2])
     stim_shape = (None,)
     
     t_start = time.time()
@@ -277,7 +292,7 @@ for d in dataset_eval:
     t_dur = time.time()-t_start
     print(t_dur/60)
     if save_grads==True:
-        grp.create_dataset('idx_data',data=data_alldsets[d]['idx_samps'])
+        # grp.create_dataset('idx_data',data=data_alldsets[d]['idx_samps'])
         grp.create_dataset('unames',data=uname_unitsToExtract.astype('bytes'))
         grp.create_dataset('fev',data=fev_unitsToExtract)
     f_grads.close()
@@ -285,100 +300,186 @@ for d in dataset_eval:
 
 
 #%% Compute LSTA from model for input samples and average
-rgc_shuftoff = [27]
+path_gradFiles = '/home/saad/data/analyses/gradients_mike/'
+
+select_mdl = 'CNN_2D' #'PRFR_CNN2D_RODS' #'CNN_2D_NORM'
+dataset_eval = [stim_select+'_CORR_mesopic-Rstar_f4_8ms',]
+d = dataset_eval[0]
+data = data_train
+nsamps = len(data.X)
+n_units = len(idx_unitsToExtract)
+
+fname_gradsFile = os.path.join(path_gradFiles,'grads_'+select_mdl+'_'+d+'_'+str(nsamps)+'_u-'+str(n_units)+'.h5')
+f_grads = h5py.File(fname_gradsFile,'r')
+
+data_select = np.arange(2720,3260)
+
+grads_chunk_allUnits = np.array(f_grads[select_mdl]['NATSTIM2_CORR_mesopic-Rstar_f4_8ms']['grads'][:,data_select[0]:data_select[-1]])
+stim = np.asarray(data_train.X[data_select[0]:data_select[-1]])
+
+rgc_shuftoff = [27,31,30,49,50]
+# rgc_fixed = [2,4,5,10,12] #[10]
+
 _,idx_rgc_shutoff,_ = np.intersect1d(idx_unitsToExtract,rgc_shuftoff,return_indices=True)
-grads_rgc_shut = np.squeeze(grads_chunk_allUnits[idx_rgc_shutoff])
+grads_rgc_shut = np.mean(grads_chunk_allUnits[idx_rgc_shutoff],axis=0)
 grads_rgc_shut_vec = grads_rgc_shut.reshape(grads_rgc_shut.shape[0],-1)
 
-grads_rgc_shut = np.squeeze(grads_chunk_allUnits[idx_rgc_shutoff])
-spatRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[2],grads_rgc_shut.shape[3]))
-tempRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[1]))
+spatRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[2],grads_rgc_shut.shape[3]));spatRF_allImg[:]=np.nan
+tempRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[1]));tempRF_allImg[:]=np.nan
 
-for i in range(grads_rgc_shut.shape[0]):
-    select_img = i #768 #712
+
+@jax.jit
+def get_rf(grad_img):
     spatRF, tempRF = model.featureMaps.decompose(grads_rgc_shut[select_img,:,:,:])
-    # rf_coords,rf_fit_img,rf_params,_ = spatRF2DFit(spatRF,tempRF=0,sig_fac=sig_fac,rot=True,sta=0,tempRF_sig=False)
     mean_rfCent = np.abs(np.nanmean(spatRF))
-    spatRF_allImg[i] = spatRF/mean_rfCent
-    tempRF_allImg[i] = tempRF*mean_rfCent
-    tempRF_allImg[i] = tempRF_allImg[i]/tempRF_allImg[i].max()
+    spatRF = spatRF/mean_rfCent
+    tempRF = tempRF*mean_rfCent
+    tempRF = tempRF/tempRF.max()    
+    return spatRF,tempRF
 
-spatRF_avg = np.mean(spatRF_allImg,axis=0)
-tempRF_avg = np.mean(tempRF_allImg,axis=0)
 
-plt.imshow(spatRF_avg)
-plt.plot(tempRF_avg)
+for i in range(spatRF_allImg.shape[0]):
+    select_img = i #768 #712
+    spatRF, tempRF = get_rf(grads_rgc_shut[select_img,:,:,:])
+    spatRF_allImg[i] = spatRF
+    tempRF_allImg[i] = tempRF
+
+spatRF_avg = np.nanmean(spatRF_allImg,axis=0)
+tempRF_avg = np.nanmean(tempRF_allImg,axis=0)
+
+plt.imshow(spatRF_avg);plt.show()
+plt.plot(tempRF_avg);plt.show()
 
 idx_temp_peak = np.argmax(np.abs(tempRF_avg))
+idx_peakFromSpkOnset = stim.shape[1]-idx_temp_peak
+
 # %%
+from model.train_model import chunker
 
 grads_rgc_shut_slice = grads_rgc_shut[:,idx_temp_peak]
 
-plt.imshow(grads_rgc_shut_slice[70])
-
+plt.imshow(grads_rgc_shut_slice[500])
 
 
 # Orig stim response
-y_pred = mdl_totake.predict(data_select_X)
+tf.compat.v1.disable_eager_execution()
+mdl_cnn = load_model_from_path(path_cnn)
+mdl_totake = mdl_cnn
+y_pred = mdl_totake.predict(stim,batch_size=16)
 y_pred_orig=y_pred[:,rgc_shuftoff]
 plt.plot(y_pred_orig)
 
 # %% Modified stim
-step = 5
-stim_modified = data_select_X.copy()
-stim_modified = stim_modified-(grads_rgc_shut*step)
-rgb = stim_modified-data_select_X
-a=plt.imshow(rgb[68,idx_temp_peak],cmap='gray',vmin=-0.05,vmax=0.093);plt.colorbar(a);plt.show()
-# plt.imshow(data_select_X[68,idx_temp_peak],cmap='gray',vmin=0.07,vmax=1.34)
+step = 10
+# stim_modified = stim.copy()
+
+@jax.jit
+def modifyStim(stim,grads,step):
+    stim_modified = jnp.subtract(stim,(grads*step))
+    return stim_modified
+
+stim_modified = []#np.zeros((stim.shape[0],stim.shape[1],stim.shape[2],stim.shape[3]));stim_modified[:]=np.nan
+for i in range(len(stim)):
+    rgb = modifyStim(stim[i],grads_rgc_shut[i],step)
+    stim_modified.append(rgb)
+    
+stim_modified = np.array(stim_modified)
+    
+
+# img_idx=68;rgb = stim_modified[img_idx]-stim[img_idx]
+# a=plt.imshow(rgb[idx_temp_peak],cmap='gray',vmin=-0.05,vmax=0.093);plt.colorbar(a);plt.show()
+# plt.imshow(stim[68,idx_temp_peak],cmap='gray',vmin=0.07,vmax=1.34)
 # plt.imshow(stim_modified[68,idx_temp_peak],cmap='gray',vmin=0.07,vmax=1.34)
 
 y_pred_mod = mdl_totake.predict(stim_modified)
 y_pred_mod=y_pred_mod[:,rgc_shuftoff]
-plt.plot(y_pred_orig);plt.plot(y_pred_mod)
+for i in range(y_pred_orig.shape[-1]):
+    plt.plot(y_pred_orig[:,i]);plt.plot(y_pred_mod[:,i],'--');plt.show()
 
 # %% RGC pairs
 os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
 
-rgc_fixed = [10]
-
+rgc_fixed = [2,4,5,10,12] #[10]
+            # [2,4,5,10,12]
 _,idx_rgc_fixed,_ = np.intersect1d(idx_unitsToExtract,rgc_fixed,return_indices=True)
 
-grads_rgc_fixed = np.squeeze(grads_chunk_allUnits[idx_rgc_fixed])
+grads_rgc_fixed = np.mean(grads_chunk_allUnits[idx_rgc_fixed],axis=0)
 grads_rgc_fixed_vec = grads_rgc_shut.reshape(grads_rgc_fixed.shape[0],-1)
 
 
 @jax.jit
 def vec_proj(grads_rgc_shut_vec,grads_rgc_fixed_vec):
-    return (jnp.dot(grads_rgc_shut_vec, grads_rgc_fixed_vec) / jnp.linalg.norm(grads_rgc_fixed_vec))*grads_rgc_fixed_vec
+    out = (jnp.dot(grads_rgc_shut_vec, grads_rgc_fixed_vec) / jnp.linalg.norm(grads_rgc_fixed_vec)**2)*grads_rgc_fixed_vec
+    # out = grads_rgc_fixed_vec * jnp.dot(grads_rgc_shut_vec, grads_rgc_fixed_vec) / jnp.dot(grads_rgc_fixed_vec, grads_rgc_fixed_vec)
+    return out
 
-grad_proj_vec = np.asarray(jax.vmap(vec_proj)(grads_rgc_shut_vec,grads_rgc_fixed_vec))
+grad_proj_vec = []
+for i in range(len(grads_rgc_shut_vec)):
+    rgb = vec_proj(grads_rgc_shut_vec[i],grads_rgc_fixed_vec[i])
+    grad_proj_vec.append(rgb)
+grad_proj_vec = np.array(grad_proj_vec)
 
 grad_shutProjFixed = grad_proj_vec.reshape(grad_proj_vec.shape[0],grads_rgc_fixed.shape[1],grads_rgc_fixed.shape[2],grads_rgc_fixed.shape[3])
 
 
 # %% Modified stim with one rgc unaffected
-grad_toadjust = grads_rgc_shut+grad_shutProjFixed
-step = -2
-stim_modified = data_select_X.copy()
-stim_modified = stim_modified+(grad_toadjust*step)
-rgb = stim_modified-data_select_X
-# a=plt.imshow(rgb[68,idx_temp_peak],cmap='gray',vmin=-0.05,vmax=0.093);plt.colorbar(a);plt.show()
-# plt.imshow(data_select_X[68,idx_temp_peak],cmap='gray',vmin=0.07,vmax=1.34)
-# plt.imshow(stim_modified[68,idx_temp_peak],cmap='gray',vmin=0.07,vmax=1.34)
+def jax_add(a,b):
+    @jax.jit
+    def oper_add(a1,b1):
+        return a1+b1
+    
+    out = []
+    for i in range(len(a)):
+        rgb = oper_add(a[i],b[i])
+        out.append(rgb)
+    out = np.array(out)
+    return out
+
+def jax_subtract(a,b):
+    @jax.jit
+    def oper_subtract(a1,b1):
+        return jnp.subtract(a1,b1)
+    
+    out = []
+    for i in range(len(a)):
+        rgb = oper_subtract(a[i],b[i])
+        out.append(rgb)
+    out = np.array(out)
+    return out
+
+grad_toadjust = jax_add(grads_rgc_shut,grad_shutProjFixed)
+
+
+step = -15
+stim_modified = jax_add(stim,grad_toadjust*step)
+
 
 y_pred_mod = mdl_totake.predict(stim_modified)
 # y_pred_shut = y_pred_mod[:,rgc_shuftoff]
 # y_pred_fixed = y_pred_mod[:,rgc_fixed]
-fig,axs=plt.subplots(1,2,figsize=(15,5));axs=np.ravel(axs)
-axs[0].plot(y_pred[:,rgc_shuftoff]);axs[0].plot(y_pred_mod[:,rgc_shuftoff]);
-axs[1].plot(y_pred[:,rgc_fixed]);axs[1].plot(y_pred_mod[:,rgc_fixed]);
+
+fig,axs=plt.subplots(2,5,figsize=(20,5));#axs=np.ravel(axs)
+for i in range(len(rgc_shuftoff)):
+    axs[0,i].plot(y_pred[:,rgc_shuftoff[i]]);axs[0,i].plot(y_pred_mod[:,rgc_shuftoff[i]],'--');axs[0,i].set_title(uname_all[rgc_shuftoff[i]])
+    axs[1,i].plot(y_pred[:,rgc_fixed[i]]);axs[1,i].plot(y_pred_mod[:,rgc_fixed[i]],'--');axs[1,i].set_title(uname_all[rgc_fixed[i]])
+
+# %%
+img_idx=420;
+fig,axs=plt.subplots(2,3,figsize=(20,10));axs=np.ravel(axs)
+vmin_img,vmax_img = stim_modified[img_idx,idx_temp_peak].min(),stim_modified[img_idx,idx_temp_peak].max()
+axs[0].imshow(stim[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[0].set_title('Stim')
+axs[1].imshow(grads_rgc_shut[img_idx,idx_temp_peak],cmap='gray');axs[1].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_shutoff])
+axs[2].imshow(grads_rgc_fixed[img_idx,idx_temp_peak],cmap='gray');axs[2].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_fixed])
+a=axs[3].imshow(stim_modified[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[3].set_title('New stim')
+a=axs[4].imshow(grad_toadjust[img_idx,idx_temp_peak]*step,cmap='gray');axs[4].set_title('Gradient adjusted')
+axs[5].axis('off')
 
 # %%
 idx_img=68
-r,c = np.shape(data_select_X[idx_img,67])
+r,c = np.shape(stim[idx_img,67])
 X,Y = np.mgrid[0:c,0:r]
 U,V = np.gradient(grads_rgc_shut_slice[idx_img].T)
-# a = plt.imshow(data_select_X[idx_img,67])
+# a = plt.imshow(stim[idx_img,67])
 a = plt.imshow(grads_rgc_shut_slice[idx_img],origin='upper',cmap='gray')
 # plt.quiver(X,Y,U,V,color='blue',alpha=0.2)
 plt.colorbar(a)
