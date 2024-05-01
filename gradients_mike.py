@@ -51,6 +51,7 @@ from model.models import modelFileName
 from model.train_model import chunker
 import model.gradient_tools
 from model.featureMaps import spatRF2DFit, get_strf, decompose
+from model.train_model import chunker
 
 
 # from pyret.filtertools import sta, decompose
@@ -85,6 +86,32 @@ def load_model_from_path(path_model):
     
     return mdl
 
+
+def jax_add(a,b):
+    @jax.jit
+    def oper_add(a1,b1):
+        return a1+b1
+    
+    out = []
+    for i in range(len(a)):
+        rgb = oper_add(a[i],b[i])
+        out.append(rgb)
+    
+    out = np.array(out)
+
+    return out
+
+def jax_subtract(a,b):
+    @jax.jit
+    def oper_subtract(a1,b1):
+        return jnp.subtract(a1,b1)
+    
+    out = []
+    for i in range(len(a)):
+        rgb = oper_subtract(a[i],b[i])
+        out.append(rgb)
+    out = np.array(out)
+    return out
 
 # %% Load the model and get performance
 
@@ -167,10 +194,23 @@ predCorr_cnn_stdUnits = np.nanstd(predCorr_cnn_allUnits[idx_d1_valid])
 predCorr_cnn_ci = 1.96*(predCorr_cnn_stdUnits/len(idx_d1_valid)**.5)
 
 # %% Select RGCs and Training data
+"""
+fname_rfs = '/home/saad/postdoc_db/analyses/data_mike/20230725C/datasets/20230725C_RFs_CB_allLightLevels.h5'
+with h5py.File(fname_rfs,'r') as f:
+    rf_coords_all = np.array(f['mesopic']['rf_coords_all'])
+
+for i in range(40,rf_coords_all.shape[0]):
+    plt.plot(rf_coords_all[i,:,0],rf_coords_all[i,:,1])
+    plt.text(np.mean(rf_coords_all[i,:,0]),np.mean(rf_coords_all[i,:,1]),str(i))
+plt.xlim([0,100]);plt.ylim([0,80]);plt.gca().invert_yaxis()
+
+
+fev_cnn_allUnits[[2,4,5,23,33,34,53,56]]
+"""
 
 # idx_unitsToExtract = idx_allUnits
 # idx_unitsToExtract = np.argsort(-1*fev_cnn_allUnits)
-idx_unitsToExtract = [2,4,5,10,12,27,31,30,49,50]
+idx_unitsToExtract = [2,4,5,23,33,34,53,56] #[2,4,5,10,12,27,31,30,49,50]
 fev_unitsToExtract=fev_cnn_allUnits[idx_unitsToExtract]
 uname_unitsToExtract = uname_all[idx_unitsToExtract]
 print(uname_unitsToExtract)
@@ -180,7 +220,7 @@ rgb = load_h5Dataset(fname_data_train_val_test,nsamps_val=0.5,nsamps_test=0.1,ns
 data_train = rgb[0]
 # Only select 1 trial
 X = data_train.X[:,:,:,:,5:6]
-y = data_train.y[:,:,:,5:6]
+y = np.mean(data_train.y,axis=-1)
 data_train = Exptdata(X,y)
 data_train =  prepare_data_cnn2d(data_train,80,np.arange(data_train.y.shape[1]))
 
@@ -219,6 +259,9 @@ counter_gc = 0
 n_units = len(idx_unitsToExtract)
 # idx_unitsToExtract = np.arange(n_units)
 
+data = data_train #data_alldsets[d]['raw']
+nsamps = len(data.X)
+
 dataset_eval = [stim_select+'_CORR_mesopic-Rstar_f4_8ms',]
 d = dataset_eval[0]
 for d in dataset_eval:
@@ -227,10 +270,7 @@ for d in dataset_eval:
         if os.path.exists(fname_gradsFile):
             fname_gradsFile = fname_gradsFile[:-3]+'_1.h5'
 
-    data = data_train #data_alldsets[d]['raw']
     batch_size = 256
-    
-    nsamps = len(data.X)
     total_batches = int(np.floor((nsamps/batch_size)))
     
     i = 50
@@ -298,7 +338,7 @@ for d in dataset_eval:
     f_grads.close()
 
 
-# %% Orthogonal basis projections
+# %% Arrange gradients
 
 path_gradFiles = '/home/saad/data/analyses/gradients_mike/'
 
@@ -312,14 +352,18 @@ n_units = len(idx_unitsToExtract)
 fname_gradsFile = os.path.join(path_gradFiles,'grads_'+select_mdl+'_'+d+'_'+str(nsamps)+'_u-'+str(n_units)+'.h5')
 f_grads = h5py.File(fname_gradsFile,'r')
 
-data_select = np.arange(2720,3260)
+data_select = np.arange(2690,3220)
 
 grads_chunk_allUnits = np.array(f_grads[select_mdl]['NATSTIM2_CORR_mesopic-Rstar_f4_8ms']['grads'][:,data_select[0]:data_select[-1]])
-stim = np.asarray(data_train.X[data_select[0]:data_select[-1]])
+stim = np.asarray(data.X[data_select[0]:data_select[-1]])
+y_orig = np.asarray(data.y[data_select[0]:data_select[-1]])
 # stim_vec = stim.reshape(stim.shape[0],-1)
 
-rgc_shut = [27,31,30,49,50]
-rgc_fixed = [2,4,5,10,12] #[10]
+rgc_shut = [33,34,53,56]
+rgc_fixed = [2,4,5,23]
+
+# rgc_shut = [27,31,30,49,50]
+# rgc_fixed = [2,4,5,10,12] #[10]
 
 _,idx_rgc_shut,_ = np.intersect1d(idx_unitsToExtract,rgc_shut,return_indices=True)
 grads_rgc_shut = grads_chunk_allUnits[idx_rgc_shut]
@@ -331,9 +375,15 @@ grads_rgc_fixed = grads_chunk_allUnits[idx_rgc_fixed]
 grads_rgc_fixed_mean = np.array(jnp.mean(grads_rgc_fixed,axis=0))
 grads_rgc_fixed_vec = grads_rgc_fixed.reshape(grads_rgc_fixed.shape[0],grads_rgc_fixed.shape[1],-1)
 
+# RFs
+fname_rfs = '/home/saad/postdoc_db/analyses/data_mike/20230725C/datasets/20230725C_RFs_CB_allLightLevels.h5'
+with h5py.File(fname_rfs,'r') as f:
+    rf_coords_all = np.array(f['mesopic']['rf_coords_all'])
+rfs_shut = rf_coords_all[rgc_shut]
+rfs_fixed = rf_coords_all[rgc_fixed]
 
 
-# %% gram schmidt basis
+# %% Orthonormal basis for Unaffected RGCs
 
 @jax.jit
 def gram_schmidt_basis(vectors):
@@ -348,7 +398,7 @@ def gram_schmidt_basis(vectors):
     return basis
 
 @jax.jit
-def projection_orthogonal_to_basis(A, basis):
+def projection_onto_orthogonal_basis(A, basis):
     # Compute the projection of A onto each basis vector
     projections = [jnp.dot(A, b) / jnp.dot(b, b) * b for b in basis]
     # Sum up the projections to get the projection onto the orthogonal subspace
@@ -357,101 +407,210 @@ def projection_orthogonal_to_basis(A, basis):
     
     return orthogonal_projection
 
-
-# grads_rgc_shut_vec=grads_rgc_shut_vec.astype('float32')
-# grads_rgc_fixed_vec=grads_rgc_fixed_vec.astype('float32')
 grad_shutProjFixed_allUnits_vec = []
+i=0;j=0;
 for i in tqdm(range(grads_rgc_shut_vec.shape[0])):        # iterate over units
     grad_proj_vec = []
     for j in range(grads_rgc_shut_vec.shape[1]):    # iterate over stim
         A = grads_rgc_shut_vec[i,j]
         B = grads_rgc_fixed_vec[:,j]
         orthogonal_basis = gram_schmidt_basis(B)
-        projection_orthogonal = projection_orthogonal_to_basis(A, orthogonal_basis)
+        projection_orthogonal = projection_onto_orthogonal_basis(A, orthogonal_basis)
         grad_proj_vec.append(projection_orthogonal)
 
     grad_shutProjFixed_allUnits_vec.append(grad_proj_vec)
     
-grad_shutProjFixed_allUnits_vec = np.array(grad_shutProjFixed_allUnits_vec)
-grad_proj_vec_meanUnits = np.mean(grad_shutProjFixed_allUnits_vec,axis=0)
+grad_shutProjFixed_allUnits_vec = jnp.array(grad_shutProjFixed_allUnits_vec)
 
-# grad_proj_vec_allUnits = grad_proj_vec.reshape(grad_proj_vec.shape[0],grads_rgc_fixed.shape[1],grads_rgc_fixed.shape[2],grads_rgc_fixed.shape[3])
 
-# %% Modified stim with ORTHOGONAL BASIS
-def jax_add(a,b):
-    @jax.jit
-    def oper_add(a1,b1):
-        return a1+b1
-    
-    out = []
-    for i in range(len(a)):
-        rgb = oper_add(a[i],b[i])
-        out.append(rgb)
-    
-    out = np.array(out)
+grad_toadjust = jax_subtract(grads_rgc_shut_vec,grad_shutProjFixed_allUnits_vec)
+grad_toadjust_mean = jnp.nanmean(grad_toadjust,axis=0)
+grad_toadjust_mean = grad_toadjust_mean.reshape(grad_toadjust_mean.shape[0],*stim.shape[1:])
 
-    return out
-
-def jax_subtract(a,b):
-    @jax.jit
-    def oper_subtract(a1,b1):
-        return jnp.subtract(a1,b1)
-    
-    out = []
-    for i in range(len(a)):
-        rgb = oper_subtract(a[i],b[i])
-        out.append(rgb)
-    out = np.array(out)
-    return out
-
-# grad_toadjust = jax_add(grads_rgc_shut_vec,grad_shutProjFixed_allUnits_vec)
-# grad_toadjust_mean = jnp.nanmean(grad_toadjust,axis=0)
-
-grad_toadjust_mean = jax_subtract(grads_rgc_shut_mean.reshape(grads_rgc_shut_mean.shape[0],-1),grad_proj_vec_meanUnits)
-grad_toadjust_mean_reshaped = grad_toadjust_mean.reshape(grad_toadjust_mean.shape[0],*stim.shape[1:])
-# stim_modified = jax_add(stim,grad_toadjust_mean_reshaped*step)
-
-# %%
-step = -50
-rgb = jnp.concatenate((stim[None,:,:,:,:],grad_toadjust_mean_reshaped[None,:,:,:,:]*step),axis=0)
+del grad_shutProjFixed_allUnits_vec, grad_toadjust
+# %% Apply adjustment to stimulus and get new predictions
+step = 30
+rgb = jnp.concatenate((stim[None,:,:,:,:],-1*grad_toadjust_mean[None,:,:,:,:]*step),axis=0)
 stim_modified = jnp.sum(rgb,axis=0)
 stim_modified = np.array(stim_modified)
 
 
-from model.train_model import chunker
 # Orig stim response
 tf.compat.v1.disable_eager_execution()
 mdl_cnn = load_model_from_path(path_cnn)
 mdl_totake = mdl_cnn
 y_pred = mdl_totake.predict(stim)
 y_pred_mod = mdl_totake.predict(stim_modified)
-# y_pred_shut = y_pred_mod[:,rgc_shuftoff]
-# y_pred_fixed = y_pred_mod[:,rgc_fixed]
 
-fig,axs=plt.subplots(2,5,figsize=(25,7));#axs=np.ravel(axs)
+fig,axs=plt.subplots(2,4,figsize=(25,7));#axs=np.ravel(axs)
+fig.suptitle('step = '+str(step))
 for i in range(len(rgc_shut)):
-    axs[0,i].plot(y_pred[:,rgc_shut[i]]);axs[0,i].plot(y_pred_mod[:,rgc_shut[i]],'--');axs[0,i].set_title(uname_all[rgc_shut[i]])
-    axs[1,i].plot(y_pred[:,rgc_fixed[i]]);axs[1,i].plot(y_pred_mod[:,rgc_fixed[i]],'--');axs[1,i].set_title(uname_all[rgc_fixed[i]])
+    axs[0,i].plot(y_orig[:,rgc_shut[i]],'lightgray');axs[0,i].plot(y_pred[:,rgc_shut[i]]);axs[0,i].plot(y_pred_mod[:,rgc_shut[i]],'--');axs[0,i].set_title(uname_all[rgc_shut[i]])
+    axs[1,i].plot(y_orig[:,rgc_fixed[i]],'lightgray');axs[1,i].plot(y_pred[:,rgc_fixed[i]]);axs[1,i].plot(y_pred_mod[:,rgc_fixed[i]],'--');axs[1,i].set_title(uname_all[rgc_fixed[i]])
 
-# %%
-img_idx=420;
+# %% Plot stimulus
+idx_temp_peak = 67 #np.argmax(np.abs(tempRF_avg))
+idx_peakFromSpkOnset = -13#stim.shape[1]-idx_temp_peak
+
+LINEWIDTH = .5
+img_idx=400;
+
 fig,axs=plt.subplots(2,3,figsize=(20,10));axs=np.ravel(axs)
 vmin_img,vmax_img = stim_modified[img_idx,idx_temp_peak].min(),stim_modified[img_idx,idx_temp_peak].max()
-axs[0].imshow(stim[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[0].set_title('Stim')
-axs[1].imshow(grads_rgc_shut_mean[img_idx,idx_temp_peak],cmap='gray');axs[1].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_shut])
-axs[2].imshow(grads_rgc_fixed_mean[img_idx,idx_temp_peak],cmap='gray');axs[2].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_fixed])
-a=axs[3].imshow(stim_modified[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[3].set_title('New stim')
-a=axs[4].imshow(step*grad_toadjust_mean_reshaped[img_idx,idx_temp_peak],cmap='gray');axs[4].set_title('Gradient adjusted')
+h0 = axs[0].imshow(stim[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[0].set_title('Stim');plt.colorbar(h0,fraction=0.035,pad=0.02);axs[0].set_ylim([74,0]);
+axs[0].plot(rfs_shut[:,:,0].T,rfs_shut[:,:,1].T,'r',linewidth=LINEWIDTH);axs[1].set_ylim([74,0]);axs[0].plot(rfs_fixed[:,:,0].T,rfs_fixed[:,:,1].T,'b',linewidth=LINEWIDTH);axs[4].set_ylim([74,0]);
+h1=axs[1].imshow(grads_rgc_shut_mean[img_idx,idx_temp_peak],cmap='gray');axs[1].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_shut]);plt.colorbar(h1,fraction=0.035,pad=0.02)
+axs[1].plot(rfs_shut[:,:,0].T,rfs_shut[:,:,1].T,'r');axs[1].set_ylim([74,0]);
+h2=axs[2].imshow(grads_rgc_fixed_mean[img_idx,idx_temp_peak],cmap='gray');axs[2].set_title('LSTA unit: '+uname_unitsToExtract[idx_rgc_fixed]);plt.colorbar(h2,fraction=0.035,pad=0.02)
+axs[2].plot(rfs_fixed[:,:,0].T,rfs_fixed[:,:,1].T,'b');axs[2].set_ylim([74,0]);
+h3=axs[3].imshow(stim_modified[img_idx,idx_temp_peak],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[3].set_title('New stim');plt.colorbar(h3,fraction=0.035,pad=0.02)
+h4=axs[4].imshow(step*grad_toadjust_mean[img_idx,idx_temp_peak],cmap='gray');axs[4].set_title('Gradient adjusted');plt.colorbar(h4,fraction=0.035,pad=0.02)
+axs[4].plot(rfs_shut[:,:,0].T,rfs_shut[:,:,1].T,'r',linewidth=LINEWIDTH);axs[1].set_ylim([74,0]);axs[4].plot(rfs_fixed[:,:,0].T,rfs_fixed[:,:,1].T,'b',linewidth=LINEWIDTH);axs[4].set_ylim([74,0]);
 axs[5].axis('off')
 
+# %% Plot High res stim for saving
+import cv2 as cv
+rsz_fac = 8
+
+img = cv.imread('/home/saad/postdoc_db/proposals/gradients/raw/img.png')[:,:,0]/255
+img = (img * (stim[img_idx,idx_temp_peak].max() - stim[img_idx,idx_temp_peak].min())) + stim[img_idx,idx_temp_peak].min()
+
+grad_toadjust_mean_re = np.array(grad_toadjust_mean[img_idx,idx_temp_peak]).astype('float32')
+grad_toadjust_mean_re = step*cv.resize(grad_toadjust_mean_re,[800,600])
+img_modified = img - grad_toadjust_mean_re
+rfs_shut_re = rfs_shut*rsz_fac
+rfs_fixed_re = rfs_fixed*rsz_fac
+
+
+fig,axs=plt.subplots(1,3,figsize=(20,10));axs=np.ravel(axs)
+vmin_img,vmax_img = stim_modified[img_idx,idx_temp_peak].min(),stim_modified[img_idx,idx_temp_peak].max()
+h0 = axs[0].imshow(img,cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[0].set_title('Stim');plt.colorbar(h0,fraction=0.035,pad=0.02)
+axs[0].plot(rfs_shut_re[:,:,0].T,rfs_shut_re[:,:,1].T,'r',linewidth=LINEWIDTH);axs[0].plot(rfs_fixed_re[:,:,0].T,rfs_fixed_re[:,:,1].T,'b',linewidth=LINEWIDTH)
+axs[0].set_ylim([600,0]);
+
+h2=axs[1].imshow(-grad_toadjust_mean_re,cmap='gray',vmin=vmin_img-.22,vmax=vmax_img);axs[1].set_title('Gradient adjusted');plt.colorbar(h2,fraction=0.035,pad=0.02)
+axs[1].plot(rfs_shut_re[:,:,0].T,rfs_shut_re[:,:,1].T,'r',linewidth=LINEWIDTH);axs[1].plot(rfs_fixed_re[:,:,0].T,rfs_fixed_re[:,:,1].T,'b',linewidth=LINEWIDTH)
+axs[1].set_ylim([600,0])
+
+h1=axs[2].imshow(img_modified,cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[2].set_title('New stim');plt.colorbar(h1,fraction=0.035,pad=0.02)
+axs[2].plot(rfs_shut_re[:,:,0].T,rfs_shut_re[:,:,1].T,'r',linewidth=LINEWIDTH);axs[2].plot(rfs_fixed_re[:,:,0].T,rfs_fixed_re[:,:,1].T,'b',linewidth=LINEWIDTH)
+axs[2].set_ylim([600,0])
+
+
+fname_fig = '/home/saad/postdoc_db/proposals/gradients/raw/stims_resized'
+fig.savefig(fname_fig+'.png',dpi=200)
+fig.savefig(fname_fig+'.svg',dpi=600)
+
+
+# %% Plot Movie
+idx_temp_peak_sel = -13
+
+vmin_img,vmax_img = np.nanmin(stim_modified[:,idx_temp_peak_sel]),np.nanmax(stim_modified[:,idx_temp_peak_sel])
+for i in range(stim_modified.shape[0]):
+    fig,axs=plt.subplots(1,3,figsize=(20,10));axs=np.ravel(axs)
+    # vmin_img,vmax_img = img_modified[:,idx_temp_peak].min(),img_modified[i,idx_temp_peak].max()
+    h0 = axs[0].imshow(stim[i,idx_temp_peak_sel],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[0].set_title('Stim original');axs[0].set_ylim([74,0]);
+    axs[0].plot(rfs_shut[:,:,0].T,rfs_shut[:,:,1].T,'r',linewidth=LINEWIDTH);
+    axs[0].plot(rfs_fixed[:,:,0].T,rfs_fixed[:,:,1].T,'b',linewidth=LINEWIDTH)
+    axs[0].set_ylim([74,0]);
+    
+    
+    h1 = axs[1].imshow(stim_modified[i,idx_temp_peak_sel],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[1].set_title('Stim modified');axs[1].set_ylim([74,0]);
+    axs[1].plot(rfs_shut[:,:,0].T,rfs_shut[:,:,1].T,'r',linewidth=LINEWIDTH);
+    axs[1].plot(rfs_fixed[:,:,0].T,rfs_fixed[:,:,1].T,'b',linewidth=LINEWIDTH)
+    axs[1].set_ylim([74,0]);
+
+    h2 = axs[2].imshow(step*grad_toadjust_mean[i,idx_temp_peak_sel],cmap='gray',vmin=vmin_img,vmax=vmax_img);axs[2].set_title('Stim modified');axs[2].set_ylim([74,0]);
+    axs[2].plot(rfs_shut[:,:,0].T,rfs_shut[:,:,1].T,'r',linewidth=LINEWIDTH);
+    axs[2].plot(rfs_fixed[:,:,0].T,rfs_fixed[:,:,1].T,'b',linewidth=LINEWIDTH)
+    axs[2].set_ylim([74,0]);
+
+    
+    plt.show()
+
+
+# %% Save Movie Hi-Res
+from model.data_handler import rolling_window
+import ffmpeg
+from skimage.transform import resize
+
+fname_hires = '/home/saad/postdoc_db/analyses/data_mike/20230725C/datasets/frames_hires.h5'
+
+f = h5py.File(fname_hires,'r')
+stim_hr = np.array(f['frames'])
+f.close()
+stim_hr = rolling_window(stim_hr,80)
+
+idx_temp_peak_sel = -13
+
+stim_hr = stim_hr[114:-1,idx_temp_peak_sel]
+grad_toadjust_mean_hr = np.array(grad_toadjust_mean[:,idx_temp_peak_sel]).astype('float32')
+grad_toadjust_mean_hr[grad_toadjust_mean_hr==np.nan] = 0
+grad_toadjust_mean_hr[149:156]=0
+# grad_toadjust_mean_hr = np.moveaxis(grad_toadjust_mean_hr,0,-1)
+grad_toadjust_mean_hr = step*resize(grad_toadjust_mean_hr,[grad_toadjust_mean_hr.shape[0],600,800])
+stim_hr_modified = stim_hr - grad_toadjust_mean_hr
+
+# %
+
+def create_movie(movie_mat,fname_video,vmin_mov,vmax_mov):
+    movie_mat = ((movie_mat - vmin_mov)/(vmax_mov-vmin_mov)*255)
+    movie_mat = movie_mat.astype('uint8')
+
+
+    _,h,w = movie_mat.shape
+    framerate = 30
+    ffmpeg_process = (
+        ffmpeg
+            .input('pipe:', format='rawvideo', pix_fmt='gray8', s='{}x{}'.format(w, h))
+            .output(fname_video, pix_fmt='yuv420p', r=framerate)
+            .overwrite_output()
+            .run_async(pipe_stdin=True)
+    )
+    
+
+    frame  = movie_mat[0]
+    for frame in movie_mat:
+        ffmpeg_process.stdin.write(frame.tobytes())
+    ffmpeg_process.stdin.close()
+    ffmpeg_process.wait()
+
+    
+
+vmin_mov = np.nanmin(stim_hr_modified)
+vmax_mov = np.nanmax(stim_hr_modified)
+
+movie_mat = stim_hr
+fname_video = '/home/saad/postdoc_db/proposals/gradients/raw/grads_01_StimOrig_vid.mp4'
+create_movie(movie_mat,fname_video,vmin_mov,vmax_mov)
+
+movie_mat = stim_hr_modified
+fname_video = '/home/saad/postdoc_db/proposals/gradients/raw/grads_03_StimModified_vid.mp4'
+create_movie(movie_mat,fname_video,vmin_mov,vmax_mov)
+
+movie_mat = grad_toadjust_mean_hr
+fname_video = '/home/saad/postdoc_db/proposals/gradients/raw/grads_02_StimChange_vid.mp4'
+create_movie(movie_mat,fname_video,grad_toadjust_mean_hr.min(),grad_toadjust_mean_hr.max())
+
+buff = 1e-6*np.ones((stim_hr.shape[0],600,10))
+movie_mat =np.concatenate((stim_hr,buff,stim_hr_modified),axis=2)
+fname_video = '/home/saad/postdoc_db/proposals/gradients/raw/grads_04_StimOrig_Modified_vid.mp4'
+create_movie(movie_mat,fname_video,vmin_mov,vmax_mov)
+
+
+ctr=-1
+for frame in movie_mat:
+    ctr=ctr+1
+    plt.imshow(frame,cmap='gray');plt.title(str(ctr));plt.show()
+    
 # %%Get LSTAs
-spatRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[2],grads_rgc_shut.shape[3]));spatRF_allImg[:]=np.nan
-tempRF_allImg = np.zeros((grads_rgc_shut.shape[0],grads_rgc_shut.shape[1]));tempRF_allImg[:]=np.nan
+spatRF_allImg = np.zeros((grads_rgc_shut.shape[1],grads_rgc_shut.shape[-2],grads_rgc_shut.shape[-1]));spatRF_allImg[:]=np.nan
+tempRF_allImg = np.zeros((grads_rgc_shut.shape[1],grads_rgc_shut.shape[2]));tempRF_allImg[:]=np.nan
 
 
 @jax.jit
 def get_rf(grad_img):
-    spatRF, tempRF = model.featureMaps.decompose(grads_rgc_shut_mean[select_img,:,:,:])
+    spatRF, tempRF = model.featureMaps.decompose(grads_rgc_shut[u,select_img,:,:,:])
     mean_rfCent = np.abs(np.nanmean(spatRF))
     spatRF = spatRF/mean_rfCent
     tempRF = tempRF*mean_rfCent
@@ -459,21 +618,26 @@ def get_rf(grad_img):
     return spatRF,tempRF
 
 
+u=0
 for i in range(spatRF_allImg.shape[0]):
     select_img = i #768 #712
-    spatRF, tempRF = get_rf(grads_rgc_shut_mean[select_img,:,:,:])
+    spatRF, tempRF = get_rf(grads_rgc_fixed[u,select_img,:,:,:])
+    # spatRF, tempRF = model.featureMaps.decompose(grads_rgc_shut[u,select_img,:,:,:])
+
     spatRF_allImg[i] = spatRF
     tempRF_allImg[i] = tempRF
 
 spatRF_avg = np.nanmean(spatRF_allImg,axis=0)
 tempRF_avg = np.nanmean(tempRF_allImg,axis=0)
 
-plt.imshow(spatRF_avg);plt.show()
+plt.imshow(spatRF_avg,cmap='gray');plt.show()
 plt.plot(tempRF_avg);plt.show()
 
 idx_temp_peak = 67 #np.argmax(np.abs(tempRF_avg))
 idx_peakFromSpkOnset = -13#stim.shape[1]-idx_temp_peak
 
+
+plt.imshow(grads_rgc_shut[u,15,-13,:,:],cmap='gray');plt.show()
 
 
 # %% JAX gradients
