@@ -32,17 +32,14 @@ base = '/home/saad/postdoc_db/'
 # base = '/home/saad/data_hdd/'
 
 
-from scipy.stats import wilcoxon
-import scipy
 import gc
 
-import csv
 from collections import namedtuple
 Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
 from model.load_savedModel import load
 import model.data_handler
-from model.data_handler import load_data, prepare_data_cnn2d, prepare_data_cnn3d, prepare_data_convLSTM, prepare_data_pr_cnn2d,merge_datasets,isintuple
+from model.data_handler import prepare_data_cnn2d
 from model.data_handler_mike import load_h5Dataset
 from model.performance import getModelParams, model_evaluate,model_evaluate_new,paramsToName, get_weightsDict, get_weightsOfLayer,estimate_noise
 from model import metrics
