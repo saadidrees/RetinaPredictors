@@ -23,7 +23,8 @@ def model_definitions():
         How to arrange the datasets depends on which model is being used
     """
     
-    models_2D = ('CNN2D','CNN2D_TRLNORM','CNN2D_BNORM','CNN2D_NONORM','CNN2D_NORM3',
+    models_2D = ('CNN2D','CNN2D_LNORMSPAT','CNN2D_BNORM','CNN2D_BNORMSPAT','CNN2D_NONORM','CNN2D_NEWBN','CNN2D_MAXPOOL',
+                 'CNN2D_AF',
                  'PRFR_CNN2D','PRFR_CNN2D_NOLN','PRFR_CNN2D_ARU',
                  'PRFR_LN_CNN2D',
                  'PRDA_CNN2D')
@@ -291,7 +292,9 @@ def cnn2d(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, ch
     mdl_name = 'CNN2D'
     return Model(inputs, outputs, name=mdl_name)
 
-def cnn2d_trlnorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+
+
+def cnn2d_lnormspat(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
     chan1_n = kwargs['chan1_n']
     filt1_size = kwargs['filt1_size']
@@ -317,101 +320,11 @@ def cnn2d_trlnorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_siz
 
     # first layer  
     y = inputs
-    y = LayerNormalization(axis=-3,epsilon=1e-7,trainable=True)(y)        # z-score the input across temporal dimension
-    # y = LayerNormalization(epsilon=1e-7)(y)        # z-score the input
-    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
-    
-    if MaxPool > 0:
-        if MaxPool==1:  # backwards compatibility
-            MaxPool=2
-        y = MaxPool2D(MaxPool,data_format='channels_first')(y)
-        
-    if BatchNorm is True: 
-        y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+    y = Reshape((y.shape[1],y.shape[-2]*y.shape[-1]),dtype=dtype)(y)
 
-    y = Activation('relu')(GaussianNoise(sigma)(y))
-
-
-    # second layer
-    if chan2_n>0:
-        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)                  
-        
-        if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
-            
-        y = Activation('relu')(GaussianNoise(sigma)(y))
-
-    # Third layer
-    if chan3_n>0:
-        if y.shape[-1]<filt3_size:
-            filt3_size = (filt3_size,y.shape[-1])
-        elif y.shape[-2]<filt3_size:
-            filt3_size = (y.shape[-2],filt3_size)
-        else:
-            filt3_size = filt3_size
-        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
-        
-        if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
-
-        y = Activation('relu')(GaussianNoise(sigma)(y))
-    
-    # Fourth layer
-    if mdl_params['chan4_n']>0:
-        if y.shape[-1]<mdl_params['filt4_size']:
-            mdl_params['filt4_size'] = (mdl_params['filt4_size'],y.shape[-1])
-        elif y.shape[-2]<mdl_params['filt4_size']:
-            mdl_params['filt4_size'] = (y.shape[-2],mdl_params['filt4_size'])
-        else:
-            mdl_params['filt4_size'] = mdl_params['filt4_size']
-            
-        y = Conv2D(mdl_params['chan4_n'], mdl_params['filt4_size'], data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
-        
-        if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
-
-        y = Activation('relu')(GaussianNoise(sigma)(y))
-
-        
-    y = Flatten()(y)
-    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
-    if BatchNorm is True: 
-        y = BatchNormalization(axis=-1)(y)
-
-    outputs = Activation('softplus')(y)
-    # outputs = Activation('relu')(y)
-
-    mdl_name = 'CNN2D_TRLNORM'
-    return Model(inputs, outputs, name=mdl_name)
-
-def cnn2d_bnorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
-    
-    chan1_n = kwargs['chan1_n']
-    filt1_size = kwargs['filt1_size']
-    chan2_n = kwargs['chan2_n']
-    filt2_size = kwargs['filt2_size']
-    chan3_n = kwargs['chan3_n']
-    filt3_size = kwargs['filt3_size']
-    
-    BatchNorm = bool(kwargs['BatchNorm'])
-    MaxPool = kwargs['MaxPool']
-    dtype = kwargs['dtype']
-    
-    mdl_params = {}
-    keys = ('chan4_n','filt4_size')
-    for k in keys:
-        if k in kwargs:
-            mdl_params[k] = kwargs[k]
-        else:
-            mdl_params[k] = 0
-    
-    sigma = 0.1
-    filt_temporal_width=inputs.shape[1]
-
-    # first layer  
-    y = inputs
-    y = BatchNormalization(axis=1,epsilon=1e-7)(y)        # z-score the input across temporal dimension
-    # y = LayerNormalization(epsilon=1e-7)(y)        # z-score the input
+    # y = LayerNormalization(axis=[-1,-2],epsilon=1e-7,trainable=False)(y)        # z-score the input across spatiak dimension
+    y = LayerNormalization(epsilon=1e-7)(y)        # z-score the input
+    y = Reshape((y.shape[1],inputs.shape[-2],inputs.shape[-1]),dtype=dtype)(y)
     y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
     
     if MaxPool > 0:
@@ -473,10 +386,11 @@ def cnn2d_bnorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
     outputs = Activation('softplus')(y)
     # outputs = Activation('relu')(y)
 
-    mdl_name = 'CNN2D_BNORM'
+    mdl_name = 'CNN2D_LNORMSPAT'
     return Model(inputs, outputs, name=mdl_name)
 
-def cnn2d_nonorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+
+def cnn2d_maxpool(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
     chan1_n = kwargs['chan1_n']
     filt1_size = kwargs['filt1_size']
@@ -497,32 +411,40 @@ def cnn2d_nonorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size
         else:
             mdl_params[k] = 0
     
-    sigma = 0.1
+    reg_kern = 1e-4
+    reg_act = 1e-4
+    
+    sigma = 0.01
+    
     filt_temporal_width=inputs.shape[1]
 
     # first layer  
     y = inputs
-    # y = BatchNormalization(axis=1,epsilon=1e-7)(y)        # z-score the input across temporal dimension
-    # y = LayerNormalization(epsilon=1e-7)(y)        # z-score the input
-    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)
     
     if MaxPool > 0:
-        if MaxPool==1:  # backwards compatibility
-            MaxPool=2
         y = MaxPool2D(MaxPool,data_format='channels_first')(y)
         
     if BatchNorm is True: 
-        y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+        # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+        rgb = y.shape[1:]
+        y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
 
     y = Activation('relu')(GaussianNoise(sigma)(y))
 
 
     # second layer
     if chan2_n>0:
-        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)                  
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)                  
         
+        if MaxPool > 0:
+            y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
         if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            rgb = y.shape[1:]
+            y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
+
             
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
@@ -534,10 +456,16 @@ def cnn2d_nonorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size
             filt3_size = (y.shape[-2],filt3_size)
         else:
             filt3_size = filt3_size
-        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)    
         
+        if MaxPool > 0:
+            y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
         if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            rgb = y.shape[1:]
+            y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
+
 
         y = Activation('relu')(GaussianNoise(sigma)(y))
     
@@ -550,10 +478,16 @@ def cnn2d_nonorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size
         else:
             mdl_params['filt4_size'] = mdl_params['filt4_size']
             
-        y = Conv2D(mdl_params['chan4_n'], mdl_params['filt4_size'], data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
+        y = Conv2D(mdl_params['chan4_n'], mdl_params['filt4_size'], data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)    
         
+        # if MaxPool > 0:
+        #     y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
         if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            rgb = y.shape[1:]
+            y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
+
 
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
@@ -561,15 +495,55 @@ def cnn2d_nonorm(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size
     y = Flatten()(y)
     if BatchNorm is True: 
         y = BatchNormalization(axis=-1)(y)
-    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(reg_kern), activity_regularizer=l1(reg_act))(y)
     outputs = Activation('softplus')(y)
-    # outputs = Activation('relu')(y)
 
-    mdl_name = 'CNN2D_NONORM'
+    mdl_name = 'CNN2D_MAXPOOL'
     return Model(inputs, outputs, name=mdl_name)
 
 
-def cnn2d_norm3(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
+class trainableAF(tf.keras.layers.Layer):
+    def __init__(self,params,units=1,dtype='foat32'):
+        super(trainableAF,self).__init__()
+        self.units = units
+        self.params = params
+        # self.dtype='float16'
+        
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'units': self.units,
+        })
+        return config
+
+    def build(self,input_shape):
+        dtype = self.dtype
+        
+        s_init = tf.keras.initializers.Constant(self.params['s'])
+        self.s = tf.Variable(name='saturation',initial_value=s_init(shape=(1,self.units),dtype=dtype),trainable=self.params['s_trainable'])
+        s_scaleFac = tf.keras.initializers.Constant(self.params['s_scaleFac'])
+        self.s_scaleFac = tf.Variable(name='s_scaleFac',initial_value=s_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
+        
+        n_init = tf.keras.initializers.Constant(self.params['n'])
+        self.n = tf.Variable(name='gain',initial_value=n_init(shape=(1,self.units),dtype=dtype),trainable=self.params['n_trainable'])
+        n_scaleFac = tf.keras.initializers.Constant(self.params['n_scaleFac'])
+        self.n_scaleFac = tf.Variable(name='n_scaleFac',initial_value=n_scaleFac(shape=(1,self.units),dtype=dtype),trainable=False)
+       
+
+    def call(self,inputs):
+        X_fun = inputs
+        
+        s = self.s*self.s_scaleFac
+        n = self.n*self.n_scaleFac
+        
+        a = ((1-s)*tf.math.log(1+tf.math.exp(n*X_fun)))/n
+        b = (s*(tf.math.exp(n*X_fun)))/(1+tf.math.exp(n*X_fun))
+        outputs = a+b
+
+        return outputs
+    
+def cnn2d_af(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=13, chan2_n=0, filt2_size=0, chan3_n=0, filt3_size=0, BatchNorm=True, BatchNorm_train=False, MaxPool=False):
     
     chan1_n = kwargs['chan1_n']
     filt1_size = kwargs['filt1_size']
@@ -590,32 +564,50 @@ def cnn2d_norm3(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
         else:
             mdl_params[k] = 0
     
-    sigma = 0.1
+    aru_params = {
+        's': 0.5,
+        's_scaleFac': 1,
+        's_trainable': True,
+        'n': 0.1,
+        'n_scaleFac': 10,
+        'n_trainable': True
+        }
+    
+
+    reg_kern = 1e-4
+    reg_act = 1e-4
+    
+    sigma = 0.01
+    
     filt_temporal_width=inputs.shape[1]
 
     # first layer  
     y = inputs
-    y = LayerNormalization(axis=[-3,-2,-1],epsilon=1e-7,trainable=False,scale=False,center=False)(y)        # z-score the input across spatial temporal dimension
-    # y = LayerNormalization(epsilon=1e-7,trainable=False)(y)        # z-score the input
-    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)
+    y = Conv2D(chan1_n, filt1_size, data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)
     
     if MaxPool > 0:
-        if MaxPool==1:  # backwards compatibility
-            MaxPool=2
         y = MaxPool2D(MaxPool,data_format='channels_first')(y)
         
     if BatchNorm is True: 
-        y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+        # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+        rgb = y.shape[1:]
+        y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
 
     y = Activation('relu')(GaussianNoise(sigma)(y))
 
 
     # second layer
     if chan2_n>0:
-        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)                  
+        y = Conv2D(chan2_n, filt2_size, data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)                  
         
+        if MaxPool > 0:
+            y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
         if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            rgb = y.shape[1:]
+            y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
+
             
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
@@ -627,10 +619,16 @@ def cnn2d_norm3(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
             filt3_size = (y.shape[-2],filt3_size)
         else:
             filt3_size = filt3_size
-        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
+        y = Conv2D(chan3_n, filt3_size, data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)    
         
+        if MaxPool > 0:
+            y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
         if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            rgb = y.shape[1:]
+            y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
+
 
         y = Activation('relu')(GaussianNoise(sigma)(y))
     
@@ -643,10 +641,16 @@ def cnn2d_norm3(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
         else:
             mdl_params['filt4_size'] = mdl_params['filt4_size']
             
-        y = Conv2D(mdl_params['chan4_n'], mdl_params['filt4_size'], data_format="channels_first", kernel_regularizer=l2(1e-3))(y)    
+        y = Conv2D(mdl_params['chan4_n'], mdl_params['filt4_size'], data_format="channels_first", kernel_regularizer=l2(reg_kern))(y)    
         
+        # if MaxPool > 0:
+        #     y = MaxPool2D(MaxPool,data_format='channels_first')(y)
+
         if BatchNorm is True: 
-            y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            # y = BatchNormalization(axis=1,epsilon=1e-7)(y)
+            rgb = y.shape[1:]
+            y = Reshape(rgb)(BatchNormalization(axis=-1)(Flatten()(y)))
+
 
         y = Activation('relu')(GaussianNoise(sigma)(y))
 
@@ -654,13 +658,13 @@ def cnn2d_norm3(inputs,n_out,**kwargs): #(inputs, n_out, chan1_n=12, filt1_size=
     y = Flatten()(y)
     if BatchNorm is True: 
         y = BatchNormalization(axis=-1)(y)
-    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(1e-3), activity_regularizer=l1(1e-3))(y)
-    outputs = Activation('softplus')(y)
-    # outputs = Activation('relu')(y)
+    y = Dense(n_out, kernel_initializer='normal', kernel_regularizer=l2(reg_kern), activity_regularizer=l1(reg_act))(y)
+    # outputs = Activation('softplus')(y)
+    outputs = trainableAF(aru_params,units=y.shape[-1])(y)
 
-    mdl_name = 'CNN2D_NORM3'
+
+    mdl_name = 'CNN2D_AF'
     return Model(inputs, outputs, name=mdl_name)
-
 # %% PR models
 
 @tf.function(autograph=True,experimental_relax_shapes=True)
