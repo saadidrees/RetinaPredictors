@@ -17,7 +17,7 @@ Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
 whos_data = 'kiersten'
 lightLevel = 'allLightLevels'     # ['scotopic', 'photopic','scotopic_photopic']
-datasetsToLoad = ['photopic']#['scotopic','photopic','scotopic_photopic']
+datasetsToLoad = ['scotopic']#['scotopic','photopic','scotopic_photopic']
 convertToRstar = False
 
 
@@ -25,7 +25,7 @@ if whos_data == 'saad':
     expDate = '20180502_s3'     # ('20180502_s3', '20180919_s3','20181211a_s3', '20181211b_s3')
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_saad/',expDate,'datasets')
 elif whos_data == 'kiersten':
-    expDate = 'retina2'     # ('retina1', 'retina2','retina3')
+    expDate = 'retina1'     # ('retina1', 'retina2','retina3')
     path_dataset = os.path.join('/home/saad/postdoc_db/analyses/data_kiersten/',expDate,'datasets/8ms_sampShifted')
     
     meanIntensities = {

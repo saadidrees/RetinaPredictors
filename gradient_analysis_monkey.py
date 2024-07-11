@@ -68,7 +68,7 @@ dataset_model = 'scot-3-30-Rstar'
 path_save = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/'
 path_grads = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/gradients'
 
-path_mdl = '/home/saad/data/analyses/data_kiersten/monkey01/ICLR2023'      # CNS
+path_mdl = '/home/saad/data2/analyses/data_kiersten/monkey01/ICLR2023'      # CNS
 mdl_subFold = '' #'LayerNorm_MultiAxis'
 mdl_names = ('CNN_2D_NORM','PRFR_CNN2D_RODS') #'CNN_2D_NORM' #'PRFR_CNN2D_RODS' 
 paramName_mdl = {}

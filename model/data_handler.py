@@ -1640,3 +1640,19 @@ def dataset_shuffle(data,n_train):
     data=data_tuple(**dataDict)
 
     return data
+
+def augment_datatuple(data,dict_fields):
+    data_fields = list(data._fields)
+    
+    dataDict = {}
+    for name in data_fields:
+        dataDict[name]=getattr(data,name)
+        
+    for var in dict_fields:
+        dataDict[var]=dict_fields[var]
+            
+    data_tuple = namedtuple('Exptdata',dataDict)
+    data=data_tuple(**dataDict)
+
+    return data
+

@@ -79,8 +79,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # Memory growth must be set before GPUs have been initialized
         print(e)
     
-    # if 'PR' not in mdl_name:
-    #     tf.compat.v1.disable_eager_execution()
+    if 'PR' not in mdl_name:
+        tf.compat.v1.disable_eager_execution()
         
     
     if runOnCluster==1:
@@ -274,9 +274,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     print('Training data duration: %0.2f mins'%(n_train*t_frame/1000/60))
     
-    
-    
-
 
 # %% Select model 
     """
@@ -301,7 +298,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     dict_params['filt_temporal_width'] = temporal_width
     dict_params['dtype'] = DTYPE
-    dict_params['n_out'] = n_cells
+    dict_params['nout'] = n_cells
 
     
     if pr_params_name!='':
@@ -495,7 +492,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         mdl_history = mdl_history.history
         _ = gc.collect()
         
-        
     t_elapsed = time.time()-t
     print('time elapsed: '+str(t_elapsed)+' seconds')
     
@@ -555,7 +551,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     else:
         obs_rate_allStimTrials = data_test.y
         if 'var_noise' in data_quality:
-            obs_noise = data_quality['var_noise']
+            obs_noise = data_quality['var_noise'][idx_unitsToTake]
         else:
             obs_noise = 0
         num_iters = 1
@@ -575,7 +571,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     print('-----EVALUATING PERFORMANCE-----')
-    i=52
+    i=0
     for i in range(0,nb_epochs):
         print('evaluating epoch %d of %d'%(i,nb_epochs))
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
@@ -626,7 +622,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     ax.text(1.1,fev_medianUnits_bestEpoch+.1,'%0.2f'%(fev_medianUnits_bestEpoch))
     """
     
-    idx_bestEpoch = np.nanargmax(fev_medianUnits_allEpochs)
+    idx_bestEpoch = nb_epochs-1#np.nanargmax(fev_medianUnits_allEpochs)
+    # idx_bestEpoch = np.nanargmax(fev_medianUnits_allEpochs)
     fev_medianUnits_bestEpoch = np.round(fev_medianUnits_allEpochs[idx_bestEpoch],2)
     fev_allUnits_bestEpoch = fev_allUnits_allEpochs[(idx_bestEpoch),:]
     fracExVar_medianUnits = np.round(fracExVar_medianUnits_allEpochs[idx_bestEpoch],2)
@@ -651,6 +648,35 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         fev_val_cb, _, predCorr_val_cb, _ = model_evaluate_new(obs_rate_allStimTrials[idx_cb],pred_rate[idx_cb],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
         print('FEV_NATSTIM = %0.2f' %(np.nanmean(fev_val_natstim)*100))
         print('FEV_CB = %0.2f' %(np.nanmean(fev_val_cb)*100))
+
+# %% Test
+
+    x_train = np.array(data_train.X[-2000:])
+    y_train = np.array(data_train.y[-2000:])
+    x_val = np.array(data_val.X[-2000:])
+    y_val = np.array(data_val.y[-2000:])
+    x_test = np.array(data_test.X[-2000:])
+    y_test = np.array(data_test.y[-2000:])
+
+    
+    pred_train = mdl.predict(x_train)
+    pred_val = mdl.predict(x_val)
+    pred_test = mdl.predict(x_test)
+
+    
+    # for i in range(100):
+    u = 1
+    
+    fig,axs =plt.subplots(2,1,figsize=(20,5))
+    axs=np.ravel(axs)
+    axs[0].plot(y_train[-2000:,u])
+    axs[0].plot(pred_train[-2000:,u])
+    axs[0].set_title(str(u))
+    axs[1].plot(y_val[:2000,u])
+    axs[1].plot(pred_val[:2000,u])
+    axs[1].set_title('Validation')
+    plt.show()
+    
 
 
 # %% Save performance

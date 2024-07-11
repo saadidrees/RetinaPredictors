@@ -59,9 +59,12 @@ from model.train_model import chunker
 data_pers = 'mike'
 expDates = ('20230725C',)
 subFold = '' #'PR_BP' #'8ms_clark' #'8ms_trainablePR' # test_coneParams
-mdl_subFold = ''
-lightLevel_1 =  ('CB_CORR_photopic-Rstar_f4_8ms',) #CB_CORR_mesopic-Rstar_f4_8ms  NATSTIM3_CORR_mesopic-Rstar_f4_8ms CB_CORR_photopic-Rstar_f4_8ms
-lightLevel_2 = ()#('CB_CORR_mesopic-Rstar_f4_8ms',)#('NATSTIM3_photopic-Rstar_f4',)
+mdl_subFold = 'finetuning_crossval'
+lightLevel_1 =  ('NATSTIM6_CORR_mesopic-Rstar_f4_8ms',) #CB_CORR_mesopic-Rstar_f4_8ms  NATSTIM3_CORR_mesopic-Rstar_f4_8ms C
+natstims_all = ('NATSTIM0_CORR_mesopic-Rstar_f4_8ms','NATSTIM1_CORR_mesopic-Rstar_f4_8ms', 'NATSTIM2_CORR_mesopic-Rstar_f4_8ms', 'NATSTIM3_CORR_mesopic-Rstar_f4_8ms','NATSTIM4_CORR_mesopic-Rstar_f4_8ms',
+                'NATSTIM5_CORR_mesopic-Rstar_f4_8ms','NATSTIM6_CORR_mesopic-Rstar_f4_8ms','NATSTIM7_CORR_mesopic-Rstar_f4_8ms','NATSTIM8_CORR_mesopic-Rstar_f4_8ms')
+
+lightLevel_2 = () #list(set(natstims_all)-set(lightLevel_1))#('CB_CORR_mesopic-Rstar_f4_8ms',)#('NATSTIM3_CORR_photopic-Rstar_f4',) CB_CORR_photopic-Rstar_f4_8ms
 models_all = ('CNN2D',) # 
 pr_params_name = ''
 
@@ -349,20 +352,20 @@ correctMedian = False
 
 select_LR = '0.0001'
 select_U = 57
-select_P = 80
-select_T = 60
+select_P = 0
+select_T = 80
 select_BN = 1
 select_MP = 2
 # select_TR = 1
 select_CB = 0
 select_C1_n = 10
-select_C1_s = 15#9
+select_C1_s = 11#9
 select_C1_3d = 0
 select_C2_n = 15
-select_C2_s = 11
+select_C2_s = 7
 select_C2_3d = 0
-select_C3_n = 25
-select_C3_s = 11
+select_C3_n = 20
+select_C3_s = 7
 select_C3_3d = 0
 select_TRSAMPS = -1
 
@@ -377,10 +380,10 @@ paramFileName,_ = modelFileName(U=select_U,P=select_P,T=select_T,BN=select_BN,MP
 
 # assert val_dataset_1 != val_dataset_1, 'same datasets selected'
 idx_bestTrial = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_bestEpoch_allTr'])
-idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
-# idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
+# idx_bestEpoch = np.nanargmax(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
+idx_bestEpoch = len(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])-1
 trial_num = perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['trial_id'][idx_bestTrial]
-plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][5:,idx_bestTrial])
+plt.plot(perf_allExps[select_exp][select_mdl][paramFileName]['model_performance']['fev_medianUnits_allEpochs_allTr'][:,idx_bestTrial])
 select_TR = int(trial_num)
 
 unames = np.array(perf_allExps[select_exp][select_mdl][paramFileName]['data_quality']['uname_selectedUnits'])
@@ -467,7 +470,18 @@ for d in range(len(fname_data_train_val_test_all)):
 data_val = model.data_handler.merge_datasets(dict_val)
 data_test = model.data_handler.merge_datasets(dict_test)
 
+"""
+from skimage import exposure
+import numpy as np
+def histogram_equalize(img):
+    # img = rgb2gray(img)
+    img_cdf, bin_centers = exposure.cumulative_distribution(img)
+    return np.interp(img, bin_centers, img_cdf)
 
+X = data_val.X.copy()
+X = histogram_equalize(X) #(X-X.min())/(X.max()-X.min())
+data_val = Exptdata(X,data_val.y)
+"""
 # if isinstance(data_train.X,list):
 #     if len(data_train.X)>1000:
 #         X = data_train.X[:1000]
@@ -495,6 +509,8 @@ plt.hist(data_train.y.flatten())
 """
 
 val_select = 'data_val'
+# val_select = 'data_train'
+
 data_val_select = eval(val_select)
 
 print('Validation dataset: %s'%val_select)
@@ -540,7 +556,8 @@ else:
     # pred_rate = mdl.predict(data_val_select.X,batch_size = 16)
 
 """
-pred_rate = pred_rate*10
+pred_rate = pred_rate
+obs_rate = np.asarray(data_val_select.y)
 """
 # obs_rate = data_test.y
 # pred_rate = mdl.predict(data_test.X)
@@ -590,8 +607,10 @@ rrCorr_d1_ci = 1.96*(rrCorr_d1_stdUnits/len(idx_d1_valid)**.5)
 
 idx_units_sorted = np.argsort(fev_d1_allUnits[idx_d1_valid])
 idx_units_sorted = idx_d1_valid[idx_units_sorted]
+# idx_unitsToPred = [idx_units_sorted[0],idx_units_sorted[1],idx_units_sorted[2],idx_units_sorted[3]]
 idx_unitsToPred = [idx_units_sorted[-1],idx_units_sorted[-2],idx_units_sorted[-3],idx_units_sorted[-4]]
-idx_unitsToPred = [35,55,41,22]     # Unit 22 is good for natstim comparisons
+# %%
+idx_unitsToPred = [2,52,17,47]     # Unit 22 is good for natstim comparisons
 uname_sorted = unames[idx_units_sorted]
 idx_on = np.intersect1d(np.arange(0,27),idx_d1_valid)
 idx_off = np.intersect1d(np.arange(27,57),idx_d1_valid)
@@ -601,6 +620,32 @@ fev_median_off = np.nanmedian(fev_d1_allUnits[idx_off])
 print('FEV_ON = %0.2f' %(fev_median_on*100))
 print('FEV_OFF = %0.2f' %(fev_median_off*100))
 
+"""
+# Plot images
+fig,axs=plt.subplots(3,3,figsize=(10,10))
+axs=np.ravel(axs)
+i=-1
+for key in dict_dsetPerf.keys():
+    i=i+1
+    idx = np.asarray(dict_dsetPerf[key]['idx'])
+    img = data_val.X[idx][-1,-1,:,:]
+    bins = np.arange(0,2.05,0.05)
+    # axs[i].imshow(img,cmap='gray')
+    axs[i].hist(img.flatten(),bins)
+    axs[i].set_title(key)
+    
+fig,axs=plt.subplots(3,3,figsize=(15,15))
+axs=np.ravel(axs)
+i=-1
+for key in dict_dsetPerf.keys():
+    i=i+1
+    idx = np.asarray(dict_dsetPerf[key]['idx'])
+    img = data_val.X[idx][:,-1,:,:]
+    bins = np.arange(0,2.05,0.05)
+    axs[i].hist(img.flatten(),bins)
+    axs[i].set_title(key)
+
+"""
 
 if len(dict_dsetPerf)>0:
     for key in dict_dsetPerf.keys():
@@ -617,14 +662,14 @@ if len(dict_dsetPerf)>0:
 
         print('%s: FEV = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_medianUnits']*100))
         print('%s: R = %0.2f'%(key,dict_dsetPerf[key]['predCorr_d1_medianUnits']))
-        print('%s: FEV_ON = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_median_ON']*100))
-        print('%s: FEV_OFF = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_median_OFF']*100))
+        # print('%s: FEV_ON = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_median_ON']*100))
+        # print('%s: FEV_OFF = %0.2f'%(key,dict_dsetPerf[key]['fev_d1_median_OFF']*100))
 
 
 
 t_start = 0
 t_dur = obs_rate.shape[0]
-t_end = 1000#t_dur-20
+t_end = t_dur
 win_display = (t_start,t_start+t_dur)
 font_size_ticks = 12
 font_size_leg = 16
@@ -823,6 +868,30 @@ axs[0].set_xlabel('Training data (minutes)')
 axs[0].set_ylabel('Median FEV (%) | N = 57 RGCs')
 axs[0].legend(loc='best')
 axs[0].set_title('PHOTOPIC 80 - 60 ms')
+
+# %% Layer Norm output
+
+idx_mdl_start = 1
+idx_mdl_end = 2
+
+x = Input(shape=data_val.X.shape[1:])
+n_cells = data_val.y.shape[1]
+y = x 
+
+for layer in mdl.layers[idx_mdl_start:idx_mdl_end]:
+    y = layer(y)
+# y = y[:,-60:]
+mdl_ln = Model(x, y, name='LayerNorm')
+
+batch_size = 32
+gen = chunker(data_val_select,batch_size=batch_size)    
+steps_per_epoch = int(np.ceil(len(data_val_select.X)/batch_size))
+norm_inp = mdl_ln.predict_generator(gen,steps=steps_per_epoch)
+
+bins = np.arange(0,2,0.1)
+plt.hist(data_val.X[:,-1,:,:].flatten(),bins);plt.show()
+plt.hist(norm_inp[:,-1,:,:].flatten(),bins);plt.show()
+
 
 # %% PR output
 idx_mdl_start = 1
@@ -1180,8 +1249,8 @@ thresh_fev = -1000
 params_mdl = params_allExps[select_exp][select_mdl]
 
 select_U = 57
-select_P = 80
-select_T = np.array([60]) #np.unique(params_mdl['T'])
+select_P = 0
+select_T = np.array([80]) #np.unique(params_mdl['T'])
 select_BN = 1
 select_MP = 2
 # select_TR = 1

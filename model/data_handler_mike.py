@@ -114,6 +114,7 @@ def load_data_allLightLevels_cb(fname_dataFile,dataset,frac_val=0.2,frac_test=0.
         thresh = thresh_rr*np.median(rgb)           # This was 0.75 for the big rat dataset
         idx_unitsToTake = np.arange(len(units_all))
         idx_unitsToTake = idx_unitsToTake[rgb>thresh]
+        # idx_unitsToTake = idx_unitsToTake[rgb<thresh]
         units_all = units_all[idx_unitsToTake]
         resp_median_allUnits = resp_median[idx_unitsToTake]
     else:
@@ -415,13 +416,17 @@ def load_data_allLightLevels_natstim(fname_dataFile,dataset,frac_val=0.2,frac_te
         
     
     # NOte that noise is estimated from the normalized response
-    resp_forNoise = np.concatenate((data_train.y,data_val.y_trials),axis=2)
-    resp_forNoise = np.moveaxis(resp_forNoise,0,-1)
-    resp_forNoise = np.moveaxis(resp_forNoise,1,2)
-    resp_forNoise = resp_forNoise.reshape(resp_forNoise.shape[0],resp_forNoise.shape[1],-1)
-    resp_forNoise = np.moveaxis(resp_forNoise,-1,0)
-    obs_noise = estimate_noise(resp_forNoise)
-    data_quality['var_noise']  = obs_noise
+    if data_train.y.shape[0]==data_val.y_trials.shape[0]:
+        resp_forNoise = np.concatenate((data_train.y,data_val.y_trials),axis=2)
+        resp_forNoise = np.moveaxis(resp_forNoise,0,-1)
+        resp_forNoise = np.moveaxis(resp_forNoise,1,2)
+        resp_forNoise = resp_forNoise.reshape(resp_forNoise.shape[0],resp_forNoise.shape[1],-1)
+        resp_forNoise = np.moveaxis(resp_forNoise,-1,0)
+        obs_noise = estimate_noise(resp_forNoise)
+        data_quality['var_noise']  = obs_noise
+    else:
+        obs_noise=None
+        data_quality['var_noise']  = None
     
     # dataset_rr={};
     return data_train,data_val,data_test,data_quality,dataset_rr,resp_orig,obs_noise

@@ -355,9 +355,9 @@ for u in range(u,u+1):#range(u,u+1): #range(N_rgcs):
         plt.setp(axs[v_idx].get_xticklabels(), fontsize=font_size_ticks)
         plt.setp(axs[v_idx].get_yticklabels(), fontsize=font_size_ticks)
         
-    fname_fig = 'CNN_BN-%d_examp_%02d' %(BN,idx_unitsToPred)
-    figure_1a.savefig(os.path.join(path_figs,fname_fig+'.png'),dpi=300)
-    figure_1a.savefig(os.path.join(path_figs,fname_fig+'.svg'),dpi=300)
+    # fname_fig = 'CNN_BN-%d_examp_%02d' %(BN,idx_unitsToPred)
+    # figure_1a.savefig(os.path.join(path_figs,fname_fig+'.png'),dpi=300)
+    # figure_1a.savefig(os.path.join(path_figs,fname_fig+'.svg'),dpi=300)
     
     # plt.close()
 
@@ -1137,11 +1137,11 @@ for i in range(fev_clean_val_pr.shape[1]):
     # plt.show()
     
     
-path_figs_save = os.path.join(path_figs)
-fig_name = 'lightlevels_pop_pairwise'
+# path_figs_save = os.path.join(path_figs)
+# fig_name = 'lightlevels_pop_pairwise'
 
-fig.savefig(os.path.join(path_figs_save,fig_name+'.png'),dpi=200)
-fig.savefig(os.path.join(path_figs_save,fig_name+'.svg'),dpi=600)
+# fig.savefig(os.path.join(path_figs_save,fig_name+'.png'),dpi=200)
+# fig.savefig(os.path.join(path_figs_save,fig_name+'.svg'),dpi=600)
 
 # %% Fig 5a - RAT Photopic
 fevs_medUnits_allMdls = {}
@@ -1335,8 +1335,8 @@ axs[0].text(0.15,45,'N = %d RGCs' %fev_stack_plot.shape[0],fontsize=font_size_ti
 # axs[0].text(1,20,'Without\nphotoreceptor\nlayer',fontsize=font_size_labels,color='blue',horizontalalignment='center')
 axs[0].tick_params(axis='both',labelsize=font_size_labels)
 
-figure.savefig(os.path.join(path_figs,'rat_phot_pop.png'),dpi=300)
-figure.savefig(os.path.join(path_figs,'rat_phot_pop.svg'),dpi=300)
+# figure.savefig(os.path.join(path_figs,'rat_phot_pop.png'),dpi=300)
+# figure.savefig(os.path.join(path_figs,'rat_phot_pop.svg'),dpi=300)
 
 
 # %% Fig 5b - RAT SCOTOPIC
@@ -1784,9 +1784,9 @@ for i in range(1):
     plt.setp(axs[i].get_yticklabels(), fontsize=font_size_ticks)
 
 
-fig_name = 'rat_exampRGC_phot_withPR'
-figure.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
-figure.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
+# fig_name = 'rat_exampRGC_phot_withPR'
+# figure.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
+# figure.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
 
 # %% --- Cross FEV observed rate
 num_iters=50
@@ -1798,7 +1798,7 @@ fev_cross_rat = np.median(np.mean(fev_d2_allUnits,axis=-1))
 
 # %% ExampFig-Scotopic-without PR
 exp_select = 'retina1'
-path_exp = '/home/saad/data/analyses/data_kiersten/data_cshl/'+exp_select
+path_exp = '/home/saad/data2/analyses/data_kiersten/data_cshl/'+exp_select
 mdl_params = 'U-0.00_T-120_C1-20-03_C2-24-02_C3-22-01_BN-1_MP-0_TR-01'
 
 mdlFolder = os.path.join(path_exp,'photopic/CNN_2D/',mdl_params)
@@ -1902,9 +1902,9 @@ for i in range(1):
     plt.setp(axs[i].get_yticklabels(), fontsize=font_size_labels)
     axs[i].legend(loc='upper right',fontsize=font_size_legend)
 
-fig_name = 'rat_exampRGC_scot_withoutPR'
-figure.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
-figure.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
+# fig_name = 'rat_exampRGC_scot_withoutPR'
+# figure.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
+# figure.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
 
 # %% ExampFig-PHOTOPIC-without PR
 exp_select = 'retina1'
@@ -2012,9 +2012,9 @@ for i in range(1):
     plt.setp(axs[i].get_yticklabels(), fontsize=font_size_labels)
     axs[i].legend(loc='upper right',fontsize=font_size_legend)
 
-fig_name = 'rat_exampRGC_phot_withoutPR'
-figure.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
-figure.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
+# fig_name = 'rat_exampRGC_phot_withoutPR'
+# figure.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
+# figure.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
 
 # %% PR-output visualize
 from model.RiekeModel import RiekeModel

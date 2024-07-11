@@ -419,11 +419,7 @@ for epoch in tqdm(range(n_epochs)):
     
     grad_toadjust_mean = jax_subtract(grads_rgc_shut_mean.reshape(grads_rgc_shut_mean.shape[0],-1),grad_proj_vec_meanUnits)
     grad_toadjust_mean_reshaped = grad_toadjust_mean.reshape(grad_toadjust_mean.shape[0],*stim_modified.shape[1:])
-    # stim_modified = jax_add(stim,grad_toadjust_mean_reshaped*step)
-    
-    # rgb = jnp.concatenate((stim[None,:,:,:,:],grad_toadjust_mean_reshaped[None,:,:,:,:]*step),axis=0)
-    # stim_modified = jnp.sum(rgb,axis=0)
-    # stim_modified = np.array(stim_modified)
+
     stim_modified = jax_add(stim_modified,grad_toadjust_mean_reshaped*step)
     
     # Orig stim response
@@ -431,8 +427,6 @@ for epoch in tqdm(range(n_epochs)):
     mdl_cnn = load_model_from_path(path_cnn)
     mdl_totake = mdl_cnn
     y_pred_mod = mdl_totake.predict(stim_modified,batch_size=16)
-    # y_pred_shut = y_pred_mod[:,rgc_shuftoff]
-    # y_pred_fixed = y_pred_mod[:,rgc_fixed]
     
     # Plot traces
     fig,axs=plt.subplots(2,4,figsize=(25,7));#axs=np.ravel(axs)
@@ -441,9 +435,9 @@ for epoch in tqdm(range(n_epochs)):
         axs[1,i].plot(y_orig[:,rgc_fixed[i]],'lightgray');axs[1,i].plot(y_pred_orig[:,rgc_fixed[i]]);axs[1,i].plot(y_pred_mod[:,rgc_fixed[i]],'--');axs[1,i].set_title(uname_all[rgc_fixed[i]])
     fig.suptitle('step = %d | epoch = %-2d'%(step,epoch))
     plt.show()
-    fig_name = 'traces_step-%d_epoch%02d'%(abs(step),epoch)
-    fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=96)
-    fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=96)
+    # fig_name = 'traces_step-%d_epoch%02d'%(abs(step),epoch)
+    # fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=96)
+    # fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=96)
 
     # Plot stimulus
     idx_temp_peak=67
@@ -463,9 +457,9 @@ for epoch in tqdm(range(n_epochs)):
     axs[4].plot(rfs_shut[:,:,0].T,rfs_shut[:,:,1].T,'r',linewidth=LINEWIDTH);axs[1].set_ylim([74,0]);axs[4].plot(rfs_fixed[:,:,0].T,rfs_fixed[:,:,1].T,'b',linewidth=LINEWIDTH);axs[4].set_ylim([74,0]);
     axs[5].axis('off')
     
-    fig_name = 'stim_step-%d_epoch%02d'%(abs(step),epoch)
-    fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=200)
-    fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=300)
+    # fig_name = 'stim_step-%d_epoch%02d'%(abs(step),epoch)
+    # fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=200)
+    # fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=300)
 
 
 # %%Get LSTAs
@@ -499,32 +493,4 @@ idx_temp_peak = 67 #np.argmax(np.abs(tempRF_avg))
 idx_peakFromSpkOnset = -13#stim.shape[1]-idx_temp_peak
 
 
-
-# %% JAX gradients
-"""
-trainable_variables = [var.numpy() for var in mdl_new.trainable_variables]
-weights_dict = get_weightsDict(mdl_new)
-
-def model_output(mdl_new,data_select_X):
-    return mdl_new.predict(data_select_X)
-
-def test_fn(x,y):
-    return  x ** 2 + x * y + y ** 2
-
-x = -2.0
-y = -3.0
-grad_fn = jax.grad(model_output,argnums=1,has_aux=False)
-grads = grad_fn(mdl_new,data_select_X)
-
-
-
-def wrapped_model(inp):
-    return jnp.array(mdl_new(inp,training=False))
-
-pred_rate = jax.jit(wrapped_model)
-pred_rate = pred_rate(data_select_X)
-
-grad_fn = jax.jit(jax.grad(wrapped_model,argnums=0))
-grads = grad_fn(data_select_X)
-"""
 

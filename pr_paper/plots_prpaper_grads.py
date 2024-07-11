@@ -48,21 +48,174 @@ for device in gpu_devices:
 from tensorflow.keras import Model
 from tensorflow.keras.layers import BatchNormalization, Input, Reshape
 
-# %% Fig. 4: STA vs Grads
+# %% Load gradients data
 
+
+# Define experiment details
+data_pers = 'kiersten' #'kiersten'
+expDate = 'monkey01'
+subFold = 'gradient_analysis' 
 fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
-datasets_plot = ('scot-30-Rstar',)#'scot-0.3-Rstar',)#'scot-3-Rstar','scot-0.3-Rstar')
+
+
+path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/datasets/'
+dataset_model = 'scot-3-30-Rstar'
+
+path_save = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/'
+path_grads = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/gradients'
+
+path_mdl = '/home/saad/data2/analyses/data_kiersten/monkey01/ICLR2023'      # CNS
+mdl_subFold = '' #'LayerNorm_MultiAxis'
+mdl_names = ('CNN_2D_NORM','PRFR_CNN2D_RODS') #'CNN_2D_NORM' #'PRFR_CNN2D_RODS' 
+paramName_mdl = {}
+paramName_mdl['PRFR_CNN2D_RODS'] = 'U-37_P-180_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' 
+paramName_mdl['CNN_2D_NORM'] = 'U-37_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' 
+
+
+# Load models into RAM
+mdl_dict = {}
+select_mdl = mdl_names[0]
+for select_mdl in mdl_names:
+
+    fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,select_mdl,paramName_mdl[select_mdl])
+    fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[select_mdl]+'.h5')
+    
+    # Load model
+    f = h5py.File(fname_performanceFile,'r')
+    perf_model = {}
+    for key in f['model_performance'].keys():
+        perf_model[key] = np.array(f['model_performance'][key])
+    rgb = utils_si.h5_tostring(f['uname_selectedUnits'])
+    perf_model['uname_selectedUnits'] = rgb
+    f.close
+    idx_bestEpoch = np.nanargmax(perf_model['fev_medianUnits_allEpochs'])
+    # plt.plot(perf_model['fev_medianUnits_allEpochs'])
+    
+    mdl = load(os.path.join(fold_mdl,paramName_mdl[select_mdl]))
+    fname_bestWeight = 'weights_'+paramName_mdl[select_mdl]+'_epoch-%03d' % (idx_bestEpoch+1)
+    try:
+        mdl.load_weights(os.path.join(fold_mdl,fname_bestWeight))
+    except:
+        mdl.load_weights(os.path.join(fold_mdl,fname_bestWeight+'.h5'))
+    weights_dict = get_weightsDict(mdl)
+    
+    mdl_dict[select_mdl] = mdl
+
+
+# % Load all the datasets on which the model is to be evaluated and for which we have to compute gradients
+
+nsamps_dur = -1   # amount of data to load. In minutes
+dataset_eval = ('scot-30-Rstar','scot-3-Rstar','scot-0.3-Rstar')    
+data_alldsets = {}
+d = dataset_eval[0]
+
+for d in dataset_eval:
+    data_alldsets[d] = {}
+
+    name_datasetFile = expDate+'_dataset_train_val_test_'+d+'.h5'
+    fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
+
+    data_train,data_val,_,_,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_train=nsamps_dur)
+
+    # Load model information that we need to arrange the data
+    params_model = getModelParams(os.path.split(fname_performanceFile)[-1])
+    temporal_width = params_model['T']
+    pr_temporal_width = params_model['P']
+    
+    
+    samp_interval = 1     # In these datasets stim is upsampled. So just downsample it. 
+    nsamps =  np.floor(data_train.X.shape[0]/samp_interval).astype('int') # 60,000
+    assert(nsamps<=data_train.X.shape[0])
+    idx_samps = np.arange(0,nsamps*samp_interval,samp_interval)      # this is the index of data that we will extract 
+    
+    data_train = Exptdata_spikes(data_train.X[idx_samps],data_train.y[idx_samps],data_train.spikes[idx_samps])
+    data_train = prepare_data_cnn2d(data_train,pr_temporal_width,np.arange(data_train.y.shape[1]))
+
+    data = data_train
+    data_alldsets[d]['raw'] = data
+    data_alldsets[d]['idx_samps'] = rgb
+    
+    del data_train
+        
+data_alldsets['spat_dims'] = (data.X.shape[-2],data.X.shape[-1])
+data_alldsets['temporal_dim'] = data.X.shape[1]
+
+del data
+
+f = h5py.File(fname_performanceFile,'r')
+uname_all_inData = np.array(f['uname_selectedUnits'],dtype='bytes')
+uname_all_inData = np.asarray(list(model.utils_si.h5_tostring(uname_all_inData)))
+f.close()
+
+path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/datasets/' 
+correctMedian = True
+
+perf_datasets = {}
+for select_mdl in mdl_names:
+    perf_datasets[select_mdl] = {}
+    
+    for d in dataset_eval:
+        perf_datasets[select_mdl][d] = {}
+        
+               
+        name_datasetFile = expDate+'_dataset_train_val_test_'+d+'.h5'
+        fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
+
+        _,data_val,_,_,dataset_rr,_,resp_orig = load_h5Dataset(fname_data_train_val_test,LOAD_TR=False)
+        resp_orig = resp_orig['train']
+        resp_orig[resp_orig==0] = np.nan
+
+        # Load model information that we need to arrange the data
+        fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,select_mdl,paramName_mdl[select_mdl])
+        fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[select_mdl]+'.h5')
+
+        params_model = getModelParams(os.path.split(fname_performanceFile)[-1])
+        temporal_width = params_model['T']
+        pr_temporal_width = params_model['P']
+        
+        # Arrange data as per model inputs
+        if select_mdl[:6]=='CNN_2D':
+            obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,temporal_width:,:]
+            data_val = prepare_data_cnn2d(data_val,temporal_width,np.arange(data_val.y.shape[1]))
+        elif select_mdl[:8]=='PR_CNN2D' or select_mdl[:10]=='PRFR_CNN2D' or select_mdl[:8]=='BP_CNN2D':
+            obs_rate_allStimTrials_d1 = dataset_rr['stim_0']['val'][:,pr_temporal_width:,:]
+            data_val = prepare_data_cnn2d(data_val,pr_temporal_width,np.arange(data_val.y.shape[1]))
+
+        
+        obs_rate = data_val.y
+        
+        if correctMedian==True:
+            fname_data_train_val_test_training = os.path.join(path_mdl,'datasets',('monkey01'+'_dataset_train_val_test_'+dataset_model+'.h5'))
+            _,_,_,data_quality,_,_,resp_med_d1 = load_h5Dataset(fname_data_train_val_test_training)
+            resp_med_d1 = np.nanmedian(resp_med_d1['train'],axis=0)
+            resp_med_d2 = np.nanmedian(resp_orig,axis=0)
+            resp_mulFac = resp_med_d2/resp_med_d1;
+            
+            obs_rate_allStimTrials_d1 = obs_rate_allStimTrials_d1/resp_mulFac
+            obs_rate = obs_rate/resp_mulFac
+        
+        pred_rate = mdl_dict[select_mdl].predict(data_val.X,batch_size = 100)
+        fev_d1_allUnits, _, predCorr_d1_allUnits, _ = model_evaluate_new(obs_rate_allStimTrials_d1,pred_rate,0,RR_ONLY=False,lag = 0)
+        perf_datasets[select_mdl][d]['fev_allUnits'] = fev_d1_allUnits
+        perf_datasets[select_mdl][d]['corr_allUnits'] = predCorr_d1_allUnits
+        
+        _ = gc.collect()
+
+
+# %% Fig. 4: STA vs Grads
+fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
+datasets_plot = ('scot-3-Rstar',)#'scot-0.3-Rstar',)#'scot-3-Rstar','scot-0.3-Rstar')
 mdls_toplot = ('CNN_2D_NORM','PRFR_CNN2D_RODS',) #PRFR_CNN2D_RODS  CNN_2D_NORM
 
 path_gradFiles = '/home/saad/data2/analyses/data_kiersten/monkey01/gradient_analysis/gradients/'
-
+t_frame=8
 temporal_width_grads = 50
 temp_window = 50
 sig_fac = 1.5
 range_tempFilt = np.arange(temporal_width_grads-temp_window,temporal_width_grads)
 
 u_arr = [0]
-
+dsFac = 4 
  
 m = 0
 num_samps = 400903#len(idx_samps) 
@@ -239,7 +392,6 @@ for u in u_arr: #np.arange(0,len(perf_model['uname_selectedUnits'])):
 
 # uname = on_mid_014
 # light level = scot-30
-
 fig_title = '%s | %s'%(uname,select_lightLevel)
 
 t_frame = 8
@@ -525,6 +677,7 @@ for select_lightLevel in lightLevels_all:
 
 # %% Fig. 6b-e: Latencies
 
+select_mdl = 'PRFR_CNN2D_RODS'  # CNN_2D_NORM # PRFR_CNN2D_RODS
 
 fname_gainFile = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/gain_analysis_ds.h5'
 fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
@@ -534,7 +687,6 @@ select_lightLevel = 'scot-0.3-Rstar'
 
 uname_gainFile = list(f[select_mdl][select_lightLevel].keys()) #['on_mid_003', 'on_mid_004', 'on_mid_005', 'on_mid_006', 'on_mid_009', 'on_mid_011', 'on_mid_015', 'on_mid_016', 'on_mid_017', 'on_mid_018', 'on_mid_020']
 
-select_mdl = 'PRFR_CNN2D_RODS'  # CNN_2D_NORM # PRFR_CNN2D_RODS
 lightLevels_all = ('scot-30-Rstar','scot-3-Rstar','scot-0.3-Rstar')
 
 temp_win = 40
@@ -612,11 +764,12 @@ u =  14
 d = np.array([0,1,2])
 t_frame = 8
 
-lat_stack = np.concatenate((lat_cnn[:,:,None],lat_pr[:,:,None],lat_sta[:,:,None]),axis=-1)
+lat_stack = np.concatenate((lat_sta[:,:,None],lat_pr[:,:,None],lat_cnn[:,:,None]),axis=-1)
 lab_cnn = np.reshape(np.repeat(np.array(['CNN']),lat_cnn.size),(lat_cnn.shape[0],lat_cnn.shape[1]))
 lab_pr = np.reshape(np.repeat(np.array(['PR_CNN']),lat_pr.size),(lat_pr.shape[0],lat_pr.shape[1]))
 lab_sta = np.reshape(np.repeat(np.array(['STA']),lat_sta.size),(lat_sta.shape[0],lat_sta.shape[1]))
-lat_labels_models_stack = np.concatenate((lab_cnn[:,:,None],lab_pr[:,:,None],lab_sta[:,:,None]),axis=-1)
+# lat_labels_models_stack = np.concatenate((lab_cnn[:,:,None],lab_pr[:,:,None],lab_sta[:,:,None]),axis=-1)
+lat_labels_models_stack = np.concatenate((lab_sta[:,:,None],lab_pr[:,:,None],lab_cnn[:,:,None]),axis=-1)
 rgb = np.concatenate((np.array(['30']),np.array(['3']),np.array(['0.3'])))
 lat_labels_ll = np.repeat(rgb[None,:],lat_cnn.shape[0],axis=0)
 lat_labels_ll_stack = np.concatenate((lat_labels_ll[:,:,None],lat_labels_ll[:,:,None],lat_labels_ll[:,:,None]),axis=-1)
@@ -689,15 +842,110 @@ fig2 = sns.catplot(
     x='model',hue='lightLevel',
     ci=95)
 
-fig_name = 'latencies_examp_step'
-fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
-fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
+fig2.map_dataframe(sns.stripplot,
+    y='latency',palette=['b','orange','g'],
+    x='model',hue='lightLevel')
+
+
+# fig_name = 'latencies_examp_step'
+# fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
+# fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
 
 # fig_name = 'latencies_pop'
 # fig2.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
 # fig2.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
 
 # %% Fig. 6f: Plot PR output
+
+data_pers = 'kiersten' #'kiersten'
+expDate = 'monkey01'
+subFold = 'gradient_analysis' 
+fname_stas =  '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/db_files/datasets/monkey01_STAs_allLightLevels_8ms_Rstar.h5'
+
+
+path_dataset = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/datasets/'
+dataset_model = 'scot-3-30-Rstar'
+
+path_save = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/'
+path_grads = '/home/saad/postdoc_db/analyses/data_kiersten/monkey01/gradient_analysis/gradients'
+
+path_mdl = '/home/saad/data2/analyses/data_kiersten/monkey01/ICLR2023'      # CNS
+mdl_subFold = '' #'LayerNorm_MultiAxis'
+mdl_names = ('CNN_2D_NORM','PRFR_CNN2D_RODS') #'CNN_2D_NORM' #'PRFR_CNN2D_RODS' 
+paramName_mdl = {}
+paramName_mdl['PRFR_CNN2D_RODS'] = 'U-37_P-180_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' 
+paramName_mdl['CNN_2D_NORM'] = 'U-37_T-120_C1-08-09_C2-16-07_C3-18-05_BN-1_MP-1_LR-0.001_TRSAMPS-040_TR-01' 
+
+
+# Load models into RAM
+mdl_dict = {}
+select_mdl = mdl_names[0]
+for select_mdl in mdl_names:
+
+    fold_mdl = os.path.join(path_mdl,dataset_model,mdl_subFold,select_mdl,paramName_mdl[select_mdl])
+    fname_performanceFile = os.path.join(fold_mdl,'performance',expDate+'_'+paramName_mdl[select_mdl]+'.h5')
+    
+    # Load model
+    f = h5py.File(fname_performanceFile,'r')
+    perf_model = {}
+    for key in f['model_performance'].keys():
+        perf_model[key] = np.array(f['model_performance'][key])
+    rgb = utils_si.h5_tostring(f['uname_selectedUnits'])
+    perf_model['uname_selectedUnits'] = rgb
+    f.close
+    idx_bestEpoch = np.nanargmax(perf_model['fev_medianUnits_allEpochs'])
+    # plt.plot(perf_model['fev_medianUnits_allEpochs'])
+    
+    mdl = load(os.path.join(fold_mdl,paramName_mdl[select_mdl]))
+    fname_bestWeight = 'weights_'+paramName_mdl[select_mdl]+'_epoch-%03d' % (idx_bestEpoch+1)
+    try:
+        mdl.load_weights(os.path.join(fold_mdl,fname_bestWeight))
+    except:
+        mdl.load_weights(os.path.join(fold_mdl,fname_bestWeight+'.h5'))
+    weights_dict = get_weightsDict(mdl)
+    
+    mdl_dict[select_mdl] = mdl
+
+
+nsamps_dur = -1   # amount of data to load. In minutes
+dataset_eval = ('scot-30-Rstar','scot-3-Rstar','scot-0.3-Rstar')    
+data_alldsets = {}
+d = dataset_eval[0]
+
+for d in dataset_eval:
+    data_alldsets[d] = {}
+
+    name_datasetFile = expDate+'_dataset_train_val_test_'+d+'.h5'
+    fname_data_train_val_test = os.path.join(path_dataset,name_datasetFile)
+
+    data_train,data_val,_,_,dataset_rr,parameters,_ = load_h5Dataset(fname_data_train_val_test,nsamps_train=nsamps_dur)
+
+    # Load model information that we need to arrange the data
+    params_model = getModelParams(os.path.split(fname_performanceFile)[-1])
+    temporal_width = params_model['T']
+    pr_temporal_width = params_model['P']
+    
+    
+    samp_interval = 1     # In these datasets stim is upsampled. So just downsample it. 
+    nsamps =  np.floor(data_train.X.shape[0]/samp_interval).astype('int') # 60,000
+    assert(nsamps<=data_train.X.shape[0])
+    idx_samps = np.arange(0,nsamps*samp_interval,samp_interval)      # this is the index of data that we will extract 
+    
+    data_train = Exptdata_spikes(data_train.X[idx_samps],data_train.y[idx_samps],data_train.spikes[idx_samps])
+    data_train = prepare_data_cnn2d(data_train,pr_temporal_width,np.arange(data_train.y.shape[1]))
+
+    data = data_train
+    data_alldsets[d]['raw'] = data
+    data_alldsets[d]['idx_samps'] = rgb
+    
+    del data_train
+        
+data_alldsets['spat_dims'] = (data.X.shape[-2],data.X.shape[-1])
+data_alldsets['temporal_dim'] = data.X.shape[1]
+
+del data
+
+
 nsamps = 1500  #data.X.shape[0]
 idx_chunk = np.arange(0,nsamps)
 
@@ -774,22 +1022,22 @@ idx_check = np.array([0,2])
 fig,axs = plt.subplots(2,1,figsize=(20,10))
 axs = np.ravel(axs)
 
-# axs[0].plot(X_all[idx_plot,-1,idx_check[0],idx_check[1]][:,idx_d]*1e3/t_frame)
-# axs[0].set_xticks(x_ticks)
-# axs[0].set_xticklabels(x_ticks_labels)
-# axs[0].set_xlabel('Time (ms)')
-# axs[0].set_ylabel('R*/rod/s')
-# axs[0].set_yscale('log')
-
-fac = 100
-stim_upsamp = np.repeat(X_all[idx_plot,-1,idx_check[0],idx_check[1]][:,idx_d],fac,axis=0)
-x_ticks_upsamp = np.arange(0,len(idx_plot)*fac,50*fac)
-axs[0].plot(stim_upsamp*1e3/t_frame)
-axs[0].set_xticks(x_ticks_upsamp)
+axs[0].plot(X_all[idx_plot,-1,idx_check[0],idx_check[1]][:,idx_d]*1e3/t_frame)
+axs[0].set_xticks(x_ticks)
 axs[0].set_xticklabels(x_ticks_labels)
 axs[0].set_xlabel('Time (ms)')
 axs[0].set_ylabel('R*/rod/s')
 axs[0].set_yscale('log')
+
+# fac = 100
+# stim_upsamp = np.repeat(X_all[idx_plot,-1,idx_check[0],idx_check[1]][:,idx_d],fac,axis=0)
+# x_ticks_upsamp = np.arange(0,len(idx_plot)*fac,50*fac)
+# axs[0].plot(stim_upsamp*1e3/t_frame)
+# axs[0].set_xticks(x_ticks_upsamp)
+# axs[0].set_xticklabels(x_ticks_labels)
+# axs[0].set_xlabel('Time (ms)')
+# axs[0].set_ylabel('R*/rod/s')
+# axs[0].set_yscale('log')
 
 
 axs[1].plot(y_pr[idx_plot,-1,idx_check[0],idx_check[1]][:,idx_d])
@@ -807,9 +1055,9 @@ axs[1].set_ylabel('normalized Rstar (CNN 1st layer)')
 # axs[2].set_xlabel('Time (ms)')
 # axs[2].set_ylabel('normalized photocurrents')
 
-fig_name = 'pr_output'
-fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
-fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
+# fig_name = 'pr_output'
+# fig.savefig(os.path.join(path_figs,fig_name+'.png'),dpi=600)
+# fig.savefig(os.path.join(path_figs,fig_name+'.svg'),dpi=600)
 
 
 
@@ -821,7 +1069,7 @@ import numpy as np
 import os
 import re
   
-from global_scripts import utils_si
+# from global_scripts import utils_si
 import matplotlib.pyplot as plt
 plt.rcParams['svg.fonttype'] = 'none'
 from matplotlib import cm
@@ -859,7 +1107,7 @@ font_size_title = 24
 exp_select = 'monkey01'
 BN = 1
 subFold = 'ICLR2023'
-path_exp = '/home/saad/data/analyses/data_kiersten/'+exp_select+'/'+subFold
+path_exp = '/home/saad/data2/analyses/data_kiersten/'+exp_select+'/'+subFold
 mdl_params = 'U-37_T-120_C1-08-09_C2-16-07_C3-18-05_BN-'+str(BN)+'_MP-1_LR-0.001_TRSAMPS-040_TR-01'
 mdl_name = 'CNN_2D_NORM'
 trainingDataset = 'scot-3-30-Rstar'

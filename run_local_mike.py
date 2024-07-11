@@ -18,31 +18,29 @@ if hostname=='sandwolf':
 elif hostname=='sandhound':
     base = '/home/saad/postdoc_db/'
 
-base = '/home/saad/postdoc_db/'
-# base = '/home/saad/data_hdd/'
-
-
+# base = '/home/saad/postdoc_db/'
+base = '/home/saad/data_hdd/'
 
 
 data_pers = 'mike' 
 expDate = '20230725C'
 expFold = expDate
 subFold = '' 
-dataset = ('NATSTIM3_CORR_mesopic-Rstar_f4_8ms',)#'NATSTIM3_CORR_mesopic-Rstar_f4_8ms  CB_CORR_mesopic-Rstar_f4_8ms
+dataset = ('CB_CORR_mesopic-Rstar_f4_8ms',)#'NATSTIM6_CORR2_mesopic-Rstar_f4_8ms',)#'NATSTIM3_CORR_mesopic-Rstar_f4_8ms  CB_CORR_mesopic-Rstar_f4_8ms
 
 idx_unitsToTake = 0#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
-mdl_subFold = 'finetuning'
+mdl_subFold = ''
 mdl_name = 'CNN2D' #PRFR_CNN2D'  #CNN_2D_NORM2' #'
 pr_params_name = ''#'prln_cones_trainable' #'mike_phot_beta0'
-path_existing_mdl = '/home/saad/postdoc_db/analyses/data_mike/20230725C/models/CB_CORR_mesopic-Rstar_f4_8ms/CNN2D/U-57_T-080_C1-10-15_C2-15-11_C3-25-11_BN-1_MP-2_LR-0.001_TRSAMPS--01_TR-01'
-transfer_mode = 'finetuning'
+path_existing_mdl = ''
+transfer_mode = ''
 info = ''
 idxStart_fixedLayers = 0#1
 idxEnd_fixedLayers = -1#15   #29 dense; 28 BN+dense; 21 conv+dense; 15 second conv; 8 first conv
 CONTINUE_TRAINING = 1
 
-lr = 0.0001
+lr = 0.001
 lr_fac = 1# how much to divide the learning rate when training is resumed
 use_lrscheduler=1
 lrscheduler='constant' #dict(scheduler='stepLR',drop=0.01,steps_drop=20,initial_lr=lr)
@@ -52,19 +50,19 @@ temporal_width=80
 thresh_rr=0
 chans_bp = 0
 chan1_n=10
-filt1_size=15
+filt1_size=11
 filt1_3rdDim=0
 chan2_n=15
-filt2_size=11
+filt2_size=7
 filt2_3rdDim=0
-chan3_n=25
-filt3_size=11
+chan3_n=20
+filt3_size=7
 filt3_3rdDim=0
 chan4_n=0
 filt4_size=0
 filt4_3rdDim=0
 nb_epochs=110#42         # setting this to 0 only runs evaluation
-bz_ms=5000#10000#5000
+bz_ms=10000#10000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
@@ -99,7 +97,7 @@ c_trial = 1
 if path_existing_mdl=='' and idxStart_fixedLayers>0:
     raise ValueError('Transfer learning set. Define existing model path')
     
-
+# %%
 for c_trial in range(1,num_trials+1):
     model_performance,mdl = run_model(expDate,mdl_name,path_model_save_base,fname_data_train_val_test,path_dataset_base=path_dataset_base,saveToCSV=saveToCSV,runOnCluster=0,
                             temporal_width=temporal_width, thresh_rr=thresh_rr,

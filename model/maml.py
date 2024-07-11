@@ -12,6 +12,7 @@ import tensorflow as tf
 import numpy as np
 from collections import namedtuple
 from tqdm import tqdm, trange
+from tensorflow.keras.optimizers.legacy import Adam, SGD
 
 
 def chunker_maml(data,batch_size=10,k=5,mode='default'):
@@ -83,27 +84,18 @@ def chunker_maml(data,batch_size=10,k=5,mode='default'):
                     yield (X[cbatch:(cbatch + batch_size)], y[cbatch:(cbatch + batch_size)])
 
 
-from tensorflow.keras.optimizers.legacy import Adam
 # inner_optimizer = Adam(lr)
 # outer_optimizer = Adam(lr)
 
 
 def train_on_batch(mdl,data_batch,inner_optimizer,loss_fun,inner_step=1,outer_optimizer=None,MODE='Meta'):
     """
-    MAML training process for one batch:
-        :param train_data: Training data organized by task
-        :param inner_optimizer: Optimizer corresponding to the support set
-        :param inner_step: Number of inner update steps
-        :param outer_optimizer: Optimizer corresponding to the query set; if the object does not exist, gradients are not updated
-        :return: Batch query loss
-        
-        # For each task, it is necessary to load the most original weights for updating.
-# After each inner loop update, the weights need to be saved to ensure that the same task is used for training in the outer loop.
 
     """
 
     batch_acc = []
     task_weights = []
+    loss_support = []
     
     # Save the initial weights with meta_weights and set them as the weights for the inner step model.
     meta_weights = mdl.get_weights()
@@ -118,26 +110,26 @@ def train_on_batch(mdl,data_batch,inner_optimizer,loss_fun,inner_step=1,outer_op
         X_support = X_meta_support[t]
         y_support = y_meta_support[t]
 
-        for _ in range(inner_step):
-            with tf.GradientTape() as tape:
-                y_pred = mdl(X_support, training=True)
-                loss = loss_fun(y_support,y_pred)
-                loss = tf.reduce_mean(loss)
-                # print(loss)
-                # acc = metrics.cc(y_support,y_pred)
+        with tf.GradientTape() as tape:
+            y_pred = mdl(X_support, training=True)
+            loss = loss_fun(y_support,y_pred)
+            loss = tf.reduce_mean(loss)
+            # print(loss)
+            # acc = metrics.cc(y_support,y_pred)
+            loss_support.append(loss)
+        grads = tape.gradient(loss, mdl.trainable_variables)
+        inner_optimizer.apply_gradients(zip(grads,mdl.trainable_variables))
     
-            grads = tape.gradient(loss, mdl.trainable_variables)
-            inner_optimizer.apply_gradients(zip(grads,mdl.trainable_variables))
-        
-        task_weights.append(mdl.get_weights())
+    task_weights.append(mdl.get_weights())
 
-        
+    del tape  
     tf.keras.backend.clear_session()
     
     sum_batch_loss = 0
     batch_loss = []
 
     if MODE=='Meta':
+
         # print('test')
         t=0
         for t in range(len(X_meta_query)):
@@ -146,15 +138,16 @@ def train_on_batch(mdl,data_batch,inner_optimizer,loss_fun,inner_step=1,outer_op
     
             # Load the weights for each task and perform forward propagation.
             mdl.set_weights(task_weights[t])
-            
             with tf.GradientTape(persistent=False) as tape:
-                y_pred = mdl(X_query, training=True)
+                y_pred = mdl(X_query, training=False)
                 loss_query = loss_fun(y_query,y_pred)
                 loss_query = tf.reduce_mean(loss_query)
                 batch_loss.append(loss_query)
-                # sum_batch_loss = (sum_batch_loss+loss_query)
+            # sum_batch_loss = (sum_batch_loss+loss_query)
                 sum_batch_loss = tf.reduce_mean(batch_loss)
     
+            # sum_batch_loss = tf.reduce_mean(batch_loss)
+       
         mdl.set_weights(meta_weights)
         grads = tape.gradient(sum_batch_loss, mdl.trainable_variables)
         outer_optimizer.apply_gradients(zip(grads, mdl.trainable_variables))
@@ -163,8 +156,6 @@ def train_on_batch(mdl,data_batch,inner_optimizer,loss_fun,inner_step=1,outer_op
     
     mdl_weights = mdl.get_weights()
             
-
-    
     return mdl,sum_batch_loss,mdl_weights
 
 
@@ -174,11 +165,11 @@ model_func = getattr(model.models_primate,mdl_name.lower())
 mdl = model_func(x, n_cells, **dict_params)      
 # mdl.compile(loss='poisson', optimizer=optimizer, metrics=[metrics.cc, metrics.rmse, metrics.fev],experimental_run_tf_function=False)
 inner_optimizer = Adam(0.001)
-outer_optimizer = Adam(0.001)
+outer_optimizer = Adam(0.0001)
 loss_fun = tf.keras.losses.Poisson(reduction=tf.keras.losses.Reduction.NONE)
 
 
-task_size = 5
+task_size = 2
 k = 100
 steps_per_epoch =  int(np.ceil(dset_details['n_train']/task_size/k/2))
 gen_train = chunker_maml(data_train,task_size,k=k)
@@ -187,13 +178,13 @@ gen_val = chunker(data_val,len(data_val.X))
 train_loss_batch = []
 val_loss_epoch = []
 nb_epochs = 100
-i=2
+i=0
 for epoch in tqdm(range(nb_epochs)):
     for i in range(steps_per_epoch):
     # for data_batch in tqdm(gen_train):
         data_batch = next(gen_train)
         # mdl.set_weights(mdl_weights)
-        mdl,sum_batch_loss,mdl_weights = train_on_batch(mdl,data_batch,inner_optimizer,loss_fun,outer_optimizer=outer_optimizer,MODE=None)
+        mdl,sum_batch_loss,mdl_weights = train_on_batch(mdl,data_batch,inner_optimizer,loss_fun,outer_optimizer=outer_optimizer,MODE='Meta')
         train_loss_batch.append(sum_batch_loss)
     data_batch_val = next(gen_val)
     y_pred = mdl(data_batch_val[0])
