@@ -106,7 +106,7 @@ def train_step_maml(mdl_state,batch,weights_dense):
         loss_task,(y_pred,batch_updates),state_task,grads_task = maml_fit_task(state_copy,batch_train)      # 1. Fit base model to training set
 
         # print(grads_task['Conv_0']['bias'])
-        loss_task_val,(y_pred_val,batch_updates_val) = task_loss(state_task,params,batch_stats,batch_val)     # 2. Calculate loss of resulting model but using validation set / query set
+        loss_task_val,(y_pred_val,batch_updates_val) = task_loss(state_task,state_task.params,state_task.batch_stats,batch_val)     # 2. Calculate loss of resulting model but using validation set / query set
         
         kern = state_task.params['Dense_0']['kernel']
         bias = state_task.params['Dense_0']['bias']
