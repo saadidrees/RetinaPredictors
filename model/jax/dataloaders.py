@@ -14,6 +14,7 @@ import numpy as np
 from collections import namedtuple
 
 
+# %% For single retina
 class RetinaDataset(torch.utils.data.Dataset):
     def __init__(self,X,y,transform=None):
         self.X = X
@@ -49,19 +50,215 @@ def jnp_collate(batch):
     else:
         return jnp.asarray(batch)
 
+# %% For MAML
+import random
+from operator import itemgetter
+
+def support_query_sets(dict_data,frac_queries=0.5):
+    
+    """
+    Split each dataset into support and query sets.
+    In the end, dict_s is going to be a dictoionary of all datasets with
+    support values and dict_q is going to be a dict of all datasets with query values
+    So we basically make seperate nonoverlapping datasets for support and query
+    """
+
+    dict_new = {}
+    dsets = list(dict_data.keys())
+    d = dsets[0]
+    for d in dsets:
+        data = dict_data[d]
+        len_data = len(data.X)
+        len_queries = np.floor(frac_queries*len(data.X)).astype('int')
+        if len_queries<1:
+            len_queries=2       # Just take out 2 samples so we dont need to do so much modifications to this script in case we dont need the query set
+        idx_queries = np.sort(np.asarray(random.sample(range(len_data),len_queries))).astype('int')
+        idx_support = np.setdiff1d(range(len_data),idx_queries).astype('int')
+        
+        if len_queries>2:       # Match lengths only if we want the query set (So basically no need to do this for validation set)
+            if len(idx_support)<len(idx_queries):
+                idx_queries = idx_queries[:len(idx_support)]
+            elif len(idx_queries)<len(idx_support):
+                idx_support = idx_support[:len(idx_queries)]
+
+        
+        
+        X_s = itemgetter(*idx_support)(data.X)
+        y_s = itemgetter(*idx_support)(data.y)
+        spikes_s = itemgetter(*idx_support)(data.spikes)
+        dict_s = dict(X=X_s,y=y_s,spikes=spikes_s)
+        data_tuple = namedtuple('Exptdata',dict_s)
+        data_s=data_tuple(**dict_s)
+
+        
+        X_q = itemgetter(*idx_queries)(data.X)
+        y_q = itemgetter(*idx_queries)(data.y)
+        spikes_q = itemgetter(*idx_queries)(data.spikes)
+        dict_q = dict(X=X_q,y=y_q,spikes=spikes_q)
+        data_q=data_tuple(**dict_q)
+        
+        dict_rgb = dict(data_s=data_s,data_q=data_q)
+        dict_new[d]=dict_rgb
+        
+    dict_q = {}
+    dict_s = {}
+    
+    for d in dsets: 
+        dict_s[d] = dict_new[d]['data_s']
+        dict_q[d] = dict_new[d]['data_q']
+        
+    return dict_s,dict_q
+
+        
+        
+class RetinaDatasetMAML(torch.utils.data.Dataset):
+    def __init__(self,X,y,transform=None):
+        self.transform=transform
+        
+                    
+        self.X = X
+        self.y = y
+        
+    def __len__(self):
+        return len(self.X)
+
+        
+    def __getitem__(self,index):
+        if self.transform==None:
+            X = self.X[index]
+            y = self.y[index]
+
+        elif self.transform=='jax':
+            X = jnp.array(self.X[index])
+            y = jnp.array(self.y[index])
+
+        elif self.transform=='numpy':
+            X = jnp.array(self.X[index])
+            y = jnp.array(self.y[index])
+
+        
+        return X,y
+    
+    
+class CombinedDataset(torch.utils.data.Dataset):
+    def __init__(self,datasets_s,datasets_q=None,num_samples=256):
+        """
+        dataset = (n_retinas)(n_samples)(X,y)[data]
+        """
+        self.num_samples = num_samples
+        self.datasets_s = datasets_s
+        self.datasets_q = datasets_q
+
+        self.total_samples = min(len(dataset) for dataset in datasets_s)
+        # print(len(self.datasets))
+        # print(len(self.datasets[0]))
+        # print(len(self.datasets[0][0]))
+        # print(self.datasets[0][0][1].shape)
+        
+    def __len__(self):
+        return self.total_samples // self.num_samples
+    
+    def __getitem__(self,index):
+
+        combined_X_s=[]
+        combined_y_s=[]
+        combined_X_q=[]
+        combined_y_q=[]
+
+        
+        start_idx = index*self.num_samples
+        end_idx = start_idx + self.num_samples
+        # print(start_idx)
+        # print(end_idx)
+        
+        for dataset in self.datasets_s:
+            samples_X_s = jnp.stack([dataset[i][0] for i in range(start_idx,end_idx)])
+            samples_y_s= jnp.stack([dataset[i][1] for i in range(start_idx,end_idx)])
+            
+            combined_X_s.append(samples_X_s)
+            combined_y_s.append(samples_y_s)
+        
+        combined_X_s = jnp.array(combined_X_s)
+        combined_y_s = jnp.array(combined_y_s)
+
+        if self.datasets_q!=None:
+            for dataset in self.datasets_q:
+                samples_X_q = jnp.stack([dataset[i][0] for i in range(start_idx,end_idx)])
+                samples_y_q= jnp.stack([dataset[i][1] for i in range(start_idx,end_idx)])
+                
+                combined_X_q.append(samples_X_q)
+                combined_y_q.append(samples_y_q)
+
+            combined_X_q = jnp.array(combined_X_q)
+            combined_y_q = jnp.array(combined_y_q)
+
+
+        if self.datasets_q!=None:
+            return combined_X_s,combined_y_s,combined_X_q,combined_y_q
+        else:
+            return combined_X_s,combined_y_s
+    
+    
 def jnp_collate_MAML(batch):
     if isinstance(batch[0], jnp.ndarray):
-        print('1')
-        return jnp.stack(batch)
+        return batch
     elif isinstance(batch[0], (tuple, list)):
-        print('2')
-        return type(batch)(jnp_collate_MAML(samples) for samples in zip(*batch))
+        return type(batch[0])(jnp_collate_MAML(samples[0]) for samples in zip(*batch))
     else:
-        print('3')
         return jnp.asarray(batch)
 
+# %% Recycle
+
+# class CombinedDataset(torch.utils.data.Dataset):
+#     def __init__(self,datasets,num_samples=256):
+#         """
+#         datset = (n_retinas)(n_samples)(X,y)[data]
+#         """
+#         self.num_samples = num_samples
+#         self.datasets = datasets
+#         self.total_samples = min(len(dataset) for dataset in datasets)
+#         # print(len(self.datasets))
+#         # print(len(self.datasets[0]))
+#         # print(len(self.datasets[0][0]))
+#         # print(self.datasets[0][0][1].shape)
+        
+#     def __len__(self):
+#         return self.total_samples // self.num_samples
+    
+#     def __getitem__(self,index):
+
+#         combined_X=[]
+#         combined_y=[]
+        
+#         start_idx = index*self.num_samples
+#         end_idx = start_idx + self.num_samples
+#         print(start_idx)
+#         print(end_idx)
+        
+#         for dataset in self.datasets:
+#             samples_X = jnp.stack([dataset[i][0] for i in range(start_idx,end_idx)])
+#             samples_y= jnp.stack([dataset[i][1] for i in range(start_idx,end_idx)])
+            
+#             combined_X.append(samples_X)
+#             combined_y.append(samples_y)
+
+#         combined_X = jnp.array(combined_X)
+#         combined_y = jnp.array(combined_y)
+
+#         return combined_X,combined_y
+    
+    
+# def jnp_collate_MAML(batch):
+#     if isinstance(batch[0], jnp.ndarray):
+#         return batch
+#     elif isinstance(batch[0], (tuple, list)):
+#         return type(batch[0])(jnp_collate_MAML(samples[0]) for samples in zip(*batch))
+#     else:
+#         return jnp.asarray(batch)
+
+"""
 class RetinaDatasetMAML(torch.utils.data.Dataset):
-    def __init__(self,X,y,tasks=2,k=50,transform=None):
+    def __init__(self,X,y,k=50,transform=None):
         self.transform=transform
         
         if isinstance(X,list):
@@ -130,6 +327,7 @@ class RetinaDatasetMAML(torch.utils.data.Dataset):
     
     def __len__(self):
         return len(self.X_support)
+    
 
 
 def chunker_maml(data,batch_size=10,k=5,mode='default'):
@@ -202,7 +400,38 @@ def chunker_maml(data,batch_size=10,k=5,mode='default'):
                 for cbatch in range(0, X.shape[0], batch_size):
                     yield (X[cbatch:(cbatch + batch_size)], y[cbatch:(cbatch + batch_size)])
 
-# %%
+
+class CombinedDataset(torch.utils.data.Dataset):
+    def __init__(self,dataset1,dataset2,num_samples=256):
+        self.num_samples = num_samples
+        self.dataset1 = dataset1
+        self.dataset2 = dataset2
+        # self.total_samples = min(len(dataset1) for dataset in datasets).
+        print(len(self.dataset1))
+        print(len(self.dataset1[0]))
+        print(self.dataset1[0][1].shape)
+
+        
+        
+    def __len__(self):
+        return len(self.dataset1)+len(self.dataset2)
+        # return self.total_samples // self.num_samples
+    
+    # def __getitem__(self,idx):
+
+        # combined_samples = []
+        
+        # start_idx = idx*self.num_samples
+        # end_idx = start_idx + self.num_samples
+        
+        # for dataset in self.datasets:
+        #     print(dataset[0][0].shape)
+        #     print(dataset[1][0].shape)
+        #     samples = torch.stack([dataset[i] for i in range(start_idx,end_idx)])
+        #     combined_samples.append(samples)
+            
+        # return combined_samples
+        
 
 class SimpleDataLoaderJNP(torch.utils.data.Dataset):
     def __init__(self,data,batch_size=32):
@@ -253,3 +482,5 @@ class RetinaDataset2(torch.utils.data.Dataset):
     
     def __len__(self):
         return len(self.data.X)
+
+"""
