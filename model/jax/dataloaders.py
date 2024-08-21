@@ -12,11 +12,36 @@ from jax import numpy as jnp
 import jax
 import numpy as np
 from collections import namedtuple
+import random
+
+Exptdata = namedtuple('Exptdata', ['X', 'y','spikes'])
+
 
 
 # %% For single retina
+
+def shuffle_dataset(dict_data):
+    def shuffle_list_with_indices(lst, order):
+        return [lst[i] for i in order]
+
+    shuffled_dict = {}
+    for key in dict_data.keys():
+        data = dict_data[key]
+        len_data = len(data.X)
+        idx_data = np.asarray(random.sample(range(len_data),len_data)).astype('int')
+
+        X = shuffle_list_with_indices(data.X,idx_data)
+        y = shuffle_list_with_indices(data.y,idx_data)
+        spikes = shuffle_list_with_indices(data.spikes,idx_data)
+        
+        data_shuffled = Exptdata(X,y,spikes)
+        
+        shuffled_dict[key] = data_shuffled
+        
+    return shuffled_dict
+
 class RetinaDataset(torch.utils.data.Dataset):
-    def __init__(self,X,y,transform=None):
+    def __init__(self,X,y,transform=None,shuffle=False):
         self.X = X
         self.y = y
         self.transform=transform
@@ -72,7 +97,8 @@ def support_query_sets(dict_data,frac_queries=0.5):
         len_queries = np.floor(frac_queries*len(data.X)).astype('int')
         if len_queries<1:
             len_queries=2       # Just take out 2 samples so we dont need to do so much modifications to this script in case we dont need the query set
-        idx_queries = np.sort(np.asarray(random.sample(range(len_data),len_queries))).astype('int')
+        # idx_queries = np.sort(np.asarray(random.sample(range(len_data),len_queries))).astype('int')
+        idx_queries = np.arange(len_queries,dtype='int')
         idx_support = np.setdiff1d(range(len_data),idx_queries).astype('int')
         
         if len_queries>2:       # Match lengths only if we want the query set (So basically no need to do this for validation set)
@@ -197,6 +223,7 @@ class CombinedDataset(torch.utils.data.Dataset):
             return combined_X_s,combined_y_s,combined_X_q,combined_y_q
         else:
             return combined_X_s,combined_y_s
+    
     
     
 def jnp_collate_MAML(batch):
@@ -482,5 +509,62 @@ class RetinaDataset2(torch.utils.data.Dataset):
     
     def __len__(self):
         return len(self.data.X)
+
+
+
+    class CombinedDataset_ss(torch.utils.data.Dataset):
+        def __init__(self,datasets_s,datasets_q=None,num_samples=256):
+            self.num_samples = num_samples
+            self.datasets_s = datasets_s
+            self.datasets_q = datasets_q
+    
+            self.total_samples = min(len(dataset) for dataset in datasets_s)
+            # print(len(self.datasets))
+            # print(len(self.datasets[0]))
+            # print(len(self.datasets[0][0]))
+            # print(self.datasets[0][0][1].shape)
+            
+        def __len__(self):
+            return self.total_samples // self.num_samples
+        
+        def __getitem__(self,index):
+    
+            combined_X_s=[]
+            combined_y_s=[]
+            combined_X_q=[]
+            combined_y_q=[]
+    
+            
+            start_idx = index*self.num_samples
+            end_idx = start_idx + self.num_samples
+            # print(start_idx)
+            # print(end_idx)
+            
+            for dataset in self.datasets_s:
+                samples_X_s = jnp.stack([dataset[i][0] for i in range(start_idx,end_idx)])
+                samples_y_s= jnp.stack([dataset[i][1] for i in range(start_idx,end_idx)])
+                
+                combined_X_s.append(samples_X_s)
+                combined_y_s.append(samples_y_s)
+            
+            combined_X_s = jnp.array(combined_X_s)
+            combined_y_s = jnp.array(combined_y_s)
+    
+            if self.datasets_q!=None:
+                for dataset in self.datasets_q:
+                    samples_X_q = jnp.stack([dataset[i][0] for i in range(start_idx,end_idx)])
+                    samples_y_q= jnp.stack([dataset[i][1] for i in range(start_idx,end_idx)])
+                    
+                    combined_X_q.append(samples_X_q)
+                    combined_y_q.append(samples_y_q)
+    
+                combined_X_q = jnp.array(combined_X_q)
+                combined_y_q = jnp.array(combined_y_q)
+    
+    
+            if self.datasets_q!=None:
+                return combined_X_s,combined_y_s,combined_X_q,combined_y_q
+            else:
+                return combined_X_s,combined_y_s
 
 """

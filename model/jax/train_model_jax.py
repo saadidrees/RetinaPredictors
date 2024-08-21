@@ -6,7 +6,7 @@ Created on Thu Apr  4 15:13:42 2024
 @author: Saad Idrees idrees.sa@gmail.com
          jZ Lab, York University
 """
-
+import time
 import re
 import shutil
 import os
@@ -25,6 +25,8 @@ from model.jax.dataloaders import RetinaDataset,jnp_collate
 from torch.utils.data import DataLoader
 from flax.training import orbax_utils
 import orbax.checkpoint
+from flax.training.train_state import TrainState
+
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
@@ -35,10 +37,9 @@ import torch
 from model.jax.models_jax import CNN2D
 
 @jax.jit
-def forward_pass(state,params,batch_stats,batch,training=True):
+def forward_pass(state,params,batch,training=True):
     X,y = batch
-    y_pred,state = state.apply_fn({'params': params,'batch_stats': batch_stats},X,training=True,mutable=['batch_stats','intermediates'])
-    batch_updates = state['batch_stats']
+    y_pred,state = state.apply_fn({'params': params},X,training=True,mutable=['intermediates'])
     intermediates = state['intermediates']
     dense_activations = intermediates['dense_activations'][0]
     # loss = loss_fn(jax.lax.log(y_pred),y).mean()
@@ -49,7 +50,7 @@ def forward_pass(state,params,batch_stats,batch,training=True):
     loss = loss + weight_regularizer(params,alpha=1e-4)
     loss = loss + activity_regularizer(dense_activations,alpha=1e-4)
     
-    return loss,(y_pred,batch_updates)
+    return loss,y_pred
 
 
 @jax.jit
@@ -57,9 +58,8 @@ def train_step(state,batch):
     training=True
     # Gradients
     grad_fn = jax.value_and_grad(forward_pass,argnums=1,has_aux=True)
-    (loss,(y_pred,batch_updates)),grads = grad_fn(state,state.params,state.batch_stats,batch,training)
+    (loss,y_pred),grads = grad_fn(state,state.params,batch,training)
     state = state.apply_gradients(grads=grads)
-    state = state.replace(batch_stats=batch_updates)
     return state,loss
 
 
@@ -68,7 +68,7 @@ def eval_step(state,data,n_batches=1e5):
         X,y = data
         # loss,(y_pred,batch_updates) = forward_pass(state,state.params,state.batch_stats,data,training=False)
         # X_batch,y_batch = batch
-        y_pred,batch_updates = state.apply_fn({'params': state.params,'batch_stats': state.batch_stats},X,training=True,mutable=['batch_stats'])
+        y_pred = state.apply_fn({'params': state.params},X,training=True)
         loss = (y_pred - y*jax.lax.log(y_pred)).mean()
         # loss_batch,(y_pred_batch,batch_updates) = forward_pass(state,state.params,state.batch_stats,batch,training=False)
         # loss.append(loss_batch)
@@ -85,7 +85,7 @@ def eval_step(state,data,n_batches=1e5):
         for batch in data:
             if count_batch<n_batches:
                 X_batch,y_batch = batch
-                y_pred_batch,batch_updates = state.apply_fn({'params': state.params,'batch_stats': state.batch_stats},X_batch,training=True,mutable=['batch_stats'])
+                y_pred_batch = state.apply_fn({'params': state.params},X_batch,training=True)
                 loss_batch = (y_pred_batch - y_batch*jax.lax.log(y_pred_batch)).mean()
                 # loss_batch,(y_pred_batch,batch_updates) = forward_pass(state,state.params,state.batch_stats,batch,training=False)
                 loss.append(loss_batch)
@@ -123,8 +123,8 @@ def weight_regularizer(params,alpha=1e-4):
         l2_loss = l2_loss + alpha * (w**2).mean()
     return l2_loss
 
-class TrainState(train_state.TrainState):
-    batch_stats: flax.core.FrozenDict
+# class TrainState(train_state.TrainState):
+    # batch_stats: flax.core.FrozenDict
     # learning_rate: float
 
 def create_learning_rate_scheduler(lr_schedule):
@@ -155,7 +155,7 @@ def save_epoch(state,config,fname_cp):
 
 def load(mdl,variables,lr):
     optimizer = optax.adam(learning_rate = lr)
-    mdl_state = TrainState.create(apply_fn=mdl.apply,params=variables['params'],tx=optimizer,batch_stats=variables['batch_stats'])
+    mdl_state = TrainState.create(apply_fn=mdl.apply,params=variables['params'],tx=optimizer)
     return mdl_state
 
     
@@ -178,10 +178,12 @@ def initialize_model(mdl,dict_params,inp_shape,lr,save_model=True,lr_schedule=No
     if lr_schedule is None:
         optimizer = optax.adam(learning_rate = lr)
     else:
-        scheduler_fn = create_learning_rate_scheduler(lr_schedule)
-        optimizer = optax.adam(learning_rate=scheduler_fn)
+        # scheduler_fn = create_learning_rate_scheduler(lr_schedule)
+        # optimizer = optax.adam(learning_rate=scheduler_fn)
+        optimizer = optax.adam(learning_rate=lr_schedule)
 
-    state = TrainState.create(apply_fn=mdl.apply,params=variables['params'],tx=optimizer,batch_stats=variables['batch_stats'])
+    state = TrainState.create(apply_fn=mdl.apply,params=variables['params'],tx=optimizer)
+
     ckpt = {'mdl': state, 'config': config}
 
     if save_model==True:
@@ -194,15 +196,18 @@ def initialize_model(mdl,dict_params,inp_shape,lr,save_model=True,lr_schedule=No
 def train(mdl_state,config,data_train,data_val,batch_size,nb_epochs,path_model_save,save=True,lr_schedule=None,step_start=0):
     # loss_fn = optax.losses.kl_divergence
     
+    # batch_size=bz
     n_batches = np.ceil(len(data_train.X)/batch_size)
 
     RetinaDataset_train = RetinaDataset(data_train.X,data_train.y,transform=None)
-    dataloader_train = DataLoader(RetinaDataset_train,batch_size=batch_size,collate_fn=jnp_collate,shuffle=True)
+    dataloader_train = DataLoader(RetinaDataset_train,batch_size=batch_size,collate_fn=jnp_collate,shuffle=False)
 
     RetinaDataset_val = RetinaDataset(data_val.X,data_val.y,transform=None)
-    dataloader_val = DataLoader(RetinaDataset_val,batch_size=batch_size,collate_fn=jnp_collate)
+    dataloader_val = DataLoader(RetinaDataset_val,batch_size=batch_size,collate_fn=jnp_collate,shuffle=False)
     
-    learning_rate_fn = create_learning_rate_scheduler(lr_schedule)
+    # learning_rate_fn = create_learning_rate_scheduler(lr_schedule)
+    learning_rate_fn = lr_schedule
+
 
     loss_epoch_train = []
     loss_epoch_val = []
@@ -211,11 +216,16 @@ def train(mdl_state,config,data_train,data_val,batch_size,nb_epochs,path_model_s
     loss_batch_val = []
 
     epoch=0
+    # batch_train = next(iter(dataloader_train))
     for epoch in tqdm(range(step_start,nb_epochs)):
+        # t = time.time()
         loss_batch_train=[]
         for batch_train in dataloader_train:
+            # elap = time.time()-t
+            # print(elap)
             mdl_state, loss = train_step(mdl_state,batch_train)
             loss_batch_train.append(loss)
+            # print(loss)
 
         loss_batch_val,y_pred,y = eval_step(mdl_state,dataloader_val)
         
@@ -229,6 +239,12 @@ def train(mdl_state,config,data_train,data_val,batch_size,nb_epochs,path_model_s
         
         current_lr = learning_rate_fn(mdl_state.step)
         
+        fig,axs = plt.subplots(2,1,figsize=(20,10));axs=np.ravel(axs);fig.suptitle('Epoch: %d'%(epoch+1))
+        axs[0].plot(y_train_test[:200,10]);axs[0].plot(y_pred_train_test[:200,10]);axs[0].set_title('Train')
+        axs[1].plot(y[:500,10]);axs[1].plot(y_pred[:500,10]);axs[1].set_title('Validation')
+        plt.show()
+
+        
         temporal_width_eval = data_train.X[0].shape[0]
         fev_val,_,predCorr_val,_ = model_evaluate_new(y,y_pred,temporal_width_eval,lag=0,obs_noise=0)
         fev_val_med,predCorr_val_med = np.median(fev_val),np.median(predCorr_val)
@@ -241,7 +257,7 @@ def train(mdl_state,config,data_train,data_val,batch_size,nb_epochs,path_model_s
             fname_cp = os.path.join(path_model_save,'epoch-%03d'%epoch)
             save_epoch(mdl_state,config,fname_cp)
             
-    return loss_epoch_train,loss_epoch_val
+    return loss_epoch_train,loss_epoch_val,mdl_state
 
     
 

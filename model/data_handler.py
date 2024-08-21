@@ -1531,9 +1531,10 @@ def merge_datasets(dict_data):
     has_spikes = 0
     for key in keys:
         rgb = key
-        patt = r'dataset_train_val_test_(\w+)'
-        a = re.search(patt,rgb)
-        dset_name[key] = a.group(1)
+        rgb = os.path.split(rgb)[-1]
+        # patt = r'_dataset_train_val_test_'
+        # a = re.search(patt,rgb)
+        dset_name[key] = rgb#[:a.start()+1]+rgb[a.end():]
         
         if isinstance(dict_data[key].X,list):
             islist+=1
