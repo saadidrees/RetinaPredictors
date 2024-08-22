@@ -67,7 +67,7 @@ subFold = ''
 dataset = 'CB_mesopic_f4_8ms_sig-4'
 idx_unitsToTake = 0
 select_rgctype=0
-mdl_subFold = ''
+mdl_subFold = 'diff_lr'
 mdl_name = 'CNN2D_LNORM' 
 
 temporal_width=80
@@ -90,7 +90,7 @@ path_pretrained = os.path.join(path_model_base,'CNN2D_LNORM/U-230_T-080_C1-15-03
 ft_fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',ft_expDate+'_dataset_train_val_test_'+dataset+'.h5')
 
 
-# %% Paramas of pretrained model
+# % Paramas of pretrained model
 pretrained_params = getModelParams(path_pretrained)
 lr = pretrained_params['LR']
 
@@ -201,7 +201,7 @@ mdl_state = maml.load(mdl,raw_restored['model'],pretrained_params['LR'])
 
 # Arrange the data
 
-batch_size = 1024   #1280 1536 1792 2048
+batch_size = 256   #1280 1536 1792 2048
 
 RetinaDataset_test = dataloaders.RetinaDataset(ft_data_test.X,ft_data_test.y,transform=None)
 dataloader_test = DataLoader(RetinaDataset_test,batch_size=batch_size,collate_fn=dataloaders.jnp_collate,shuffle=False)
@@ -217,16 +217,16 @@ min_lr = 0.001
 
 n_warmup = 1
 warmup_schedule = optax.linear_schedule(init_value=min_lr,end_value=max_lr,transition_steps=n_batches*n_warmup)
-n_const = 5
-constant_schedule = optax.constant_schedule(value=max_lr)
 n_decay = 3
+decay_schedule = optax.linear_schedule(init_value=max_lr,end_value=min_lr,transition_steps=n_batches*n_decay)
+ft_lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
 # decay_schedule = optax.cosine_decay_schedule(init_value=max_lr,decay_steps=n_batches*n_decay,alpha=min_lr/max_lr)
 # decay_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches,decay_rate=0.01,staircase=False,transition_begin=1)
 # decay_schedule = optax.linear_schedule(init_value=max_lr,end_value=min_lr,transition_steps=n_batches*n_decay)
 # ft_lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
 
-# ft_lr_schedule = optax.cosine_decay_schedule(init_value=max_lr,decay_steps=n_batches*n_decay,alpha=min_lr/max_lr)
-ft_lr_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*2,decay_rate=0.5,staircase=True,transition_begin=0)
+
+ft_lr_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*1,decay_rate=0.5,staircase=True,transition_begin=0)
 
 # ft_lr_schedule = optax.constant_schedule(value=min_lr)
 
