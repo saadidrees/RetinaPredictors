@@ -321,17 +321,24 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     n_batches = len(dataloader_train)#np.ceil(len(data_train.X)/bz)
     
     if lrscheduler == 'exponential_decay':
-        lr_schedule = {}
-        lr_schedule['name'] = 'exponential_decay'
-        lr_schedule['lr_init'] = lr
-        lr_schedule['transition_steps'] = 20*n_batches
-        lr_schedule['decay_rate'] = 0.5
-        lr_schedule['staircase'] = True
-        lr_schedule['transition_begin'] = 1
+        # lr_schedule = {}
+        # lr_schedule['name'] = 'exponential_decay'
+        # lr_schedule['lr_init'] = lr
+        # lr_schedule['transition_steps'] = 20*n_batches
+        # lr_schedule['decay_rate'] = 0.5
+        # lr_schedule['staircase'] = True
+        # lr_schedule['transition_begin'] = 1
         
-        lr_schedule = train_model_jax.create_learning_rate_scheduler(lr_schedule)
+        max_lr = 0.001
+        min_lr = 0.00001
+        
+        n_warmup = 5
+        warmup_schedule = optax.linear_schedule(init_value=min_lr,end_value=max_lr,transition_steps=n_batches*n_warmup)
+        n_decay = 50
+        # decay_schedule = optax.linear_schedule(init_value=max_lr,end_value=min_lr,transition_steps=n_batches*n_decay)
+        decay_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*10,decay_rate=0.5,staircase=True,transition_begin=0)
+        lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
 
-        
         epochs = np.arange(0,nb_epochs)
         epochs_steps = np.arange(0,nb_epochs*n_batches,n_batches)
         rgb_lrs = [lr_schedule(i) for i in epochs_steps]
@@ -664,7 +671,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     # for i in range(100):
-    u = 75 #33# 110
+    u = 33  #33# 110 #75
     
     fig,axs =plt.subplots(2,1,figsize=(20,5))
     axs=np.ravel(axs)
