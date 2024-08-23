@@ -337,8 +337,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
         
     elif lrscheduler=='warmup':
-        max_lr = 0.01
-        min_lr = 0.001
+        max_lr = 0.001
+        min_lr = 0.0001
         
         n_warmup = 1
         warmup_schedule = optax.linear_schedule(init_value=0,end_value=max_lr,transition_steps=n_batches*n_warmup)
@@ -346,6 +346,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         decay_schedule = optax.linear_schedule(init_value=max_lr,end_value=min_lr,transition_steps=n_batches*n_decay)
         lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
         # lr_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*2,decay_rate=0.5,staircase=True,transition_begin=0)
+        lr_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*5,decay_rate=0.5,staircase=True,transition_begin=0)
+
 
         epochs = np.arange(0,nb_epochs)
         epochs_steps = np.arange(0,nb_epochs*n_batches,n_batches)

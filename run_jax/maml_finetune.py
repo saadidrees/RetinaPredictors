@@ -18,7 +18,9 @@ import jax
 import optax
 import glob
 import cloudpickle
+import h5py
 from model.performance import getModelParams
+
 
 
 
@@ -67,7 +69,7 @@ subFold = ''
 dataset = 'CB_mesopic_f4_8ms_sig-4'
 idx_unitsToTake = 0
 select_rgctype=0
-mdl_subFold = 'diff_lr'
+mdl_subFold = ''
 mdl_name = 'CNN2D_LNORM' 
 
 temporal_width=80
@@ -196,6 +198,11 @@ with open(os.path.join(path_pretrained,'model_architecture.pkl'), 'rb') as f:
 
 mdl_state = maml.load(mdl,raw_restored['model'],pretrained_params['LR'])
 
+with h5py.File(weights_dense_file,'r') as f:
+    pretrained_weights_kern = jnp.array(f['weights_dense_kernel'])
+    pretrained_weights_bias = jnp.array(f['weights_dense_bias'])
+
+
 
 
 
@@ -209,10 +216,10 @@ dataloader_test = DataLoader(RetinaDataset_test,batch_size=batch_size,collate_fn
 RetinaDataset_val_val = dataloaders.RetinaDataset(ft_data_val.X,ft_data_val.y,transform=None)
 dataloader_val_val = DataLoader(RetinaDataset_val_val,batch_size=batch_size,collate_fn=dataloaders.jnp_collate,shuffle=False)
 
-ft_nb_epochs = 6
+ft_nb_epochs = 5
 n_batches = np.ceil(len(ft_data_train.X)/batch_size).astype('int')
 
-max_lr = 0.01
+max_lr = 0.05
 min_lr = 0.001
 
 n_warmup = 1
@@ -226,9 +233,9 @@ ft_lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule]
 # ft_lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
 
 
-ft_lr_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*1,decay_rate=0.5,staircase=True,transition_begin=0)
+ft_lr_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*1,decay_rate=0.15,staircase=True,transition_begin=0)
 
-# ft_lr_schedule = optax.constant_schedule(value=min_lr)
+# ft_lr_schedule = optax.constant_schedule(value=max_lr)
 
 epochs = np.arange(0,ft_nb_epochs)
 epochs_steps = np.arange(0,ft_nb_epochs*n_batches,n_batches)
@@ -248,11 +255,22 @@ models_jax.model_summary(ft_mdl,inp_shape,console_kwargs={'width':180})
 
 # Initialize new dense layer weights
 key = jax.random.PRNGKey(1)
-
 shape_newdense = (mdl_state.params['Dense_0']['kernel'].shape[0],ft_n_units)
 stddev = jnp.sqrt(2. / shape_newdense[0])
 ft_kern_init = jax.random.normal(key, shape=shape_newdense)*stddev
 ft_bias_init = jnp.zeros((ft_n_units))
+
+
+# #Initialize from existing dense weights
+# mean_kern = jnp.mean(pretrained_weights_kern)
+# std_kern = jnp.std(pretrained_weights_kern)
+# mean_bias = jnp.mean(pretrained_weights_bias)
+# std_bias = jnp.std(pretrained_weights_bias)
+
+# key = jax.random.PRNGKey(1)
+# shape_newdense = (mdl_state.params['Dense_0']['kernel'].shape[0],ft_n_units)
+# ft_kern_init = mean_kern + std_kern * jax.random.normal(key, shape=shape_newdense)
+# ft_bias_init = mean_bias + std_bias * jax.random.normal(key, shape=[ft_n_units])
 
 
 ft_params_trainable['Dense_0']['kernel'] = ft_kern_init

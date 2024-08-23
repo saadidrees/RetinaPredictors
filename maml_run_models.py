@@ -320,7 +320,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     bz = batch_size_train #math.ceil(bz_ms/t_frame)   # input batch size (bz_ms) is in ms. Convert into samples
     n_batches = len(dataloader_train)#np.ceil(len(data_train.X)/bz)
     
-    if lrscheduler == 'exponential_decay':
+    if lrscheduler == 'warmup_exponential_decay':
         # lr_schedule = {}
         # lr_schedule['name'] = 'exponential_decay'
         # lr_schedule['lr_init'] = lr
@@ -329,7 +329,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # lr_schedule['staircase'] = True
         # lr_schedule['transition_begin'] = 1
         
-        max_lr = 0.001
+        max_lr = lr
         min_lr = 0.00001
         
         n_warmup = 5
@@ -339,15 +339,16 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         decay_schedule = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*10,decay_rate=0.5,staircase=True,transition_begin=0)
         lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
 
-        epochs = np.arange(0,nb_epochs)
-        epochs_steps = np.arange(0,nb_epochs*n_batches,n_batches)
-        rgb_lrs = [lr_schedule(i) for i in epochs_steps]
-        plt.plot(epochs,rgb_lrs);plt.show()
-
-        
     else:
         lr_schedule = dict(name='constant',lr_init=lr)
 
+
+    epochs = np.arange(0,nb_epochs)
+    epochs_steps = np.arange(0,nb_epochs*n_batches,n_batches)
+    rgb_lrs = [lr_schedule(i) for i in epochs_steps]
+    rgb_lrs = np.array(rgb_lrs)
+    plt.plot(epochs,rgb_lrs);plt.show()
+    print(np.array(rgb_lrs))
 
 # %% Select model 
     """
@@ -453,7 +454,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                       path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,nb_epochs=nb_epochs,bz_ms=bz_ms,runOnCluster=runOnCluster,USE_CHUNKER=USE_CHUNKER,
                       trainingSamps_dur=trainingSamps_dur_orig,validationSamps_dur=validationSamps_dur,CONTINUE_TRAINING=CONTINUE_TRAINING,
                       idxStart_fixedLayers=idxStart_fixedLayers,idxEnd_fixedLayers=idxEnd_fixedLayers,
-                      info=info,lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lr_schedule=lr_schedule,batch_size=bz,
+                      info=info,lr=rgb_lrs,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lr_schedule=lr_schedule,batch_size=bz,
                       idx_unitsToTake=idx_unitsToTake_all[d],initial_epoch=initial_epoch)
     for key in dict_params.keys():
         params_txt[key] = dict_params[key]
@@ -809,7 +810,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         name_dataset = os.path.split(fname_data_train_val_test)
         name_dataset = name_dataset[-1]
         csv_header = ['mdl_name','fname_mdl','expFold','idxStart_fixedLayers','idxEnd_fixedLayers','dataset','RGC_types','idx_units','thresh_rr','RR','temp_window','pr_temporal_width','pr_params_name','batch_size','epochs','chan1_n','filt1_size','filt1_3rdDim','chan2_n','filt2_size','filt2_3rdDim','chan3_n','filt3_size','filt3_3rdDim','chan4_n','filt4_size','filt4_3rdDim','BatchNorm','MaxPool','c_trial','FEV_median','predCorr_median','rrCorr_median','TRSAMPS','t_elapsed','job_id']
-        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,select_rgctype,len(idx_unitsToTake_all[d]),thresh_rr,fracExVar_medianUnits,temporal_width,pr_temporal_width,pr_params_name,bz_ms,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,int(BatchNorm),MaxPool,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
+        csv_data = [mdl_name,fname_model,expFold,idxStart_fixedLayers,idxEnd_fixedLayers,name_dataset,select_rgctype,len(idx_unitsToTake_all[d]),thresh_rr,fracExVar_medianUnits,temporal_width,pr_temporal_width,pr_params_name,bz,nb_epochs,chan1_n, filt1_size, filt1_3rdDim, chan2_n, filt2_size, filt2_3rdDim, chan3_n, filt3_size, filt3_3rdDim,chan4_n, filt4_size, filt4_3rdDim,int(BatchNorm),MaxPool,c_trial,fev_medianUnits_bestEpoch,predCorr_medianUnits_bestEpoch,rrCorr_medianUnits,trainingSamps_dur_orig,t_elapsed,job_id]
         
         fname_csv_file = 'performance_'+expFold+'.csv'
         fname_csv_file = os.path.join(path_save_performance,fname_csv_file)

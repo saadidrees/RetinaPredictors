@@ -493,8 +493,8 @@ def ft_loss_fn(state,trainable_params,fixed_params,batch):
     loss = (y_pred - y*jax.lax.log(y_pred)).mean()
 
     # if training==True:
-    loss = loss + weight_regularizer(trainable_params,alpha=1e-3)
-    loss = loss + activity_regularizer(dense_activations,alpha=1e-3)
+    loss = loss + weight_regularizer(trainable_params,alpha=1e-5)
+    loss = loss + activity_regularizer(dense_activations,alpha=1e-5)
     
     # outputs_activations = intermediates['outputs_activations'][0]
     # loss = loss + activity_regularizer(outputs_activations,alpha=1e-3)

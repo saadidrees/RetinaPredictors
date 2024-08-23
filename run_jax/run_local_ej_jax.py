@@ -32,7 +32,7 @@ idx_unitsToTake = 0#np.arange(0,20) #np.array([0,1,2,3,4,5,6,7,8,9])
 #np.arange(0,50)#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
 mdl_subFold = ''
-mdl_name = 'CNN2D_LNORM' #PRFR_CNN2D'  #CNN_2D_NORM2' #'
+mdl_name = 'CNN2D_FT' #PRFR_CNN2D'  #CNN_2D_NORM2' #'
 pr_params_name = ''#'prln_cones_trainable' #'mike_phot_beta0'
 path_existing_mdl = ''
 transfer_mode = ''
@@ -62,7 +62,7 @@ filt3_3rdDim=0
 chan4_n=50
 filt4_size=3
 filt4_3rdDim=0
-nb_epochs=40#42         # setting this to 0 only runs evaluation
+nb_epochs=20#42         # setting this to 0 only runs evaluation
 bz_ms=4096#10000#5000
 BatchNorm=1
 MaxPool=2

@@ -9,7 +9,7 @@ Created on Mon Apr 26 17:42:54 2021
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from run_jax.run_models_maml import run_model
+from maml_run_models import run_model
 import socket
 hostname=socket.gethostname()
 if hostname=='sandwolf':
@@ -23,7 +23,7 @@ base = '/home/saad/data/'
 
 data_pers = 'ej'
 expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-3')
-ft_expDate = '2018-02-09-5' # '2018-02-09-5
+# ft_expDate = '2018-02-09-5' # '2018-02-09-5
 expFold = 'maml'
 subFold = '' 
 dataset = 'CB_mesopic_f4_8ms_sig-4'#'NATSTIM6_CORR2_mesopic-Rstar_f4_8ms',)#'NATSTIM3_CORR_mesopic-Rstar_f4_8ms  CB_CORR_mesopic-Rstar_f4_8ms
@@ -44,7 +44,7 @@ CONTINUE_TRAINING = 0
 lr = 0.001
 lr_fac = 1# how much to divide the learning rate when training is resumed
 use_lrscheduler=1
-lrscheduler='exponential_decay' #'exponential_decay' #dict(scheduler='stepLR',drop=0.01,steps_drop=20,initial_lr=lr)
+lrscheduler='warmup_exponential_decay' #'exponential_decay' #dict(scheduler='stepLR',drop=0.01,steps_drop=20,initial_lr=lr)
 USE_CHUNKER=1
 pr_temporal_width = 0
 temporal_width=80
