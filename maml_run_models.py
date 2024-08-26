@@ -282,7 +282,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
        
        
-    batch_size_train = 512
+    batch_size_train = bz_ms
     combined_dataset = dataloaders.CombinedDataset(Retinadatasets_train,datasets_q=None,num_samples=batch_size_train)
     dataloader_train = DataLoader(combined_dataset,batch_size=1,collate_fn=dataloaders.jnp_collate_MAML,shuffle=False)
     batch = next(iter(dataloader_train));a,b=batch
