@@ -325,7 +325,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
         
     
-    if lrscheduler == 'warmup_exponential_decay':
+    elif lrscheduler == 'warmup_exponential_decay':
         # lr_schedule = {}
         # lr_schedule['name'] = 'exponential_decay'
         # lr_schedule['lr_init'] = lr
@@ -345,7 +345,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         lr_schedule = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
 
     else:
-        lr_schedule = dict(name='constant',lr_init=lr)
+        lr_schedule = optax.constant_schedule(lr)
 
 
     epochs = np.arange(0,nb_epochs)
@@ -519,7 +519,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     rrCorr_allUnits_allEpochs[:] = np.nan
     
     # Select the testing dataset
-    idx_dset=0
+    idx_dset=1
     data_train = dict_train[fname_data_train_val_test_all[idx_dset]]
     data_val = dict_test[fname_data_train_val_test_all[idx_dset]]
     data_test = dict_test[fname_data_train_val_test_all[idx_dset]]
