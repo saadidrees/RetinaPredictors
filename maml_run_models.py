@@ -73,6 +73,15 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
     
+    devices = jax.devices()
+    for device in devices:
+        if device.device_kind == 'Gpu':
+            print(f"GPU: {device.device_kind}, Name: {device.device_kind}")
+        else:
+            print(f"Device: {device.device_kind}, Name: {device}")
+
+
+
     if runOnCluster==1:
         USE_WANDB=0
     
