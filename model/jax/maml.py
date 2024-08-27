@@ -443,6 +443,7 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,nb
         axs[0].plot(y_train_test[:200,10]);axs[0].plot(y_pred_train_test[:200,10]);axs[0].set_title('Train')
         axs[1].plot(y[:,10]);axs[1].plot(y_pred[:,10]);axs[1].set_title('Validation')
         plt.show()
+        plt.close()
 
         if save == True:
             fname_cp = os.path.join(path_model_save,'epoch-%03d'%epoch)
@@ -620,6 +621,7 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         axs[0].plot(y_train_test[:200,10]);axs[0].plot(y_pred_train_test[:200,10]);axs[0].set_title('Train')
         axs[1].plot(y[:,10]);axs[1].plot(y_pred[:,10]);axs[1].set_title('Validation')
         plt.show()
+        plt.close()
         
         weights_dense = (ft_mdl_state.params['Dense_0']['kernel'],ft_mdl_state.params['Dense_0']['bias'])
         if save==True:
