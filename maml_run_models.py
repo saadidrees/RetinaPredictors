@@ -271,7 +271,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     """
 
-
    # % Dataloaders  
     
     n_tasks = len(fname_data_train_val_test_all)    
@@ -296,7 +295,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dataloader_train = DataLoader(combined_dataset,batch_size=1,collate_fn=dataloaders.jnp_collate_MAML,shuffle=False)
     batch = next(iter(dataloader_train));a,b=batch
        
-    batch_size_val = 512
+    batch_size_val = bz_ms
     combined_dataset = dataloaders.CombinedDataset(Retinadatasets_val,datasets_q=None,num_samples=batch_size_val)
     dataloader_val = DataLoader(combined_dataset,batch_size=1,collate_fn=dataloaders.jnp_collate_MAML,shuffle=False)
     batch = next(iter(dataloader_train));a,b=batch
@@ -528,7 +527,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     rrCorr_allUnits_allEpochs[:] = np.nan
     
     # Select the testing dataset
-    idx_dset=1
+    idx_dset=3
     data_train = dict_train[fname_data_train_val_test_all[idx_dset]]
     data_val = dict_test[fname_data_train_val_test_all[idx_dset]]
     data_test = dict_test[fname_data_train_val_test_all[idx_dset]]
@@ -568,7 +567,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
 
     print('-----EVALUATING PERFORMANCE-----')
-    i=99
+    i=150
     for i in range(0,nb_epochs):
         print('evaluating epoch %d of %d'%(i,nb_epochs))
         # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
@@ -686,7 +685,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     # for i in range(100):
-    u = 33  #33# 110 #75
+    u = 75  #33# 110 #75
     
     fig,axs =plt.subplots(2,1,figsize=(20,5))
     axs=np.ravel(axs)
