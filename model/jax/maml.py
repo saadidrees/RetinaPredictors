@@ -405,7 +405,7 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,nb
         # print(jnp.sum(grads['Conv_3']['kernel']))
         assert jnp.sum(grads['Conv_0']['kernel']) != 0, 'Gradients are Zero'
             
-        idx_master = 0
+        idx_master = 2
         
         # For validation, update the new state with weights from the idx_master task
         mdl_state_val = mdl_state
@@ -545,6 +545,7 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
 
     RetinaDataset_train = RetinaDataset(ft_data_train.X,ft_data_train.y,transform=None)
     dataloader_train = DataLoader(RetinaDataset_train,batch_size=batch_size,collate_fn=jnp_collate,shuffle=False)
+    
 
     RetinaDataset_val = RetinaDataset(ft_data_val.X,ft_data_val.y,transform=None)
     dataloader_val = DataLoader(RetinaDataset_val,batch_size=batch_size,collate_fn=jnp_collate)
@@ -611,7 +612,6 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         fev_epoch_train.append(fev_train_med)
         fev_epoch_val.append(fev_val_med)
         fev_epoch_test.append(fev_test_med)
-
 
 
         print('Epoch: %d, train_loss: %.2f, fev: %.2f, corr: %.2f || val_loss: %.2f, fev: %.2f, corr: %.2f || lr: %.2e'\
