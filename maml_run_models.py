@@ -136,7 +136,23 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     
     # Check whether the filename has multiple datasets that need to be merged
-    fname_data_train_val_test_all = fname_data_train_val_test.split('+')
+    if fname_data_train_val_test.endswith('.txt'):
+        with open(fname_data_train_val_test, 'r') as f:
+            expDates = f.readlines()
+        expDates = [line.strip() for line in expDates]
+        
+        dataset_suffix = expDates[0]
+        expDates = expDates[1:]
+        
+        fname_data_train_val_test_all = []
+        i=0
+        for i in range(len(expDates)):
+            name_datasetFile = expDates[i]+'_dataset_train_val_test_'+dataset_suffix+'.h5'
+            fname_data_train_val_test_all.append(os.path.join(path_dataset_base,'datasets',name_datasetFile))
+
+
+    else:
+        fname_data_train_val_test_all = fname_data_train_val_test.split('+')
     
     
     idx_train_start = 0    # mins to chop off in the begining.
@@ -199,9 +215,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         rgb = np.array(unames_allDsets[d],dtype='object')[idx_unitsToTake_all[d]]
         uname_unitsToTake.append(rgb)
 
-
-    print(idx_unitsToTake_all)
-    print(len(idx_unitsToTake_all))
+    print('Total number of datasets: %d'%len(fname_data_train_val_test_all))
+    print('RGCs per dataset: %d'%len(idx_unitsToTake_all[0]))
+    # print(idx_unitsToTake_all)
     
     # Data will be rolled so that each sample has a temporal width. Like N frames of movie in one sample. The duration of each frame is in t_frame
     # if the model has a photoreceptor layer, then the PR layer has a termporal width of pr_temporal_width, which before convs will be chopped off to temporal width
@@ -256,7 +272,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
    
     # Shuffle just the training dataset
     dict_train = dataloaders.shuffle_dataset(dict_train)    
-
+    
        
  # %% Prepare dataloaders for MAML Training
         
@@ -463,7 +479,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 # %% Log all params and hyperparams
     
     
-    params_txt = dict(expFold=expFold,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test,
+    params_txt = dict(expFold=expFold,mdl_name=mdl_name,path_model_save_base=path_model_save_base,fname_data_train_val_test=fname_data_train_val_test_all,
                       path_dataset_base=path_dataset_base,path_existing_mdl=path_existing_mdl,nb_epochs=nb_epochs,bz_ms=bz_ms,runOnCluster=runOnCluster,USE_CHUNKER=USE_CHUNKER,
                       trainingSamps_dur=trainingSamps_dur_orig,validationSamps_dur=validationSamps_dur,CONTINUE_TRAINING=CONTINUE_TRAINING,
                       idxStart_fixedLayers=idxStart_fixedLayers,idxEnd_fixedLayers=idxEnd_fixedLayers,
@@ -505,168 +521,174 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
 
     # %% Model Evaluation
-    nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
-    val_loss_allEpochs = np.empty(nb_epochs)
-    val_loss_allEpochs[:] = np.nan
-    fev_medianUnits_allEpochs = np.empty(nb_epochs)
-    fev_medianUnits_allEpochs[:] = np.nan
-    fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
-    fev_allUnits_allEpochs[:] = np.nan
-    fracExVar_medianUnits_allEpochs = np.empty(nb_epochs)
-    fracExVar_medianUnits_allEpochs[:] = np.nan
-    fracExVar_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
-    fracExVar_allUnits_allEpochs[:] = np.nan
-    
-    predCorr_medianUnits_allEpochs = np.empty(nb_epochs)
-    predCorr_medianUnits_allEpochs[:] = np.nan
-    predCorr_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
-    predCorr_allUnits_allEpochs[:] = np.nan
-    rrCorr_medianUnits_allEpochs = np.empty(nb_epochs)
-    rrCorr_medianUnits_allEpochs[:] = np.nan
-    rrCorr_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
-    rrCorr_allUnits_allEpochs[:] = np.nan
     
     # Select the testing dataset
-    idx_dset=3
-    data_train = dict_train[fname_data_train_val_test_all[idx_dset]]
-    data_val = dict_test[fname_data_train_val_test_all[idx_dset]]
-    data_test = dict_test[fname_data_train_val_test_all[idx_dset]]
+    idx_dset=0
+
+    for d in idx_dset:#np.arange(0,len(dset_names)):   
+        idx_dset = d
     
-    if isintuple(data_test,'y_trials'):
-        obs_noise = estimate_noise(data_test.y_trials)
-        obs_rate_allStimTrials = data_test.y
-        num_iters = 1
+        nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
+        val_loss_allEpochs = np.empty(nb_epochs)
+        val_loss_allEpochs[:] = np.nan
+        fev_medianUnits_allEpochs = np.empty(nb_epochs)
+        fev_medianUnits_allEpochs[:] = np.nan
+        fev_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+        fev_allUnits_allEpochs[:] = np.nan
+        fracExVar_medianUnits_allEpochs = np.empty(nb_epochs)
+        fracExVar_medianUnits_allEpochs[:] = np.nan
+        fracExVar_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+        fracExVar_allUnits_allEpochs[:] = np.nan
         
-    elif 'stim_0' in dataset_rr and dataset_rr['stim_0']['val'][:,:,idx_unitsToTake_all[0]].shape[0]>1:
-        obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake_all[0]]
-        obs_noise = None
-        num_iters = 10
-    else:
-        obs_rate_allStimTrials = data_test.y
-        if 'var_noise' in data_quality:
-            obs_noise = data_quality['var_noise'][idx_unitsToTake]
+        predCorr_medianUnits_allEpochs = np.empty(nb_epochs)
+        predCorr_medianUnits_allEpochs[:] = np.nan
+        predCorr_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+        predCorr_allUnits_allEpochs[:] = np.nan
+        rrCorr_medianUnits_allEpochs = np.empty(nb_epochs)
+        rrCorr_medianUnits_allEpochs[:] = np.nan
+        rrCorr_allUnits_allEpochs = np.zeros((nb_epochs,n_cells))
+        rrCorr_allUnits_allEpochs[:] = np.nan
+        
+        data_train = dict_train[fname_data_train_val_test_all[idx_dset]]
+        data_val = dict_test[fname_data_train_val_test_all[idx_dset]]
+        data_test = dict_test[fname_data_train_val_test_all[idx_dset]]
+        
+        if isintuple(data_test,'y_trials'):
+            obs_noise = estimate_noise(data_test.y_trials)
+            obs_rate_allStimTrials = data_test.y
+            num_iters = 1
+            
+        elif 'stim_0' in dataset_rr and dataset_rr['stim_0']['val'][:,:,idx_unitsToTake_all[0]].shape[0]>1:
+            obs_rate_allStimTrials = dataset_rr['stim_0']['val'][:,:,idx_unitsToTake_all[0]]
+            obs_noise = None
+            num_iters = 10
         else:
-            obs_noise = 0
-        num_iters = 1
-    
-    if isintuple(data_test,'dset_names'):
-        rgb = data_test.dset_names
-        idx_natstim = [i for i,n in enumerate(rgb) if re.search(r'NATSTIM',n)]
-        idx_cb = [i for i,n in enumerate(rgb) if re.search(r'CB',n)]
+            obs_rate_allStimTrials = data_test.y
+            if 'var_noise' in data_quality:
+                obs_noise = data_quality['var_noise'][idx_unitsToTake]
+            else:
+                obs_noise = 0
+            num_iters = 1
         
+        if isintuple(data_test,'dset_names'):
+            rgb = data_test.dset_names
+            idx_natstim = [i for i,n in enumerate(rgb) if re.search(r'NATSTIM',n)]
+            idx_cb = [i for i,n in enumerate(rgb) if re.search(r'CB',n)]
+            
+        
+        
+        samps_shift = 0 # number of samples to shift the response by. This was to correct some timestamp error in gregs data
+      
+        orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+    
+        RetinaDataset_test = dataloaders.RetinaDataset(data_test.X,data_test.y,transform=None)
+        dataloader_test = DataLoader(RetinaDataset_test,batch_size=bz,collate_fn=dataloaders.jnp_collate,shuffle=False)
+    
+        # mdl_state,mdl,config = model.jax.train_model_jax.initialize_model(mdl,dict_params,inp_shape,lr,save_model=False)
     
     
-    samps_shift = 0 # number of samples to shift the response by. This was to correct some timestamp error in gregs data
-  
-    orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
-
-    RetinaDataset_test = dataloaders.RetinaDataset(data_test.X,data_test.y,transform=None)
-    dataloader_test = DataLoader(RetinaDataset_test,batch_size=bz,collate_fn=dataloaders.jnp_collate,shuffle=False)
-
-    # mdl_state,mdl,config = model.jax.train_model_jax.initialize_model(mdl,dict_params,inp_shape,lr,save_model=False)
-
-
-    print('-----EVALUATING PERFORMANCE-----')
-    i=150
-    for i in range(0,nb_epochs):
-        print('evaluating epoch %d of %d'%(i,nb_epochs))
-        # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
-        weight_fold = 'epoch-%03d' % (i)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
+        print('-----EVALUATING PERFORMANCE-----')
+        i=150
+        for i in range(0,nb_epochs):
+            print('evaluating epoch %d of %d'%(i,nb_epochs))
+            # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
+            weight_fold = 'epoch-%03d' % (i)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
+            weight_file = os.path.join(path_model_save,weight_fold)
+            weights_dense_file = os.path.join(path_model_save,weight_fold,'weights_dense.h5')
+    
+            if os.path.isdir(weight_file):
+                raw_restored = orbax_checkpointer.restore(weight_file)
+                mdl_state = maml.load(mdl,raw_restored['model'],lr)
+                
+                with h5py.File(weights_dense_file,'r') as f:
+                    weights_kern = jnp.array(f['weights_dense_kernel'][idx_dset])
+                    weights_bias = jnp.array(f['weights_dense_bias'][idx_dset])
+                    
+                # Restore the correct dense weights for this dataset
+                mdl_state.params['Dense_0']['kernel'] = weights_kern
+                mdl_state.params['Dense_0']['bias'] = weights_bias
+    
+                val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test)
+        
+                val_loss_allEpochs[i] = val_loss[0]
+                
+                fev_loop = np.zeros((num_iters,n_cells))
+                fracExVar_loop = np.zeros((num_iters,n_cells))
+                predCorr_loop = np.zeros((num_iters,n_cells))
+                rrCorr_loop = np.zeros((num_iters,n_cells))
+        
+                for j in range(num_iters):  # nunm_iters is 1 with my dataset. This was mainly for greg's data where we would randomly split the dataset to calculate performance metrics 
+                    fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+                    
+                fev = np.mean(fev_loop,axis=0)
+                fracExVar = np.mean(fracExVar_loop,axis=0)
+                predCorr = np.mean(predCorr_loop,axis=0)
+                rrCorr = np.mean(rrCorr_loop,axis=0)
+                
+                if np.isnan(rrCorr).all() and 'fracExVar_allUnits' in data_quality:  # if retinal reliability is in quality datasets
+                    fracExVar = data_quality['fracExVar_allUnits'][idx_unitsToTake_all][0]
+                    rrCorr = data_quality['corr_allUnits'][idx_unitsToTake_all[0]]
+        
+        
+                fev_allUnits_allEpochs[i,:] = fev
+                fev_medianUnits_allEpochs[i] = np.nanmedian(fev)      
+                fracExVar_allUnits_allEpochs[i,:] = fracExVar
+                fracExVar_medianUnits_allEpochs[i] = np.nanmedian(fracExVar)
+                
+                predCorr_allUnits_allEpochs[i,:] = predCorr
+                predCorr_medianUnits_allEpochs[i] = np.nanmedian(predCorr)
+                rrCorr_allUnits_allEpochs[i,:] = rrCorr
+                rrCorr_medianUnits_allEpochs[i] = np.nanmedian(rrCorr)
+                
+        
+                _ = gc.collect()
+        
+        
+        fig,axs = plt.subplots(1,1,figsize=(7,5)); axs.plot(fev_medianUnits_allEpochs)
+        axs.set_xlabel('Epochs');axs.set_ylabel('FEV'); fig.suptitle(dset_names[idx_dset] + ' | '+str(dict_params['nout'])+' RGCs')
+        
+        fname_fig = os.path.join(path_model_save,'fev_val_%s.png'%dset_names[idx_dset])
+        fig.savefig(fname_fig)
+        
+        
+        idx_bestEpoch = nb_epochs-1#np.nanargmax(fev_medianUnits_allEpochs)
+        # idx_bestEpoch = np.nanargmax(fev_medianUnits_allEpochs)
+        fev_medianUnits_bestEpoch = np.round(fev_medianUnits_allEpochs[idx_bestEpoch],2)
+        fev_allUnits_bestEpoch = fev_allUnits_allEpochs[(idx_bestEpoch),:]
+        fracExVar_medianUnits = np.round(fracExVar_medianUnits_allEpochs[idx_bestEpoch],2)
+        fracExVar_allUnits = fracExVar_allUnits_allEpochs[(idx_bestEpoch),:]
+        
+        predCorr_medianUnits_bestEpoch = np.round(predCorr_medianUnits_allEpochs[idx_bestEpoch],2)
+        predCorr_allUnits_bestEpoch = predCorr_allUnits_allEpochs[(idx_bestEpoch),:]
+        rrCorr_medianUnits = np.round(rrCorr_medianUnits_allEpochs[idx_bestEpoch],2)
+        rrCorr_allUnits = rrCorr_allUnits_allEpochs[(idx_bestEpoch),:]
+    
+        
+        # Load the best weights to save stuff
+        weight_fold = 'epoch-%03d' % (idx_bestEpoch)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
         weight_file = os.path.join(path_model_save,weight_fold)
         weights_dense_file = os.path.join(path_model_save,weight_fold,'weights_dense.h5')
-
-        if os.path.isdir(weight_file):
-            raw_restored = orbax_checkpointer.restore(weight_file)
-            mdl_state = maml.load(mdl,raw_restored['model'],lr)
-            
-            with h5py.File(weights_dense_file,'r') as f:
-                weights_kern = jnp.array(f['weights_dense_kernel'][idx_dset])
-                weights_bias = jnp.array(f['weights_dense_bias'][idx_dset])
-                
-            # Restore the correct dense weights for this dataset
-            mdl_state.params['Dense_0']['kernel'] = weights_kern
-            mdl_state.params['Dense_0']['bias'] = weights_bias
-
-            val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test)
     
-            val_loss_allEpochs[i] = val_loss[0]
-            
-            fev_loop = np.zeros((num_iters,n_cells))
-            fracExVar_loop = np.zeros((num_iters,n_cells))
-            predCorr_loop = np.zeros((num_iters,n_cells))
-            rrCorr_loop = np.zeros((num_iters,n_cells))
-    
-            for j in range(num_iters):  # nunm_iters is 1 with my dataset. This was mainly for greg's data where we would randomly split the dataset to calculate performance metrics 
-                fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
-                
-            fev = np.mean(fev_loop,axis=0)
-            fracExVar = np.mean(fracExVar_loop,axis=0)
-            predCorr = np.mean(predCorr_loop,axis=0)
-            rrCorr = np.mean(rrCorr_loop,axis=0)
-            
-            if np.isnan(rrCorr).all() and 'fracExVar_allUnits' in data_quality:  # if retinal reliability is in quality datasets
-                fracExVar = data_quality['fracExVar_allUnits'][idx_unitsToTake_all][0]
-                rrCorr = data_quality['corr_allUnits'][idx_unitsToTake_all[0]]
-    
-    
-            fev_allUnits_allEpochs[i,:] = fev
-            fev_medianUnits_allEpochs[i] = np.nanmedian(fev)      
-            fracExVar_allUnits_allEpochs[i,:] = fracExVar
-            fracExVar_medianUnits_allEpochs[i] = np.nanmedian(fracExVar)
-            
-            predCorr_allUnits_allEpochs[i,:] = predCorr
-            predCorr_medianUnits_allEpochs[i] = np.nanmedian(predCorr)
-            rrCorr_allUnits_allEpochs[i,:] = rrCorr
-            rrCorr_medianUnits_allEpochs[i] = np.nanmedian(rrCorr)
-            
-    
-            _ = gc.collect()
-    
-    """
-    plt.plot(fev_medianUnits_allEpochs);plt.show()
-    fig,ax = plt.subplots(1,1,figsize=(3,3))
-    ax.boxplot(fev_allUnits_bestEpoch);plt.ylim([-0.1,1]);plt.ylabel('FEV')
-    ax.text(1.1,fev_medianUnits_bestEpoch+.1,'%0.2f'%(fev_medianUnits_bestEpoch))
-    """
-    
-    idx_bestEpoch = nb_epochs-1#np.nanargmax(fev_medianUnits_allEpochs)
-    # idx_bestEpoch = np.nanargmax(fev_medianUnits_allEpochs)
-    fev_medianUnits_bestEpoch = np.round(fev_medianUnits_allEpochs[idx_bestEpoch],2)
-    fev_allUnits_bestEpoch = fev_allUnits_allEpochs[(idx_bestEpoch),:]
-    fracExVar_medianUnits = np.round(fracExVar_medianUnits_allEpochs[idx_bestEpoch],2)
-    fracExVar_allUnits = fracExVar_allUnits_allEpochs[(idx_bestEpoch),:]
-    
-    predCorr_medianUnits_bestEpoch = np.round(predCorr_medianUnits_allEpochs[idx_bestEpoch],2)
-    predCorr_allUnits_bestEpoch = predCorr_allUnits_allEpochs[(idx_bestEpoch),:]
-    rrCorr_medianUnits = np.round(rrCorr_medianUnits_allEpochs[idx_bestEpoch],2)
-    rrCorr_allUnits = rrCorr_allUnits_allEpochs[(idx_bestEpoch),:]
-
-    
-    # Load the best weights to save stuff
-    weight_fold = 'epoch-%03d' % (idx_bestEpoch)  # 'file_name_{}_{:.03f}.png'.format(f_nm, val)
-    weight_file = os.path.join(path_model_save,weight_fold)
-    weights_dense_file = os.path.join(path_model_save,weight_fold,'weights_dense.h5')
-
-    raw_restored = orbax_checkpointer.restore(weight_file)
-    mdl_state = maml.load(mdl,raw_restored['model'],lr)
-    
-    with h5py.File(weights_dense_file,'r') as f:
-        weights_kern = jnp.array(f['weights_dense_kernel'][idx_dset])
-        weights_bias = jnp.array(f['weights_dense_bias'][idx_dset])
+        raw_restored = orbax_checkpointer.restore(weight_file)
+        mdl_state = maml.load(mdl,raw_restored['model'],lr)
         
-    # Restore the correct dense weights for this dataset
-    mdl_state.params['Dense_0']['kernel'] = weights_kern
-    mdl_state.params['Dense_0']['bias'] = weights_bias
-
-    val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test)
-    fname_bestWeight = np.array(weight_file,dtype='bytes')
-    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
-
-    # if len(idx_natstim)>0:
-    #     fev_val_natstim, _, predCorr_val_natstim, _ = model_evaluate_new(obs_rate_allStimTrials[idx_natstim],pred_rate[idx_natstim],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
-    #     fev_val_cb, _, predCorr_val_cb, _ = model_evaluate_new(obs_rate_allStimTrials[idx_cb],pred_rate[idx_cb],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
-    #     print('FEV_NATSTIM = %0.2f' %(np.nanmean(fev_val_natstim)*100))
-    #     print('FEV_CB = %0.2f' %(np.nanmean(fev_val_cb)*100))
+        with h5py.File(weights_dense_file,'r') as f:
+            weights_kern = jnp.array(f['weights_dense_kernel'][idx_dset])
+            weights_bias = jnp.array(f['weights_dense_bias'][idx_dset])
+            
+        # Restore the correct dense weights for this dataset
+        mdl_state.params['Dense_0']['kernel'] = weights_kern
+        mdl_state.params['Dense_0']['bias'] = weights_bias
+    
+        val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test)
+        fname_bestWeight = np.array(weight_file,dtype='bytes')
+        fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+    
+        # if len(idx_natstim)>0:
+        #     fev_val_natstim, _, predCorr_val_natstim, _ = model_evaluate_new(obs_rate_allStimTrials[idx_natstim],pred_rate[idx_natstim],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+        #     fev_val_cb, _, predCorr_val_cb, _ = model_evaluate_new(obs_rate_allStimTrials[idx_cb],pred_rate[idx_cb],temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+        #     print('FEV_NATSTIM = %0.2f' %(np.nanmean(fev_val_natstim)*100))
+        #     print('FEV_CB = %0.2f' %(np.nanmean(fev_val_cb)*100))
 
 # %% Test
     # offset = 3000

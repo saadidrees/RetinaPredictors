@@ -22,16 +22,20 @@ base = '/home/saad/data/'
 
 
 data_pers = 'ej'
-expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-3')
+# expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-3','2018-02-09-5')
+expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-5','2007-08-21-5','2008-03-25-4','2012-04-13-0','2013-01-23-6',
+           '2015-09-23-7','2016-02-17-1','2016-02-17-6','2016-02-17-8','2016-06-13-1','2018-02-06-4')
+expDate = ('trainList_20240905a',)
+# '2018-02-09-3' 2012-04-13-4 2015-10-29-2
 # ft_expDate = '2018-02-09-5' # '2018-02-09-5
 expFold = 'maml'
-subFold = '' 
+subFold = 'test' 
 dataset = 'CB_mesopic_f4_8ms_sig-4'#'NATSTIM6_CORR2_mesopic-Rstar_f4_8ms',)#'NATSTIM3_CORR_mesopic-Rstar_f4_8ms  CB_CORR_mesopic-Rstar_f4_8ms
 idx_unitsToTake = 0#np.arange(0,230) #np.array([0,1,2,3,4,5,6,7,8,9])
 
 #np.arange(0,50)#idx_units_ON_train #[0] #idx_units_train
 select_rgctype=0
-mdl_subFold = 'diff_lr'
+mdl_subFold = ''
 mdl_name = 'CNN2D_LNORM' 
 pr_params_name = ''
 path_existing_mdl = ''
@@ -44,26 +48,26 @@ CONTINUE_TRAINING = 0
 lr = 0.001
 lr_fac = 1# how much to divide the learning rate when training is resumed
 use_lrscheduler=1
-lrscheduler='warmup_exponential_decay' #'exponential_decay' #dict(scheduler='stepLR',drop=0.01,steps_drop=20,initial_lr=lr)
+lrscheduler='exponential_decay' #'exponential_decay' #dict(scheduler='stepLR',drop=0.01,steps_drop=20,initial_lr=lr)
 USE_CHUNKER=1
 pr_temporal_width = 0
 temporal_width=80
 thresh_rr=0
 chans_bp = 0
-chan1_n=15
+chan1_n=32#15
 filt1_size=3
 filt1_3rdDim=0
-chan2_n=30
+chan2_n=32#30
 filt2_size=3
 filt2_3rdDim=0
-chan3_n=40 #40
+chan3_n=64#40
 filt3_size=3
 filt3_3rdDim=0
-chan4_n=50#50
+chan4_n=64#50
 filt4_size=3
 filt4_3rdDim=0
-nb_epochs=100#42         # setting this to 0 only runs evaluation
-bz_ms=10000#10000#5000
+nb_epochs=0#42         # setting this to 0 only runs evaluation
+bz_ms=128#10000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
@@ -77,21 +81,30 @@ testSamps_dur=0.5
 USE_WANDB = 0
 
 
-dataset_nameForPaths = ''
-for i in range(len(expDate)):
-    dataset_nameForPaths = dataset_nameForPaths+expDate[i]+'+'
-dataset_nameForPaths = dataset_nameForPaths[:-1]
 
+dataset_nameForPaths = ''
+if 'trainList' in expDate[0]:
+    dataset_nameForPaths = expDate[0]
+else:
+    for i in range(len(expDate)):
+        dataset_nameForPaths = dataset_nameForPaths+expDate[i]+'+'
+    dataset_nameForPaths = dataset_nameForPaths[:-1]
+
+    
 path_model_save_base = os.path.join(base,'analyses/data_'+data_pers+'/',expFold,subFold,'models',dataset_nameForPaths,mdl_subFold)
 path_dataset_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/')
 
-fname_data_train_val_test = ''
-i=0
-for i in range(len(expDate)):
-    name_datasetFile = expDate[i]+'_dataset_train_val_test_'+dataset+'.h5'
-    fname_data_train_val_test = fname_data_train_val_test+os.path.join(path_dataset_base,'datasets',name_datasetFile) + '+'
-fname_data_train_val_test = fname_data_train_val_test[:-1]
 
+if 'trainList' in expDate[0]:
+    fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',expDate[0]+'.txt')
+else:
+    fname_data_train_val_test = ''
+    i=0
+    for i in range(len(expDate)):
+        name_datasetFile = expDate[i]+'_dataset_train_val_test_'+dataset+'.h5'
+        fname_data_train_val_test = fname_data_train_val_test+os.path.join(path_dataset_base,'datasets',name_datasetFile) + '+'
+    fname_data_train_val_test = fname_data_train_val_test[:-1]
+    
 
 c_trial = 1
 
