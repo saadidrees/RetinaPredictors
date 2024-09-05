@@ -163,6 +163,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     num_rgcs_all = []
     unames_allDsets = []
     for d in range(len(fname_data_train_val_test_all)):
+        print('Loading dataset %d of %d'%(d+1,len(fname_data_train_val_test_all)))
         rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,nsamps_test=testSamps_dur,  # THIS NEEDS TO BE TIDIED UP
                              idx_train_start=idx_train_start)
         data_train=rgb[0]
