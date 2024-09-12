@@ -22,14 +22,16 @@ base = '/home/saad/data/'
 
 
 data_pers = 'ej'
-# expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-3','2018-02-09-5')
-expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-5','2007-08-21-5','2008-03-25-4','2012-04-13-0','2013-01-23-6',
-           '2015-09-23-7','2016-02-17-1','2016-02-17-6','2016-02-17-8','2016-06-13-1','2018-02-06-4')
-expDate = ('trainList_20240905a',)
+expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-3')
+# expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-5','2007-08-21-5','2008-03-25-4','2012-04-13-0','2013-01-23-6',
+#            '2015-09-23-7','2016-02-17-1','2016-02-17-6','2016-02-17-8','2016-06-13-1','2018-02-06-4')
+# expDate = ('trainList_20240905a',)
 # '2018-02-09-3' 2012-04-13-4 2015-10-29-2
 # ft_expDate = '2018-02-09-5' # '2018-02-09-5
-expFold = 'maml'
-subFold = 'test' 
+
+APPROACH = 'sequential'
+expFold = 'maml2'
+subFold = APPROACH
 dataset = 'CB_mesopic_f4_8ms_sig-4'#'NATSTIM6_CORR2_mesopic-Rstar_f4_8ms',)#'NATSTIM3_CORR_mesopic-Rstar_f4_8ms  CB_CORR_mesopic-Rstar_f4_8ms
 idx_unitsToTake = 0#np.arange(0,230) #np.array([0,1,2,3,4,5,6,7,8,9])
 
@@ -66,8 +68,8 @@ filt3_3rdDim=0
 chan4_n=64#50
 filt4_size=3
 filt4_3rdDim=0
-nb_epochs=0#42         # setting this to 0 only runs evaluation
-bz_ms=128#10000#5000
+nb_epochs=100#42         # setting this to 0 only runs evaluation
+bz_ms=512#64#10000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
@@ -127,7 +129,7 @@ for c_trial in range(1,num_trials+1):
                             path_existing_mdl = path_existing_mdl, idxStart_fixedLayers=idxStart_fixedLayers, idxEnd_fixedLayers=idxEnd_fixedLayers,transfer_mode=transfer_mode,
                             CONTINUE_TRAINING=CONTINUE_TRAINING,info=info,
                             trainingSamps_dur=trainingSamps_dur,validationSamps_dur=validationSamps_dur,idx_unitsToTake=idx_unitsToTake,
-                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lrscheduler=lrscheduler,USE_WANDB=USE_WANDB)
+                            lr=lr,lr_fac=lr_fac,use_lrscheduler=use_lrscheduler,lrscheduler=lrscheduler,USE_WANDB=USE_WANDB,APPROACH=APPROACH)
     
 plt.plot(model_performance['fev_medianUnits_allEpochs']);plt.ylabel('FEV');plt.xlabel('Epochs')
 print('FEV = %0.2f' %(np.nanmax(model_performance['fev_medianUnits_allEpochs'])*100))

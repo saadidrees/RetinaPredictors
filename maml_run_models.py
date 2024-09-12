@@ -12,7 +12,7 @@ from model.parser import parser_run_model
 
 
 def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
-                            path_existing_mdl='',idxStart_fixedLayers=0,idxEnd_fixedLayers=-1,transfer_mode='finetuning',
+                            path_existing_mdl='',idxStart_fixedLayers=0,idxEnd_fixedLayers=-1,transfer_mode='finetuning',APPROACH='maml',
                             saveToCSV=1,runOnCluster=0,
                             temporal_width=40, thresh_rr=0,
                             chans_bp=1,
@@ -512,7 +512,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         print('-----RUNNING MODEL-----')
         
         loss_currEpoch_master,loss_epoch_train,loss_epoch_val,mdl_state,weights_dense,fev_epoch_train,fev_epoch_val = maml.train_maml(mdl_state,weights_dense,config,\
-                                                                                      dataloader_train,dataloader_val,nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule)
+                                                                                      dataloader_train,dataloader_val,nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule,\
+                                                                                          approach=APPROACH)
         _ = gc.collect()
             
     t_elapsed = time.time()-t
@@ -524,9 +525,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # %% Model Evaluation
     
     # Select the testing dataset
-    idx_dset=0
+    d=1
 
-    for d in idx_dset:#np.arange(0,len(dset_names)):   
+    for d in np.arange(0,len(dset_names)):   
         idx_dset = d
     
         nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
@@ -589,7 +590,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
         print('-----EVALUATING PERFORMANCE-----')
-        i=150
+        i=83
         for i in range(0,nb_epochs):
             print('evaluating epoch %d of %d'%(i,nb_epochs))
             # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
