@@ -141,8 +141,6 @@ def train_step_maml(mdl_state,batch,weights_dense,lr):
         bias = bias_all[0]
         train_x = train_x[0]
         train_y = train_y[0]
-        val_x = val_x[0]
-        val_y = val_y[0]
 
     """
 
@@ -177,6 +175,8 @@ def train_step_maml(mdl_state,batch,weights_dense,lr):
         
         # Update only the Dense layer weights since we retain it
         local_params_val = jax.tree_map(lambda p, g: p - lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads_val)
+        
+        # local_grads_total = jax.tree_map(lambda g_1, g_2: g_1+g_2, local_grads,local_grads_val)
 
 
         # Record dense layer weights
@@ -218,6 +218,80 @@ def train_step_maml(mdl_state,batch,weights_dense,lr):
     """
 
     return local_losses_summed,mdl_state,weights_dense,local_grads_summed
+
+
+@jax.jit
+def train_step_sequential(mdl_state,batch,weights_dense,lr):
+    """
+    State is the grand model state that actually gets updated
+    state_task is the "state" after gradients are applied for a specific task
+        kern = kern_all[0]
+        bias = bias_all[0]
+        train_x = train_x[0]
+        train_y = train_y[0]
+        batch_train = (train_x[0],train_y[0])
+
+    """
+
+    @jax.jit
+    def seq_grads(mdl_state,global_params,train_x,train_y,kern,bias):
+
+        # Split the batch into inner and outer training sets
+        # PARAMETERIZE this
+        batch_train = (train_x,train_y)
+
+        # Make local model by using global params but local dense layer weights
+        local_params = global_params
+        local_params['Dense_0']['kernel'] = kern
+        local_params['Dense_0']['bias'] = bias
+        local_mdl_state = mdl_state.replace(params=local_params)
+
+        # Calculate gradients of the local model wrt to local params    
+        grad_fn = jax.value_and_grad(task_loss,argnums=1,has_aux=True)
+        (local_loss_train,y_pred_train),local_grads = grad_fn(local_mdl_state,local_params,batch_train)
+        
+        
+        # scale the local gradients according to ADAM's first step. Helps to stabilize
+        # And update the parameters
+        local_params = jax.tree_map(lambda p, g: p - lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads)
+        local_mdl_state = local_mdl_state.replace(params=local_params)
+
+
+        # Record dense layer weights
+        kern = local_params['Dense_0']['kernel']
+        bias = local_params['Dense_0']['bias']
+        
+        return local_loss_train,y_pred_train,local_mdl_state,local_grads,kern,bias
+    
+    
+       
+    train_x,train_y = batch
+    kern_all,bias_all = weights_dense
+    
+    n_retinas = train_x.shape[0]
+    i=0
+    for i in range(n_retinas):
+        loss,local_y_preds,mdl_state,local_grads,local_kern,local_bias = seq_grads(mdl_state,mdl_state.params,train_x[i],train_y[i],kern_all[i],bias_all[i])
+        kern_all = kern_all.at[i].set(local_kern)
+        bias_all = bias_all.at[i].set(local_bias)
+    
+    weights_dense = (kern_all,bias_all)
+        
+           
+    # print(local_losses_summed)   
+        
+    
+    """
+    for key in local_grads_summed.keys():
+        try:
+            print('%s kernel: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['kernel']))))
+        except:
+            print('%s bias: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['bias']))))
+    
+    """
+
+    return loss,mdl_state,weights_dense,local_grads
+
 
 
 def eval_step(state,data,n_batches=1e5):
@@ -369,8 +443,8 @@ def load(mdl,variables,lr):
 
 # %% Training func
 
-def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,nb_epochs,path_model_save,save=False,lr_schedule=None,step_start=0):
-    
+def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,nb_epochs,path_model_save,save=False,lr_schedule=None,step_start=0,approach='maml'):
+    print('Training scheme: %s'%approach)
     save = True
     # learning_rate_fn = create_learning_rate_scheduler(lr_schedule)
     
@@ -394,7 +468,11 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,nb
             # elap = time.time()-t
             # print(elap)
             current_lr = lr_schedule(mdl_state.step)
-            loss,mdl_state,weights_dense,grads = train_step_maml(mdl_state,batch_train,weights_dense,current_lr)
+            if approach == 'maml':
+                loss,mdl_state,weights_dense,grads = train_step_maml(mdl_state,batch_train,weights_dense,current_lr)
+            elif approach == 'sequential':
+                loss,mdl_state,weights_dense,grads = train_step_sequential(mdl_state,batch_train,weights_dense,current_lr)
+
             # print(loss)
             loss_batch_train.append(loss)
             # _,y,_,_ = batch_train
@@ -520,8 +598,9 @@ def ft_eval_step(state,fixed_params,data,n_batches=1e5):
         return loss,y_pred,y
     
     else:       # if the data is in dataloader format
-        y_pred = jnp.empty((0,len(state.params['Dense_0']['bias'])))
-        y = jnp.empty((0,len(state.params['Dense_0']['bias'])))
+        rgb = {**fixed_params,**state.params}
+        y_pred = jnp.empty((0,len(rgb['Dense_0']['bias'])))
+        y = jnp.empty((0,len(rgb['Dense_0']['bias'])))
         loss = []
         count_batch = 0
         for batch in data:
@@ -539,7 +618,7 @@ def ft_eval_step(state,fixed_params,data,n_batches=1e5):
     return loss,y_pred,y
 
 
-def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,batch_size,ft_nb_epochs,path_model_save,save=True,ft_lr_schedule=None,step_start=0):
+def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs,path_model_save,save=True,ft_lr_schedule=None,step_start=0):
     # loss_fn = optax.losses.kl_divergence
     n_batches = np.ceil(len(ft_data_train.X)/batch_size)
 
@@ -602,11 +681,11 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         lr_epoch.append(current_lr)
         
         temporal_width_eval = ft_data_train.X[0].shape[0]
-        fev_val,_,predCorr_val,_ = model_evaluate_new(y,y_pred,temporal_width_eval,lag=0,obs_noise=0)
+        fev_val,_,predCorr_val,_ = model_evaluate_new(y,y_pred,temporal_width_eval,lag=0,obs_noise=obs_noise)
         fev_val_med,predCorr_val_med = np.median(fev_val),np.median(predCorr_val)
-        fev_test,_,predCorr_test,_ = model_evaluate_new(y_test,y_pred_test,temporal_width_eval,lag=0,obs_noise=0)
+        fev_test,_,predCorr_test,_ = model_evaluate_new(y_test,y_pred_test,temporal_width_eval,lag=0,obs_noise=obs_noise)
         fev_test_med,predCorr_test_med = np.median(fev_test),np.median(predCorr_test)
-        fev_train,_,predCorr_train,_ = model_evaluate_new(y_train_test,y_pred_train_test,temporal_width_eval,lag=0,obs_noise=0)
+        fev_train,_,predCorr_train,_ = model_evaluate_new(y_train_test,y_pred_train_test,temporal_width_eval,lag=0,obs_noise=obs_noise)
         fev_train_med,predCorr_train_med = np.median(fev_train),np.median(predCorr_train)
 
         fev_epoch_train.append(fev_train_med)
@@ -623,7 +702,8 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         plt.show()
         plt.close()
         
-        weights_dense = (ft_mdl_state.params['Dense_0']['kernel'],ft_mdl_state.params['Dense_0']['bias'])
+        weights_all = {**ft_params_fixed,**ft_mdl_state.params}
+        weights_dense = (weights_all['Dense_0']['kernel'],weights_all['Dense_0']['bias'])
         if save==True:
             fname_cp = os.path.join(path_model_save,'epoch-%03d'%epoch)
             save_epoch(ft_mdl_state,config,weights_dense,fname_cp)
