@@ -56,6 +56,8 @@ def parser_run_model():
     parser.add_argument('--idx_unitsToTake',type=int,default=0)
     parser.add_argument('--job_id',type=int,default=0)
     parser.add_argument('--USE_WANDB',type=int,default=0)
+    parser.add_argument('--APPROACH',type=str,default='maml')
+
     
 
     args = parser.parse_args()
