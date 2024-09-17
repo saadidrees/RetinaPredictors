@@ -71,6 +71,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     from collections import namedtuple
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
+    Exptdata_spikes = namedtuple('Exptdata', ['X', 'y','spikes'])
+
 
     
     devices = jax.devices()
@@ -162,6 +164,15 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     dict_test = {}
     num_rgcs_all = []
     unames_allDsets = []
+    
+    nsamps_alldsets = []
+    for d in range(len(fname_data_train_val_test_all)):
+        with h5py.File(fname_data_train_val_test_all[d]) as f:
+            nsamps_alldsets.append(f['data_train']['X'].shape[0])
+    nsamps_alldsets = np.asarray(nsamps_alldsets)
+    nsamps_max = nsamps_alldsets.max()
+
+    
     for d in range(len(fname_data_train_val_test_all)):
         print('Loading dataset %d of %d'%(d+1,len(fname_data_train_val_test_all)))
         rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,nsamps_test=testSamps_dur,  # THIS NEEDS TO BE TIDIED UP
@@ -185,7 +196,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
 # Arrange data according to the model
-
+    """
     if type(idx_unitsToTake) is int:     # If a single number is provided
         if idx_unitsToTake==0:      # if 0 then take all
             min_rgcs = np.min(num_rgcs_all)
@@ -208,7 +219,28 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             idx_unitsToTake_all.append(idx_unitsToTake)
     else:   # The conventional approach
         idx_unitsToTake_all = [idx_unitsToTake]
+    """
     
+    # Take max number of RGCs. Repeat RGCs for dsets smaller than max
+    if type(idx_unitsToTake) is int:     # If a single number is provided
+        if idx_unitsToTake==0:      # if 0 then take all
+            max_rgcs = np.max(num_rgcs_all)               
+            idx_unitsToTake = np.arange(max_rgcs)   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
+        else:
+            idx_unitsToTake = np.arange(0,idx_unitsToTake)
+
+    if len(fname_data_train_val_test_all)>1:
+        idx_unitsToTake_all = []
+        for d in range(len(fname_data_train_val_test_all)):
+            rgb = np.arange(num_rgcs_all[d])
+            if rgb.shape[0]<max_rgcs:
+                rgb = np.tile(rgb,4)
+            
+            idx_unitsToTake = rgb[:max_rgcs]
+            idx_unitsToTake_all.append(idx_unitsToTake)
+    else:   # The conventional approach
+        idx_unitsToTake_all = [idx_unitsToTake]
+
     
     # Get unit names
     uname_unitsToTake = []
@@ -242,17 +274,36 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     modelNames_3D = modelNames_all[1]
 
     # prepare data according to model. Roll and adjust dimensions according to 2D or 3D model
-    d=0
+    d=1
     for d in range(len(fname_data_train_val_test_all)):
         print(fname_data_train_val_test_all[d])
         data_train = dict_train[fname_data_train_val_test_all[d]]
         data_test = dict_test[fname_data_train_val_test_all[d]]
         data_val = dict_val[fname_data_train_val_test_all[d]]
-
+        
         if mdl_name in modelNames_2D:
             data_train = prepare_data_cnn2d(data_train,temporal_width_prepData,idx_unitsToTake_all[d],MAKE_LISTS=True)     # [samples,temporal_width,rows,columns]
             data_test = prepare_data_cnn2d(data_test,temporal_width_prepData,idx_unitsToTake_all[d])
             data_val = prepare_data_cnn2d(data_val,temporal_width_prepData,idx_unitsToTake_all[d],MAKE_LISTS=True)   
+            
+            # If a dataset is shorter than the max one, then just repeat it so we can still vectorize everything
+            if len(data_train.X)<(nsamps_max-temporal_width_prepData):
+                
+                diff_dsetLen = (nsamps_max-temporal_width_prepData) - len(data_train.X)
+                a = diff_dsetLen/len(data_train.X)
+                if a > 1.1:
+                    a = int(np.ceil(a))
+                else:
+                    a = 1
+                expanded_X = data_train.X
+                expanded_y = data_train.y
+                expanded_spikes = data_train.spikes
+                for j in range(a):
+                    expanded_X = expanded_X+data_train.X
+                    expanded_y = expanded_y+data_train.y
+                    expanded_spikes = expanded_spikes+data_train.spikes
+                data_train = Exptdata_spikes(expanded_X,expanded_y,expanded_spikes)
+
             
             filt1_3rdDim=0
             filt2_3rdDim=0
@@ -527,7 +578,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # Select the testing dataset
     d=1
 
-    for d in np.arange(0,len(dset_names)):   
+    for d in np.arange(1,len(dset_names)):   
         idx_dset = d
     
         nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
