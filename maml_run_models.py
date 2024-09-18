@@ -148,7 +148,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
         fname_data_train_val_test_all = []
         i=3
-        for i in [4,5,6]: #range(len(expDates)):
+        for i in range(len(expDates)):
             name_datasetFile = expDates[i]+'_dataset_train_val_test_'+dataset_suffix+'.h5'
             fname_data_train_val_test_all.append(os.path.join(path_dataset_base,'datasets',name_datasetFile))
 
