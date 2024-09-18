@@ -147,7 +147,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         expDates = expDates[1:]
         
         fname_data_train_val_test_all = []
-        i=3
+        i=5
         for i in range(len(expDates)):
             name_datasetFile = expDates[i]+'_dataset_train_val_test_'+dataset_suffix+'.h5'
             fname_data_train_val_test_all.append(os.path.join(path_dataset_base,'datasets',name_datasetFile))
@@ -170,10 +170,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         with h5py.File(fname_data_train_val_test_all[d]) as f:
             nsamps_alldsets.append(f['data_train']['X'].shape[0])
     nsamps_alldsets = np.asarray(nsamps_alldsets)
-    nsamps_max = nsamps_alldsets.max()
-    nsamps_max = 388958
-
     
+    nsamps_alldsets_loaded = []
     for d in range(len(fname_data_train_val_test_all)):
         print('Loading dataset %d of %d'%(d+1,len(fname_data_train_val_test_all)))
         rgb = load_h5Dataset(fname_data_train_val_test_all[d],nsamps_val=validationSamps_dur,nsamps_train=trainingSamps_dur,nsamps_test=testSamps_dur,  # THIS NEEDS TO BE TIDIED UP
@@ -194,8 +192,13 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         dict_test[fname_data_train_val_test_all[d]] = data_test
         num_rgcs_all.append(data_train.y.shape[-1])
         unames_allDsets.append(data_quality['uname_selectedUnits'])
+        nsamps_alldsets_loaded.append(data_train.X.shape[0])
 
-    
+    nsamps_alldsets_loaded = np.asarray(nsamps_alldsets_loaded)
+    nsamps_max = nsamps_alldsets_loaded.max()
+    # nsamps_max = 388958
+
+
 # Arrange data according to the model
     """
     if type(idx_unitsToTake) is int:     # If a single number is provided
@@ -232,17 +235,26 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     if len(fname_data_train_val_test_all)>1:
         idx_unitsToTake_all = []
+        mask_unitsToTake_all = []
         for d in range(len(fname_data_train_val_test_all)):
             rgb = np.arange(num_rgcs_all[d])
-            if rgb.shape[0]<max_rgcs:
+            num_rgcs_curr = rgb.shape[0]
+            if num_rgcs_curr<max_rgcs:
                 rgb = np.tile(rgb,10)
             
             idx_unitsToTake = rgb[:max_rgcs]
+            mask_unitsToTake = np.ones_like(idx_unitsToTake)
+            mask_unitsToTake[num_rgcs_curr:] = 0
+            # mask_unitsToTake = jnp.array(mask_unitsToTake)
             idx_unitsToTake_all.append(idx_unitsToTake)
+            mask_unitsToTake_all.append(mask_unitsToTake)
+
     else:   # The conventional approach
         idx_unitsToTake_all = [idx_unitsToTake]
+        mask_unitsToTake_all = np.ones((1,idx_unitsToTake.shape[0]))
 
-    
+    mask_unitsToTake_all = jnp.array(mask_unitsToTake_all)
+
     # Get unit names
     uname_unitsToTake = []
     for d in range(len(fname_data_train_val_test_all)):
@@ -566,14 +578,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         print('-----RUNNING MODEL-----')
         
         loss_currEpoch_master,loss_epoch_train,loss_epoch_val,mdl_state,weights_dense,fev_epoch_train,fev_epoch_val = maml.train_maml(mdl_state,weights_dense,config,\
-                                                                                      dataloader_train,dataloader_val,nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule,\
+                                                                                      dataloader_train,dataloader_val,mask_unitsToTake_all, nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule,\
                                                                                           approach=APPROACH)
         _ = gc.collect()
             
     t_elapsed = time.time()-t
     print('time elapsed: '+str(t_elapsed)+' seconds')
-    
-
 
 
     # %% Model Evaluation
