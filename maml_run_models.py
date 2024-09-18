@@ -195,8 +195,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         nsamps_alldsets_loaded.append(data_train.X.shape[0])
 
     nsamps_alldsets_loaded = np.asarray(nsamps_alldsets_loaded)
-    nsamps_max = nsamps_alldsets_loaded.max()
-    # nsamps_max = 388958
+    # nsamps_max = nsamps_alldsets_loaded.max()
+    nsamps_max = 388958
 
 
 # Arrange data according to the model
