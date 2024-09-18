@@ -147,7 +147,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         expDates = expDates[1:]
         
         fname_data_train_val_test_all = []
-        i=0
+        i=3
         for i in range(len(expDates)):
             name_datasetFile = expDates[i]+'_dataset_train_val_test_'+dataset_suffix+'.h5'
             fname_data_train_val_test_all.append(os.path.join(path_dataset_base,'datasets',name_datasetFile))
@@ -234,7 +234,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         for d in range(len(fname_data_train_val_test_all)):
             rgb = np.arange(num_rgcs_all[d])
             if rgb.shape[0]<max_rgcs:
-                rgb = np.tile(rgb,4)
+                rgb = np.tile(rgb,10)
             
             idx_unitsToTake = rgb[:max_rgcs]
             idx_unitsToTake_all.append(idx_unitsToTake)
