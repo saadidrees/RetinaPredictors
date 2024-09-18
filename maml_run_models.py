@@ -148,7 +148,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
         fname_data_train_val_test_all = []
         i=3
-        for i in range(len(expDates)):
+        for i in [4,5,6]: #range(len(expDates)):
             name_datasetFile = expDates[i]+'_dataset_train_val_test_'+dataset_suffix+'.h5'
             fname_data_train_val_test_all.append(os.path.join(path_dataset_base,'datasets',name_datasetFile))
 
@@ -171,6 +171,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             nsamps_alldsets.append(f['data_train']['X'].shape[0])
     nsamps_alldsets = np.asarray(nsamps_alldsets)
     nsamps_max = nsamps_alldsets.max()
+    nsamps_max = 388958
 
     
     for d in range(len(fname_data_train_val_test_all)):
@@ -274,7 +275,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     modelNames_3D = modelNames_all[1]
 
     # prepare data according to model. Roll and adjust dimensions according to 2D or 3D model
-    d=1
+    d=0
     for d in range(len(fname_data_train_val_test_all)):
         print(fname_data_train_val_test_all[d])
         data_train = dict_train[fname_data_train_val_test_all[d]]
@@ -369,6 +370,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     batch = next(iter(dataloader_train));a,b=batch
 
     
+    
     dset_details = []
     dset_names = []
     d=0
@@ -391,7 +393,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     # data_train = dataset_shuffle(data_train,n_train)
     
-    print('Training data duration: %0.2f mins'%(n_train*t_frame/1000/60))
+    print('Unique training data: %0.2f mins'%(nsamps_alldsets.sum()*t_frame/1000/60))
+    print('Total training data duration: %0.2f mins'%(n_train*t_frame/1000/60))
     
     bz = batch_size_train #math.ceil(bz_ms/t_frame)   # input batch size (bz_ms) is in ms. Convert into samples
     n_batches = len(dataloader_train)#np.ceil(len(data_train.X)/bz)
