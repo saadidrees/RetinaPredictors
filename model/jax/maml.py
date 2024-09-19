@@ -601,8 +601,8 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,ma
     
         data_val = next(iter(dataloader_val))
         batch_val = (data_val[0][idx_master],data_val[1][idx_master])
-        loss_batch_val,y_pred,y = eval_step(mdl_state_val,batch_val,mask_unitsToTake_all)
-        loss_batch_train_test,y_pred_train_test,y_train_test = eval_step(mdl_state_val,(batch_train[0][idx_master],batch_train[1][idx_master]),mask_unitsToTake_all)
+        loss_batch_val,y_pred,y = eval_step(mdl_state_val,batch_val,mask_unitsToTake_all[idx_master])
+        loss_batch_train_test,y_pred_train_test,y_train_test = eval_step(mdl_state_val,(batch_train[0][idx_master],batch_train[1][idx_master]),mask_unitsToTake_all[idx_master])
         
         loss_currEpoch_master = np.mean(loss_batch_train)
         loss_currEpoch_train = np.mean(loss_batch_train_test)
@@ -615,9 +615,9 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,ma
         
         temporal_width_eval = data_val[0][idx_master].shape[1]
         fev_val,_,predCorr_val,_ = model_evaluate_new(y,y_pred,temporal_width_eval,lag=0,obs_noise=0)
-        fev_val_med,predCorr_val_med = np.median(fev_val[mask_unitsToTake_all]),np.median(predCorr_val[[mask_unitsToTake_all]])
+        fev_val_med,predCorr_val_med = np.median(fev_val[mask_unitsToTake_all[idx_master]]),np.median(predCorr_val[mask_unitsToTake_all[idx_master]])
         fev_train,_,predCorr_train,_ = model_evaluate_new(y_train_test,y_pred_train_test,temporal_width_eval,lag=0,obs_noise=0)
-        fev_train_med,predCorr_train_med = np.median(fev_train[mask_unitsToTake_all]),np.median(predCorr_train[mask_unitsToTake_all])
+        fev_train_med,predCorr_train_med = np.median(fev_train[mask_unitsToTake_all[idx_master]]),np.median(predCorr_train[mask_unitsToTake_all[idx_master]])
         
         fev_epoch_train.append(fev_train_med)
         fev_epoch_val.append(fev_val_med)
