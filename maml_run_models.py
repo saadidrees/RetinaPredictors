@@ -198,7 +198,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # nsamps_max = nsamps_alldsets_loaded.max()
     nsamps_max = 388958
 
-
+# %
 # Arrange data according to the model
     """
     if type(idx_unitsToTake) is int:     # If a single number is provided
@@ -573,7 +573,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 # %% Train model MAML
     t_elapsed = 0
     t = time.time()
-        
+    approach=APPROACH
     if initial_epoch < nb_epochs:
         print('-----RUNNING MODEL-----')
         
@@ -589,10 +589,12 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # %% Model Evaluation
     
     # Select the testing dataset
-    d=1
+    d=2
 
-    for d in np.arange(1,len(dset_names)):   
+    for d in np.arange(0,len(dset_names)):   
         idx_dset = d
+        
+        n_cells = np.sum(mask_unitsToTake_all[idx_dset])
     
         nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
         val_loss_allEpochs = np.empty(nb_epochs)
@@ -641,8 +643,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             idx_natstim = [i for i,n in enumerate(rgb) if re.search(r'NATSTIM',n)]
             idx_cb = [i for i,n in enumerate(rgb) if re.search(r'CB',n)]
             
-        
-        
+        obs_noise = obs_noise[mask_unitsToTake_all[idx_dset]==1]
+        obs_rate_allStimTrials = obs_rate_allStimTrials[:,mask_unitsToTake_all[idx_dset]==1]
+
         samps_shift = 0 # number of samples to shift the response by. This was to correct some timestamp error in gregs data
       
         orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
@@ -674,7 +677,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                 mdl_state.params['Dense_0']['kernel'] = weights_kern
                 mdl_state.params['Dense_0']['bias'] = weights_bias
     
-                val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test)
+                val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test,mask_unitsToTake_all[idx_dset])
+                y = y[:,mask_unitsToTake_all[idx_dset]==1]
+                pred_rate = pred_rate[:,mask_unitsToTake_all[idx_dset]==1]
         
                 val_loss_allEpochs[i] = val_loss[0]
                 
@@ -685,7 +690,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
                 for j in range(num_iters):  # nunm_iters is 1 with my dataset. This was mainly for greg's data where we would randomly split the dataset to calculate performance metrics 
                     fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
-                    
+                
                 fev = np.mean(fev_loop,axis=0)
                 fracExVar = np.mean(fracExVar_loop,axis=0)
                 predCorr = np.mean(predCorr_loop,axis=0)
@@ -746,7 +751,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         mdl_state.params['Dense_0']['kernel'] = weights_kern
         mdl_state.params['Dense_0']['bias'] = weights_bias
     
-        val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test)
+        val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test,mask_unitsToTake_all[idx_dset])
         fname_bestWeight = np.array(weight_file,dtype='bytes')
         fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
     
@@ -767,10 +772,11 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
 # val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,(x_train,y_train))
-    _,pred_train,_ = maml.eval_step(mdl_state,(x_train,y_train))
+    _,pred_train,_ = maml.eval_step(mdl_state,(x_train,y_train),mask_unitsToTake_all[idx_dset])
+    pred_train = pred_train[:,mask_unitsToTake_all[idx_dset]==1]
     # _,pred_val,_ = train_model_jax.eval_step(mdl_state,(x_val,y_val))
-    _,pred_test,_ = maml.eval_step(mdl_state,(x_test,y_test))
-
+    _,pred_test,_ = maml.eval_step(mdl_state,(x_test,y_test),mask_unitsToTake_all[idx_dset])
+    pred_test = pred_test[:,mask_unitsToTake_all[idx_dset]==1]
     
     # for i in range(100):
     u = 75  #33# 110 #75
