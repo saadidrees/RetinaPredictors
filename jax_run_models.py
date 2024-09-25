@@ -25,7 +25,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,lrscheduler='constant',
                             USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
-                            select_rgctype='',USE_WANDB=0,
+                            select_rgctype='',USE_WANDB=0,APPROACH='seqiential',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 # %% prepare data
