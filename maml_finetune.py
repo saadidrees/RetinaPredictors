@@ -12,9 +12,8 @@ Created on Wed Aug 21 14:11:47 2024
 from model.parser import parser_finetune
 
 
-def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,ft_fname_data_train_val_test,ft_mdl_name,\
-                 ft_trainingSamps_dur=-1,validationSamps_dur=0.5,testSamps_dur=0.5,\
-                 ft_nb_epochs_A=2,ft_nb_epochs_B=18,ft_lr_A=0.1,ft_lr_B=0.1,batch_size=256,job_id=0,saveToCSV=1):
+def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,ft_fname_data_train_val_test,ft_mdl_name,
+                 ft_trainingSamps_dur=-1,validationSamps_dur=0.5,testSamps_dur=0.5,ft_nb_epochs_A=2,ft_nb_epochs_B=18,ft_lr_A=0.1,ft_lr_B=0.1,batch_size=256,job_id=0,saveToCSV=1):
 
 # %%
     import numpy as np
