@@ -732,7 +732,7 @@ def ft_eval_step(state,fixed_params,data,n_batches=1e5):
     return loss,y_pred,y
 
 
-def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs,path_model_save,save=True,ft_lr_schedule=None,step_start=0):
+def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs,path_model_save,save=True,ft_lr_schedule=None,epoch_start=0):
     # loss_fn = optax.losses.kl_divergence
     n_batches = np.ceil(len(ft_data_train.X)/batch_size)
 
@@ -759,11 +759,16 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
     fev_epoch_train = []
     fev_epoch_val = []
     fev_epoch_test = []
+    
+    corr_epoch_train = []
+    corr_epoch_val = []
+    corr_epoch_test = []
+    
     lr_epoch = []
     lr_step = []
 
     epoch=0
-    epoch_start=0
+    # epoch_start=0
     step=0
     # batch_train = next(iter(dataloader_train))
     for epoch in tqdm(range(epoch_start,ft_nb_epochs)):
@@ -795,26 +800,29 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         lr_epoch.append(current_lr)
         
         temporal_width_eval = ft_data_train.X[0].shape[0]
-        fev_val,_,predCorr_val,_ = model_evaluate_new(y,y_pred,temporal_width_eval,lag=0,obs_noise=obs_noise)
-        fev_val_med,predCorr_val_med = np.median(fev_val),np.median(predCorr_val)
-        fev_test,_,predCorr_test,_ = model_evaluate_new(y_test,y_pred_test,temporal_width_eval,lag=0,obs_noise=obs_noise)
-        fev_test_med,predCorr_test_med = np.median(fev_test),np.median(predCorr_test)
-        fev_train,_,predCorr_train,_ = model_evaluate_new(y_train_test,y_pred_train_test,temporal_width_eval,lag=0,obs_noise=obs_noise)
-        fev_train_med,predCorr_train_med = np.median(fev_train),np.median(predCorr_train)
+        fev_val,_,corr_val,_ = model_evaluate_new(y,y_pred,temporal_width_eval,lag=0,obs_noise=obs_noise)
+        fev_val_med,corr_val_med = np.median(fev_val),np.median(corr_val)
+        fev_test,_,corr_test,_ = model_evaluate_new(y_test,y_pred_test,temporal_width_eval,lag=0,obs_noise=obs_noise)
+        fev_test_med,corr_test_med = np.median(fev_test),np.median(corr_test)
+        fev_train,_,corr_train,_ = model_evaluate_new(y_train_test,y_pred_train_test,temporal_width_eval,lag=0,obs_noise=obs_noise)
+        fev_train_med,corr_train_med = np.median(fev_train),np.median(corr_train)
 
         fev_epoch_train.append(fev_train_med)
         fev_epoch_val.append(fev_val_med)
         fev_epoch_test.append(fev_test_med)
-
+        
+        corr_epoch_train.append(corr_train_med)
+        corr_epoch_val.append(corr_val_med)
+        corr_epoch_test.append(corr_test_med)
 
         print('Epoch: %d, train_loss: %.2f, fev: %.2f, corr: %.2f || val_loss: %.2f, fev: %.2f, corr: %.2f || lr: %.2e'\
-              %(epoch+1,loss_currEpoch_train,fev_train_med,predCorr_train_med,loss_currEpoch_val,fev_val_med,predCorr_val_med,current_lr))
+              %(epoch+1,loss_currEpoch_train,fev_train_med,corr_train_med,loss_currEpoch_val,fev_val_med,corr_val_med,current_lr))
 
-        fig,axs = plt.subplots(2,1,figsize=(20,10));axs=np.ravel(axs);fig.suptitle('Finetuning | Epoch: %d'%(epoch+1))
-        axs[0].plot(y_train_test[:200,10]);axs[0].plot(y_pred_train_test[:200,10]);axs[0].set_title('Train')
-        axs[1].plot(y[:,10]);axs[1].plot(y_pred[:,10]);axs[1].set_title('Validation')
-        plt.show()
-        plt.close()
+        # fig,axs = plt.subplots(2,1,figsize=(20,10));axs=np.ravel(axs);fig.suptitle('Finetuning | Epoch: %d'%(epoch+1))
+        # axs[0].plot(y_train_test[:200,10]);axs[0].plot(y_pred_train_test[:200,10]);axs[0].set_title('Train')
+        # axs[1].plot(y[:,10]);axs[1].plot(y_pred[:,10]);axs[1].set_title('Validation')
+        # plt.show()
+        # plt.close()
         
         weights_all = {**ft_params_fixed,**ft_mdl_state.params}
         weights_dense = (weights_all['Dense_0']['kernel'],weights_all['Dense_0']['bias'])
@@ -822,7 +830,7 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
             fname_cp = os.path.join(path_model_save,'epoch-%03d'%epoch)
             save_epoch(ft_mdl_state,config,weights_dense,fname_cp)
             
-    return loss_epoch_train,loss_epoch_val,ft_mdl_state,fev_epoch_train,fev_epoch_val,fev_epoch_test,lr_epoch,lr_step
+    return loss_epoch_train,loss_epoch_val,ft_mdl_state,fev_epoch_train,corr_epoch_train,fev_epoch_val,corr_epoch_val,fev_epoch_test,corr_epoch_test,lr_epoch,lr_step
 
 
 # %% Recycle
