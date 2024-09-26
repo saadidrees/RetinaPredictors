@@ -67,12 +67,13 @@ def parser_run_model():
 def parser_finetune():
     parser = argparse.ArgumentParser()
     
+    parser.add_argument('ft_expDate',type=str)
     parser.add_argument('pretrained_expDates',type=str)
     parser.add_argument('path_model_base',type=str)
     parser.add_argument('path_pretrained',type=str)
-    parser.add_argument('ft_expDate',type=str)
     parser.add_argument('ft_fname_data_train_val_test',type=str)
     parser.add_argument('ft_mdl_name',type=str)
+    parser.add_argument('--batch_size',type=int,default=256)
     parser.add_argument('--ft_trainingSamps_dur',type=int,default=0)
     parser.add_argument('--validationSamps_dur',type=str2int,default=0.5)
     parser.add_argument('--testSamps_dur',type=str2int,default=0.5)

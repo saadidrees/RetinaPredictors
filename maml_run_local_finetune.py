@@ -83,8 +83,8 @@ path_pretrained = os.path.join(path_model_base,mdl_name,fname_model+'/')
 
 ft_fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',ft_expDate+'_dataset_train_val_test_'+dataset+'.h5')
 
-mdl_performance = run_finetune(pretrained_expDates,path_model_base,path_pretrained,ft_expDate,ft_fname_data_train_val_test,ft_mdl_name,
+mdl_performance = run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,ft_fname_data_train_val_test,ft_mdl_name,
                     ft_trainingSamps_dur=ft_trainingSamps_dur,validationSamps_dur=validationSamps_dur,testSamps_dur=testSamps_dur,
-                    ft_nb_epochs_A=ft_nb_epochs_A,ft_nb_epochs_B=ft_nb_epochs_B,ft_lr_A=ft_lr_A,ft_lr_B=ft_lr_B)
+                    ft_nb_epochs_A=ft_nb_epochs_A,ft_nb_epochs_B=ft_nb_epochs_B,ft_lr_A=ft_lr_A,ft_lr_B=ft_lr_B,batch_size=batch_size)
 
     
