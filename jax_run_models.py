@@ -640,7 +640,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     if 't_elapsed' not in locals():
         t_elapsed = np.nan
         
-    fname_save_performance = os.path.join(path_save_model_performance,(expFold+'_'+fname_model+'.h5'))
+    fname_save_performance = os.path.join(path_save_model_performance,(expFold+'_'+fname_model+'.pkl'))
 
     print('-----SAVING PERFORMANCE STUFF TO PKL-----')
     
@@ -713,22 +713,22 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         for k in data_info:
             stim_info[k] = data_info[k]
     
-    datasets_val = {
-        'data_val_X': data_val.X,
-        'data_val_y': data_val.y,
-        'data_test_X': data_test.X,
-        'data_test_y': data_test.y,
-        }
+    # datasets_val = {
+    #     'data_val_X': data_val.X,
+    #     'data_val_y': data_val.y,
+    #     'data_test_X': data_test.X,
+    #     'data_test_y': data_test.y,
+    #     }
     
     
-    dataset_pred = {
-        'obs_rate':  data_test.y,   # the actual data
-        'pred_rate': pred_rate,
-        }
+    # dataset_pred = {
+    #     'obs_rate':  data_test.y,   # the actual data
+    #     'pred_rate': pred_rate,
+    #     }
 
     dataset_rr = None
     with open(fname_save_performance, 'wb') as f:       # Save model architecture
-        cloudpickle.dump([fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred], f)
+        cloudpickle.dump([fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr], f)
 
     # save_modelPerformance(fname_save_performance,fname_model,metaInfo,data_quality,model_performance,model_params,stim_info,dataset_rr,datasets_val,dataset_pred)   # It would really help to have a universal h5 writing function
 
