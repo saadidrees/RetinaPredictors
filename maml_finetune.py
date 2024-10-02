@@ -308,10 +308,10 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
         'expDate':ft_expDate,
         'ft_mdl_name': ft_mdl_name,
         
-        'ft_fev_val_medianUnits_allEpochs': fev_epoch_val,
-        'ft_fev_test_medianUnits_allEpochs': fev_epoch_test,
-        'ft_corr_val_medianUnits_allEpochs': corr_epoch_val,
-        'ft_corr_test_medianUnits_allEpochs': corr_epoch_test,
+        'ft_fev_val_allUnits_allEpochs': np.asarray(fev_epoch_val),
+        'ft_fev_test_allUnits_allEpochs': np.asarray(fev_epoch_test),
+        'ft_corr_val_allUnits_allEpochs': np.asarray(corr_epoch_val),
+        'ft_corr_test_allUnits_allEpochs': np.asarray(corr_epoch_test),
    
         'ft_fev_val_allUnits_lastEpoch': ft_fev_val,
         'ft_fev_test_allUnits_lastEpoch': ft_fev_test,
@@ -322,7 +322,6 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
         'ft_epochs':len(fev_epoch_val),
         
         'lr_schedule': np.concatenate((rgb_lrs_A,rgb_lrs_B),axis=0)
-        
         }
         
     meta_info = {

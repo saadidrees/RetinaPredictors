@@ -712,9 +712,11 @@ def ft_eval_step(state,fixed_params,data,n_batches=1e5):
         return loss,y_pred,y
     
     else:       # if the data is in dataloader format
-        rgb = {**fixed_params,**state.params}
-        y_pred = jnp.empty((0,len(rgb['Dense_0']['bias'])))
-        y = jnp.empty((0,len(rgb['Dense_0']['bias'])))
+        # rgb = {**fixed_params,**state.params}
+        _,y_batch = next(iter(data))
+        n_units = y_batch.shape[-1]
+        y_pred = jnp.empty((0,n_units))
+        y = jnp.empty((0,n_units))
         loss = []
         count_batch = 0
         for batch in data:
@@ -808,12 +810,18 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         fev_train_med,corr_train_med = np.median(fev_train),np.median(corr_train)
 
         fev_epoch_train.append(fev_train_med)
-        fev_epoch_val.append(fev_val_med)
-        fev_epoch_test.append(fev_test_med)
+        # fev_epoch_val.append(fev_val_med)
+        # fev_epoch_test.append(fev_test_med)
+        fev_epoch_val.append(fev_val)
+        fev_epoch_test.append(fev_test)
+
         
         corr_epoch_train.append(corr_train_med)
-        corr_epoch_val.append(corr_val_med)
-        corr_epoch_test.append(corr_test_med)
+        # corr_epoch_val.append(corr_val_med)
+        # corr_epoch_test.append(corr_test_med)
+        corr_epoch_val.append(corr_val)
+        corr_epoch_test.append(corr_test)
+
 
         print('Epoch: %d, train_loss: %.2f, fev: %.2f, corr: %.2f || val_loss: %.2f, fev: %.2f, corr: %.2f || lr: %.2e'\
               %(epoch+1,loss_currEpoch_train,fev_train_med,corr_train_med,loss_currEpoch_val,fev_val_med,corr_val_med,current_lr))
