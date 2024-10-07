@@ -166,11 +166,14 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     unames_allDsets = []
     
     nsamps_alldsets = []
+    nrgcs_alldsets = []
     for d in range(len(fname_data_train_val_test_all)):
         with h5py.File(fname_data_train_val_test_all[d]) as f:
             nsamps_alldsets.append(f['data_train']['X'].shape[0])
+            nrgcs_alldsets.append(f['data_train']['y'].shape[1])
     nsamps_alldsets = np.asarray(nsamps_alldsets)
-    
+    nrgcs_alldsets = np.asarray(nrgcs_alldsets)
+
     nsamps_alldsets_loaded = []
     for d in range(len(fname_data_train_val_test_all)):
         print('Loading dataset %d of %d'%(d+1,len(fname_data_train_val_test_all)))
@@ -632,10 +635,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             num_iters = 10
         else:
             obs_rate_allStimTrials = data_test.y
-            if 'var_noise' in data_quality:
-                obs_noise = data_quality['var_noise'][idx_unitsToTake]
-            else:
-                obs_noise = 0
+            # if 'var_noise' in data_quality:
+                # obs_noise = data_quality['var_noise']
+            # else:
+            obs_noise = np.zeros((mask_unitsToTake_all[idx_dset]==1).sum())
             num_iters = 1
         
         if isintuple(data_test,'dset_names'):
@@ -643,7 +646,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             idx_natstim = [i for i,n in enumerate(rgb) if re.search(r'NATSTIM',n)]
             idx_cb = [i for i,n in enumerate(rgb) if re.search(r'CB',n)]
             
-        obs_noise = obs_noise[mask_unitsToTake_all[idx_dset]==1]
+        # if obs_noise.shape[0] == mask_unitsToTake_all[idx_dset].shape[0]:
+        # obs_noise = obs_noise[mask_unitsToTake_all[idx_dset]==1]
         obs_rate_allStimTrials = obs_rate_allStimTrials[:,mask_unitsToTake_all[idx_dset]==1]
 
         samps_shift = 0 # number of samples to shift the response by. This was to correct some timestamp error in gregs data
@@ -657,7 +661,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
         print('-----EVALUATING PERFORMANCE-----')
-        i=83
+        i=33
         for i in range(0,nb_epochs):
             print('evaluating epoch %d of %d'%(i,nb_epochs))
             # weight_file = 'weights_'+fname_model+'_epoch-%03d.h5' % (i+1)
@@ -711,9 +715,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                 rrCorr_allUnits_allEpochs[i,:] = rrCorr
                 rrCorr_medianUnits_allEpochs[i] = np.nanmedian(rrCorr)
                 
-        
                 _ = gc.collect()
-        
         
         fig,axs = plt.subplots(1,1,figsize=(7,5)); axs.plot(fev_medianUnits_allEpochs)
         axs.set_xlabel('Epochs');axs.set_ylabel('FEV'); fig.suptitle(dset_names[idx_dset] + ' | '+str(dict_params['nout'])+' RGCs')

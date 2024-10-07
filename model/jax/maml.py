@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Aug 13 14:28:36 2024
-
-@author: Saad Idrees idrees.sa@gmail.com
-         jZ Lab, York University
-"""
 
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
@@ -49,7 +41,6 @@ import re
 
 # class TrainState(train_state.TrainState):
 #     batch_stats: flax.core.FrozenDict
-
 @jax.jit
 def append_dicts(dict1, dict2):
     result = {}
@@ -295,6 +286,101 @@ def train_step_maml_summed(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all
     kern_all,bias_all = weights_dense
     
     local_losses,local_y_preds,local_mdl_states,local_grads_all,local_kerns,local_biases = jax.vmap(Partial(maml_grads,\
+                                                                                                              mdl_state,global_params))\
+                                                                                                              (train_x,train_y,kern_all,bias_all,mask_unitsToTake_all)
+                  
+    local_losses_summed = jnp.sum(local_losses)
+    local_grads_summed = jax.tree_map(lambda g: jnp.sum(g,axis=0), local_grads_all)
+    
+    
+    weights_dense = (local_kerns,local_biases)
+    
+    mdl_state = mdl_state.apply_gradients(grads=local_grads_summed)
+    
+           
+    # print(local_losses_summed)   
+        
+    
+    """
+    for key in local_grads_summed.keys():
+        try:
+            print('%s kernel: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['kernel']))))
+        except:
+            print('%s bias: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['bias']))))
+    
+    """
+
+    return local_losses_summed,mdl_state,weights_dense,local_grads_summed
+
+
+@jax.jit
+def train_step_metal(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):
+    """
+    State is the grand model state that actually gets updated
+    state_task is the "state" after gradients are applied for a specific task
+        task_idx = 1
+        kern = kern_all[task_idx]
+        bias = bias_all[task_idx]
+        train_x = train_x[task_idx]
+        train_y = train_y[task_idx]
+        mask_output = mask_unitsToTake_all[task_idx]
+
+    """
+
+    @jax.jit
+    def metal_grads(mdl_state,global_params,train_x,train_y,kern,bias,mask_output):
+
+        # Split the batch into inner and outer training sets
+        # PARAMETERIZE this
+        frac_train = 0.5
+        len_data = train_x.shape[0]
+        len_train = int(len_data*frac_train)
+        batch_train = (train_x[:len_train],train_y[:len_train])
+        batch_val = (train_x[len_train:],train_y[len_train:])
+
+        # Make local model by using global params but local dense layer weights
+        local_params = global_params
+        kern = kern*mask_output[None,:]
+        bias = bias*mask_output
+        local_params['Dense_0']['kernel'] = kern
+        local_params['Dense_0']['bias'] = bias
+        local_mdl_state = mdl_state.replace(params=local_params)
+
+        # Calculate gradients of the local model wrt to local params    
+        grad_fn = jax.value_and_grad(task_loss,argnums=1,has_aux=True)
+        (local_loss_train,y_pred_train),local_grads = grad_fn(local_mdl_state,local_params,batch_train,mask_output)
+        
+        # scale the local gradients according to ADAM's first step. Helps to stabilize
+        # And update the parameters
+        local_params = jax.tree_map(lambda p, g: p - lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads)
+
+        # Calculate gradients of the loss of the resulting local model but using the validation set
+        # local_mdl_state = mdl_state.replace(params=local_params)
+        (local_loss_val,y_pred_val),local_grads_val = grad_fn(local_mdl_state,local_params,batch_val,mask_output)
+        
+        # Update only the Dense layer weights since we retain it
+        local_params_val = jax.tree_map(lambda p, g: p - lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads_val)
+        
+        local_grads_total = jax.tree_map(lambda g_1, g_2: g_1+g_2, local_grads,local_grads_val)
+        
+        # Normalize the grads to unit vector
+        local_grads_total = jax.tree_map(lambda g: g/jnp.linalg.norm(g), local_grads_total)
+
+
+        # Record dense layer weights
+        kern = local_params_val['Dense_0']['kernel']
+        bias = local_params_val['Dense_0']['bias']
+        
+        return local_loss_val,y_pred_val,local_mdl_state,local_grads_total,kern,bias
+    
+    
+    
+    global_params = mdl_state.params
+    
+    train_x,train_y = batch
+    kern_all,bias_all = weights_dense
+    
+    local_losses,local_y_preds,local_mdl_states,local_grads_all,local_kerns,local_biases = jax.vmap(Partial(metal_grads,\
                                                                                                               mdl_state,global_params))\
                                                                                                               (train_x,train_y,kern_all,bias_all,mask_unitsToTake_all)
                   
@@ -580,7 +666,9 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,ma
             elif approach == 'maml_summed':
                 loss,mdl_state,weights_dense,grads = train_step_maml_summed(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
                 
-   
+            elif approach == 'metal':
+                loss,mdl_state,weights_dense,grads = train_step_metal(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
+
             elif approach == 'sequential':
                 loss,mdl_state,weights_dense,grads = train_step_sequential(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
             else:
