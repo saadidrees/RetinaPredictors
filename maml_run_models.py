@@ -754,6 +754,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         mdl_state.params['Dense_0']['bias'] = weights_bias
     
         val_loss,pred_rate,y = maml.eval_step(mdl_state,dataloader_test,mask_unitsToTake_all[idx_dset])
+        pred_rate = pred_rate[:,mask_unitsToTake_all[idx_dset]==1]
         fname_bestWeight = np.array(weight_file,dtype='bytes')
         fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
     

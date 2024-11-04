@@ -7,7 +7,6 @@ Created on Wed Aug 21 14:11:47 2024
          jZ Lab, York University
 """
 
-
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -20,9 +19,6 @@ import glob
 import cloudpickle
 import h5py
 from model.performance import getModelParams
-
-
-
 
 from model.data_handler import prepare_data_cnn2d
 from model.data_handler_mike import load_h5Dataset
@@ -64,11 +60,12 @@ base = '/home/saad/data/'
 data_pers = 'ej'
 # pretrained_expDates = ('2018-03-01-4','2018-03-01-0','2018-02-09-5','2007-08-21-5','2008-03-25-4','2012-04-13-0','2013-01-23-6',
 #            '2015-09-23-7','2016-02-17-1','2016-02-17-6','2016-02-17-8','2016-06-13-1','2018-02-06-4')
-pretrained_expDates = ('trainList_20240905a',)
+pretrained_expDates = ('trainList_20240918a',)
 #('2018-03-01-4','2018-03-01-0','2018-02-09-3')
-ft_expDate = '2015-10-29-2' # '2018-02-06-4' #'2018-02-09-5' # '2018-02-09-5
-expFold = 'maml'
-subFold = '' 
+ft_natstim_id = 8 #2,3,4,6,7,8
+ft_expDate = 'NATSTIM'+str(ft_natstim_id)   #2,3,4,6,7,8
+expFold = 'maml_summed' #'maml_summed'
+subFold = 'cluster' 
 dataset = 'CB_mesopic_f4_8ms_sig-4'
 idx_unitsToTake = 0
 select_rgctype=0
@@ -87,11 +84,11 @@ for i in range(len(pretrained_expDates)):
     dataset_nameForPaths = dataset_nameForPaths+pretrained_expDates[i]+'+'
 dataset_nameForPaths = dataset_nameForPaths[:-1]
 
-path_model_base = os.path.join(base,'analyses/data_'+data_pers+'/',expFold,subFold,'models',dataset_nameForPaths,mdl_subFold)
+path_model_base = os.path.join(base,'analyses/data_'+data_pers+'/','models',subFold,expFold,dataset_nameForPaths,mdl_subFold)
 path_dataset_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/')
 
 # Pre-trained model params
-U = 206
+U = 474
 lr_pretrained = 0.001
 temporal_width=80
 chan1_n=32; filt1_size=3
@@ -110,17 +107,21 @@ fname_model,dict_params = model.utils_si.modelFileName(U=U,P=0,T=temporal_width,
 path_pretrained = os.path.join(path_model_base,mdl_name,fname_model+'/')
 
 # ft_fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',ft_expDate+'_dataset_train_val_test_'+dataset+'.h5')
-ft_fname_data_train_val_test = os.path.join('/home/saad/postdoc_db/analyses/data_mike/20230725C/datasets/20230725C_dataset_train_val_test_NATSTIM3_CORR_mesopic-Rstar_spatResamp_f4_8ms.h5')
+ft_fname_data_train_val_test = os.path.join('/home/saad/postdoc_db/analyses/data_mike/20230725C/datasets/20230725C_dataset_train_val_test_NATSTIM'+str(ft_natstim_id)+'_CORR_mesopic-Rstar_spatResamp_f4_8ms.h5')
 
 
 # % Paramas of pretrained model
 pretrained_params = getModelParams(path_pretrained)
 lr = pretrained_params['LR']
 
+ft_path_model_save = os.path.join(path_model_base,'finetuning_%s'%ft_expDate)
+if not os.path.exists(ft_path_model_save):
+    os.makedirs(ft_path_model_save)
 
 # %% Finetuning Data load
 
 ft_trainingSamps_dur = -1
+
 
 d=0
 ft_dict_train = {}
@@ -173,7 +174,7 @@ ft_dict_test[ft_fname_data_train_val_test_all] = ft_data_test
 ft_dict_val[ft_fname_data_train_val_test_all] = ft_data_val
    
 # Shuffle just the training dataset
-ft_dict_train = dataloaders.shuffle_dataset(ft_dict_train)    
+# ft_dict_train = dataloaders.shuffle_dataset(ft_dict_train)    
 
 print('Finetuning training data duration: %0.2f mins'%(len(ft_data_train.X)*t_frame/1000/60))
 
@@ -215,6 +216,7 @@ weight_fold = 'epoch-%03d' % (idx_lastEpoch)  # 'file_name_{}_{:.03f}.png'.forma
 weight_file = os.path.join(path_pretrained,weight_fold)
 weights_dense_file = os.path.join(path_pretrained,weight_fold,'weights_dense.h5')
 raw_restored = orbax_checkpointer.restore(weight_file)
+print(weight_file)
 
 
 with open(os.path.join(path_pretrained,'model_architecture.pkl'), 'rb') as f:
@@ -243,22 +245,24 @@ RetinaDataset_val_val = dataloaders.RetinaDataset(ft_data_val.X,ft_data_val.y,tr
 dataloader_val_val = DataLoader(RetinaDataset_val_val,batch_size=batch_size,collate_fn=dataloaders.jnp_collate,shuffle=False)
 
 
-ft_nb_epochs_A = 1
+ft_nb_epochs_A = 2
 n_batches = np.ceil(len(ft_data_train.X)/batch_size).astype('int')
 
 
-max_lr = 0.05 #0.01
-
-
+max_lr = 0.01# 0.001 #0.01 (NATSTIM2-->2:0.1 | NATSTIM3-->1:0.07| NATSTIM4-->1:0.01 | NATSTIM6-->1:0.1 | NATSTIM7-->1:0.001
+# ft_lr_schedule_A = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*1,decay_rate=0.25,staircase=True,transition_begin=0)
 ft_lr_schedule_A = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*1,decay_rate=0.25,staircase=True,transition_begin=0)
 
+ft_nb_epochs_B=10
+ft_lr_schedule_B = optax.constant_schedule(1e-5)        # NATSTIM 2-->10:3e-2(exp), NATSTIM 3: 10|0.05  NATSTIM 4: 10|0.05 | NATSTIM 6-->10:3e-2 | NATSTIM7-->0.1
+# ft_lr_schedule_B = optax.exponential_decay(init_value=0.1,transition_steps=n_batches*2,decay_rate=0.90,staircase=True,transition_begin=0)
 
 
 
 epochs = np.arange(0,ft_nb_epochs_A)
 epochs_steps = np.arange(0,ft_nb_epochs_A*n_batches,n_batches)
-rgb_lrs = [ft_lr_schedule_A(i) for i in epochs_steps]
-plt.plot(epochs,rgb_lrs);plt.show()
+rgb_lrs_A = [ft_lr_schedule_A(i) for i in epochs_steps]
+plt.plot(epochs,rgb_lrs_A);plt.show()
 
 
 layers_finetune = ('Dense_0','LayerNorm_4','LayerNorm_IN') #
@@ -268,7 +272,8 @@ ft_params_fixed,ft_params_trainable = maml.split_dict(mdl_state.params,layers_fi
 
 
 # model_func = getattr(models_jax,mdl_name)
-model_func = getattr(models_jax,'CNN2D_FT')
+ft_mdl_name = 'CNN2D_FT'
+model_func = getattr(models_jax,ft_mdl_name)
 ft_mdl = model_func
 ft_mdl_state,ft_mdl,ft_config = maml.initialize_model(ft_mdl,ft_model_params,inp_shape,lr,save_model=True,lr_schedule=ft_lr_schedule_A)
 models_jax.model_summary(ft_mdl,inp_shape,console_kwargs={'width':180})
@@ -307,9 +312,6 @@ ft_mdl_state = maml.TrainState.create(
 
 
 
-ft_path_model_save = os.path.join(path_pretrained,'finetuning_%s'%ft_dset_name)
-if not os.path.exists(ft_path_model_save):
-    os.makedirs(ft_path_model_save)
 
 
 
@@ -322,30 +324,28 @@ fev_epoch_test = []
 
 
 # Train FC
-ft_loss_epoch_train_A,ft_loss_epoch_val_A,ft_mdl_state,fev_epoch_train_A,fev_epoch_val_A,fev_epoch_test_A,lr_epoch,lr_step = maml.ft_train(
+ft_loss_epoch_train_A,ft_loss_epoch_val_A,ft_mdl_state,fev_epoch_train_A,corr_epoch_train_A,fev_epoch_val_A,corr_epoch_val_A,fev_epoch_test_A,corr_epoch_test_A,lr_epoch,lr_step = maml.ft_train(
     ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_A,ft_path_model_save,save=True,ft_lr_schedule=ft_lr_schedule_A)
 
-
+#
 
 
 # Train remaining layers
-ft_nb_epochs_B=4
 
 
 ft_params_trainable = ft_params_fixed
 ft_params_fixed = ft_mdl_state.params
-# ft_lr_schedule_B = optax.constant_schedule(1e-2)
 # n_warmup = 1
 # warmup_schedule = optax.linear_schedule(init_value=1e-4,end_value=1e-2,transition_steps=n_batches*n_warmup)
 # decay_schedule = optax.exponential_decay(init_value=1e-2,transition_steps=n_batches*1,decay_rate=0.5,staircase=True,transition_begin=0)
 # ft_lr_schedule_B = optax.join_schedules(schedules=[warmup_schedule,decay_schedule],boundaries=[n_batches*n_warmup])
-ft_lr_schedule_B = optax.exponential_decay(init_value=1e-2,transition_steps=n_batches*3,decay_rate=0.75,staircase=True,transition_begin=0)
+# ft_lr_schedule_B = optax.exponential_decay(init_value=5e-2,transition_steps=n_batches*2,decay_rate=0.90,staircase=True,transition_begin=0)
 
 
 epochs = np.arange(0,ft_nb_epochs_B)
 epochs_steps = np.arange(0,ft_nb_epochs_B*n_batches,n_batches)
-rgb_lrs = [ft_lr_schedule_B(i) for i in epochs_steps]
-plt.plot(epochs,rgb_lrs);plt.show()
+rgb_lrs_B = [ft_lr_schedule_B(i) for i in epochs_steps]
+plt.plot(epochs,rgb_lrs_B);plt.show()
 
 
 optimizer = optax.adam(learning_rate=ft_lr_schedule_B) #,weight_decay=1e-4)
@@ -357,7 +357,7 @@ ft_mdl_state = maml.TrainState.create(
 
 
 
-ft_loss_epoch_train_B,ft_loss_epoch_val_B,ft_mdl_state,fev_epoch_train_B,fev_epoch_val_B,fev_epoch_test_B,lr_epoch,lr_step = maml.ft_train(
+ft_loss_epoch_train_B,ft_loss_epoch_val_B,ft_mdl_state,fev_epoch_train_B,corr_epoch_train_B,fev_epoch_val_B,corr_epoch_val_B,fev_epoch_test_B,corr_epoch_test_B,lr_epoch,lr_step = maml.ft_train(
     ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_B,ft_path_model_save,save=True,ft_lr_schedule=ft_lr_schedule_B)
 
 
@@ -369,33 +369,66 @@ fev_epoch_train = fev_epoch_train_A+fev_epoch_train_B
 fev_epoch_val = fev_epoch_val_A+fev_epoch_val_B
 fev_epoch_test = fev_epoch_test_A+fev_epoch_test_B
 
+corr_epoch_train = corr_epoch_train_A+corr_epoch_train_B
+corr_epoch_val = corr_epoch_val_A+corr_epoch_val_B
+corr_epoch_test = corr_epoch_test_A+corr_epoch_test_B
 
+
+fev_epoch_val = np.asarray(fev_epoch_val)
+fev_epoch_val_medUnits = np.nanmedian(fev_epoch_val,axis=-1)
+
+idx_bestEpoch = np.nanargmax(fev_epoch_val_medUnits)
+# with open(os.path.join(ft_path_model_save,'model_architecture.pkl'), 'rb') as f:
+#     mdl,config = cloudpickle.load(f)
+
+fname_latestWeights = os.path.join(ft_path_model_save,'epoch-%03d' % (idx_bestEpoch-1))
+
+orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+raw_restored = orbax_checkpointer.restore(fname_latestWeights)
+ft_mdl_state = train_model_jax.load(ft_mdl,raw_restored['model'],lr)
 
 
 ft_val_loss,pred_rate_val,y_val = maml.ft_eval_step(ft_mdl_state,ft_params_fixed,dataloader_val_val)
-fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(y_val,pred_rate_val,temporal_width,lag=int(0),obs_noise=obs_noise)
+ft_fev_val, fracExVar_val, ft_corr_val, rrCorr_val = model_evaluate_new(y_val,pred_rate_val,temporal_width,lag=int(0),obs_noise=obs_noise)
 
+ft_fev_val_medianUnits = np.nanmedian(ft_fev_val)
+print(ft_fev_val_medianUnits)
 
-ft_test_loss,pred_rate_test,y_test = maml.ft_eval_step(ft_mdl_state,ft_params_fixed,dataloader_test)
-fev_test, fracExVar_val, predCorr_test, rrCorr_test = model_evaluate_new(y_test,pred_rate_test,temporal_width,lag=int(0),obs_noise=obs_noise)
-
-
-
-
-ft_fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(y_val,pred_rate_val,temporal_width,lag=0,obs_noise=obs_noise)
-
-
-
-
-print(np.median(ft_fev_val))
-
-
-plt.plot(fev_epoch_val);#plt.plot(fev_epoch_test)        
-
-
-fig,axs = plt.subplots(1,1,figsize=(7,5)); axs.plot(fev_epoch_val)
+fig,axs = plt.subplots(1,1,figsize=(7,5)); axs.plot(fev_epoch_val_medUnits)
 axs.set_xlabel('Epochs');axs.set_ylabel('FEV'); fig.suptitle(ft_expDate + ' | '+str(ft_model_params['nout'])+' RGCs')
 axs.set_xticks(np.arange(0,ft_nb_epochs_A+ft_nb_epochs_B))
+
+
+performance_finetuning = {
+    'expDate':ft_expDate,
+    'ft_mdl_name': ft_mdl_name,
+    
+    'ft_fev_val_medianUnits_allEpochs': fev_epoch_val,
+    'ft_corr_val_medianUnits_allEpochs': corr_epoch_val,
+   
+    'ft_fev_val_allUnits_lastEpoch': ft_fev_val,
+
+    'ft_predCorr_val_allUnits_lastEpoch': ft_corr_val,
+    
+    'ft_epochs':len(fev_epoch_val),
+    
+    'lr_schedule': np.concatenate((rgb_lrs_A,rgb_lrs_B),axis=0),
+    'idx_bestEpoch': idx_bestEpoch
+    
+    }
+    
+meta_info = {
+    'pretrained_expDates' : pretrained_expDates,
+    'pretrained_mdl': path_pretrained,
+    'n_rgcs': ft_data_test.y.shape[-1]
+    }
+    
+fname_save_performance = os.path.join(ft_path_model_save,'perf_finetuning.pkl')
+
+with open(fname_save_performance, 'wb') as f:       # Save model architecture
+    cloudpickle.dump([performance_finetuning,meta_info], f)
+
+
 
 
 # %% FineTune - 2 STEP - ALL
@@ -435,7 +468,6 @@ ft_nb_epochs_A = 2 #2
 n_batches = np.ceil(len(ft_data_train.X)/batch_size).astype('int')
 
 max_lr = 0.05 #0.05 #0.01
-
 ft_lr_schedule_A = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*1,decay_rate=0.25,staircase=True,transition_begin=0)
 
 

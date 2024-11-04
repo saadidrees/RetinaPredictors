@@ -22,16 +22,16 @@ base = '/home/saad/data/'
 
 
 data_pers = 'ej'
-expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-3')
+# expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-3')
 # expDate = ('2018-03-01-4','2018-03-01-0','2018-02-09-5','2007-08-21-5','2008-03-25-4','2012-04-13-0','2013-01-23-6',
 #            '2015-09-23-7','2016-02-17-1','2016-02-17-6','2016-02-17-8','2016-06-13-1','2018-02-06-4')
-# expDate = ('trainList_20240905a',)
+expDate = ('trainList_20240918a',)
 # '2018-02-09-3' 2012-04-13-4 2015-10-29-2
 # ft_expDate = '2018-02-09-5' # '2018-02-09-5
 
-APPROACH = 'sequential'
-expFold = 'maml2'
-subFold = APPROACH
+APPROACH = 'metal'
+expFold = APPROACH #'maml2'
+subFold = 'test'
 dataset = 'CB_mesopic_f4_8ms_sig-4'#'NATSTIM6_CORR2_mesopic-Rstar_f4_8ms',)#'NATSTIM3_CORR_mesopic-Rstar_f4_8ms  CB_CORR_mesopic-Rstar_f4_8ms
 idx_unitsToTake = 0#np.arange(0,230) #np.array([0,1,2,3,4,5,6,7,8,9])
 
@@ -68,8 +68,8 @@ filt3_3rdDim=0
 chan4_n=64#50
 filt4_size=3
 filt4_3rdDim=0
-nb_epochs=100#42         # setting this to 0 only runs evaluation
-bz_ms=512#64#10000#5000
+nb_epochs=2#42         # setting this to 0 only runs evaluation
+bz_ms=16#64#10000#5000
 BatchNorm=1
 MaxPool=2
 runOnCluster=0
@@ -77,7 +77,7 @@ num_trials=1
 
 BatchNorm_train = 1
 saveToCSV=1
-trainingSamps_dur = -1#1#20 #-1 #0.05 # minutes per dataset
+trainingSamps_dur = 1#1#20 #-1 #0.05 # minutes per dataset
 validationSamps_dur=0.5
 testSamps_dur=0.5
 USE_WANDB = 0
@@ -93,7 +93,7 @@ else:
     dataset_nameForPaths = dataset_nameForPaths[:-1]
 
     
-path_model_save_base = os.path.join(base,'analyses/data_'+data_pers+'/',expFold,subFold,'models',dataset_nameForPaths,mdl_subFold)
+path_model_save_base = os.path.join(base,'analyses/data_'+data_pers+'/','models',subFold,expFold,dataset_nameForPaths,mdl_subFold)
 path_dataset_base = os.path.join('/home/saad/postdoc_db/analyses/data_'+data_pers+'/')
 
 

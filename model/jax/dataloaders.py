@@ -13,8 +13,10 @@ import jax
 import numpy as np
 from collections import namedtuple
 import random
+from model.data_handler import isintuple
 
-Exptdata = namedtuple('Exptdata', ['X', 'y','spikes'])
+Exptdata_spikes = namedtuple('Exptdata', ['X', 'y','spikes'])
+Exptdata = namedtuple('Exptdata', ['X', 'y'])
 
 
 
@@ -32,9 +34,11 @@ def shuffle_dataset(dict_data):
 
         X = shuffle_list_with_indices(data.X,idx_data)
         y = shuffle_list_with_indices(data.y,idx_data)
-        spikes = shuffle_list_with_indices(data.spikes,idx_data)
-        
-        data_shuffled = Exptdata(X,y,spikes)
+        if isintuple(data,'spikes'):
+            spikes = shuffle_list_with_indices(data.spikes,idx_data)
+            data_shuffled = Exptdata_spikes(X,y,spikes)
+        else:
+            data_shuffled = Exptdata(X,y)
         
         shuffled_dict[key] = data_shuffled
         

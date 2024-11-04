@@ -26,7 +26,7 @@ data_pers = 'ej'
 #            '2015-09-23-7','2016-02-17-1','2016-02-17-6','2016-02-17-8','2016-06-13-1','2018-02-06-4')
 pretrained_expDates = 'trainList_20240918a'
 #('2018-03-01-4','2018-03-01-0','2018-02-09-3')
-ft_expDate = '2006-05-22-1' #'2018-02-06-4' #'2015-10-29-2' #'2018-02-06-4'
+ft_expDate = '2018-02-06-4' #'2018-02-06-4' #'2015-10-29-2' #'2018-02-06-4'
 
 APPROACH = 'maml_summed'
 expFold = APPROACH #'maml2'
@@ -83,6 +83,7 @@ path_pretrained = os.path.join(path_model_base,mdl_name,fname_model+'/')
 
 ft_fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',ft_expDate+'_dataset_train_val_test_'+dataset+'.h5')
 
+# %%
 mdl_performance = run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,ft_fname_data_train_val_test,ft_mdl_name,
                     ft_trainingSamps_dur=ft_trainingSamps_dur,validationSamps_dur=validationSamps_dur,testSamps_dur=testSamps_dur,
                     ft_nb_epochs_A=ft_nb_epochs_A,ft_nb_epochs_B=ft_nb_epochs_B,ft_lr_A=ft_lr_A,ft_lr_B=ft_lr_B,batch_size=batch_size)

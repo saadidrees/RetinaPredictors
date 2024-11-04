@@ -12,6 +12,10 @@ import os
 from model.performance import getModelParams
 from run_jax.run_models_jax import run_model
 import socket
+
+
+
+
 hostname=socket.gethostname()
 if hostname=='sandwolf':
     base = '/home/saad/data_hdd/'
