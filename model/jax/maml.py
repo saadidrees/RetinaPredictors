@@ -328,7 +328,7 @@ def train_step_maml_scaled(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all
     """
 
     @jax.jit
-    def maml_grads(mdl_state,global_params,totalRGCs,train_x,train_y,kern,bias,mask_output):
+    def maml_grads(mdl_state,global_params,maxRGCs,train_x,train_y,kern,bias,mask_output):
 
         # Split the batch into inner and outer training sets
         # PARAMETERIZE this
@@ -364,7 +364,7 @@ def train_step_maml_scaled(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all
         local_grads_total = jax.tree_map(lambda g_1, g_2: g_1+g_2, local_grads,local_grads_val)
 
         #scaled grads
-        scaleFac = jnp.sum(mask_output)/totalRGCs
+        scaleFac = jnp.sum(mask_output)/maxRGCs
         local_grads_total = jax.tree_map(lambda g: g*scaleFac, local_grads_total)
 
 
@@ -381,10 +381,10 @@ def train_step_maml_scaled(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all
     train_x,train_y = batch
     kern_all,bias_all = weights_dense
     
-    totalRGCs = jnp.sum(mask_unitsToTake_all)
+    maxRGCs = mask_unitsToTake_all.shape[-1] #jnp.sum(mask_unitsToTake_all)
     
     local_losses,local_y_preds,local_mdl_states,local_grads_all,local_kerns,local_biases = jax.vmap(Partial(maml_grads,\
-                                                                                                              mdl_state,global_params,totalRGCs))\
+                                                                                                              mdl_state,global_params,maxRGCs))\
                                                                                                               (train_x,train_y,kern_all,bias_all,mask_unitsToTake_all)
                   
     local_losses_summed = jnp.sum(local_losses)
@@ -426,7 +426,7 @@ def train_step_metal(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):    
     """
 
     @jax.jit
-    def metal_grads(mdl_state,global_params,totalRGCs,train_x,train_y,kern,bias,mask_output):
+    def metal_grads(mdl_state,global_params,maxRGCs,train_x,train_y,kern,bias,mask_output):
 
         # Split the batch into inner and outer training sets
         # PARAMETERIZE this
@@ -466,7 +466,7 @@ def train_step_metal(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):    
         local_grads_total = jax.tree_map(lambda g: g/jnp.linalg.norm(g), local_grads_total)
         
         # Scale vectors by num of RGCs
-        scaleFac = jnp.sum(mask_output)/totalRGCs
+        scaleFac = jnp.sum(mask_output)/maxRGCs
         local_grads_total = jax.tree_map(lambda g: g*scaleFac, local_grads_total)
 
 
@@ -483,9 +483,9 @@ def train_step_metal(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):    
     
     train_x,train_y = batch
     kern_all,bias_all = weights_dense
-    totalRGCs = jnp.sum(mask_unitsToTake_all)
+    maxRGCs = mask_unitsToTake_all.shape[-1] #jnp.sum(mask_unitsToTake_all)
     local_losses,local_y_preds,local_mdl_states,local_grads_all,local_kerns,local_biases = jax.vmap(Partial(metal_grads,\
-                                                                                                              mdl_state,global_params,totalRGCs))\
+                                                                                                              mdl_state,global_params,maxRGCs))\
                                                                                                               (train_x,train_y,kern_all,bias_all,mask_unitsToTake_all)
                   
     local_losses_summed = jnp.sum(local_losses)
