@@ -34,46 +34,33 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     import numpy as np
     import os
     import time
-    import math
     import csv
     import h5py
     import glob
-    import importlib
     import re
     import matplotlib.pyplot as plt
     import cloudpickle
     import jax.numpy as jnp
     import jax
     import optax
-    import copy
 
-
-    from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_convLSTM, check_trainVal_contamination, prepare_data_pr_cnn2d, merge_datasets,isintuple, dataset_shuffle
+    from model.data_handler import prepare_data_cnn3d, prepare_data_cnn2d, prepare_data_pr_cnn2d,isintuple
     from model.data_handler_mike import load_h5Dataset
-    from model import data_handler
-    from model.performance import save_modelPerformance, model_evaluate, model_evaluate_new, get_weightsDict, get_weightsOfLayer, estimate_noise,get_layerIdx
-    import model.metrics as metrics
-    # import model.models_primate  # can improve this by only importing the model that is being used
+    from model.performance import model_evaluate_new, estimate_noise
     import model.paramsLogger
     import model.utils_si
     
-    import torch
     import orbax
-    from model.jax import models_jax
-    from model.jax import train_model_jax
-    from model.jax import dataloaders #import RetinaDataset,jnp_collate
+    from model.jax import models_jax, train_model_jax, dataloaders
     from model.jax import maml
     from torch.utils.data import DataLoader
 
     import gc
     import datetime
-    # from tensorflow import keras
     
     from collections import namedtuple
     Exptdata = namedtuple('Exptdata', ['X', 'y'])
     Exptdata_spikes = namedtuple('Exptdata', ['X', 'y','spikes'])
-
-
     
     devices = jax.devices()
     for device in devices:
@@ -82,11 +69,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         else:
             print(f"Device: {device.device_kind}, Name: {device}")
 
-
-
     if runOnCluster==1:
         USE_WANDB=0
-    
     
     if path_existing_mdl==0 or path_existing_mdl=='0':
         path_existing_mdl=''
@@ -131,7 +115,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         data_train, val and test are named tuples. data_train.X contains the stimulus with dimensions [samples,y pixels, x pixels]
         and data_train.y contains the spikerate normalized by median [samples,numOfCells]
     """
-    data_info = {}
+
     trainingSamps_dur_orig = trainingSamps_dur
     if nb_epochs == 0:  # i.e. if only evaluation has to be run then don't load all training data
         trainingSamps_dur = 4
@@ -156,24 +140,24 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     else:
         fname_data_train_val_test_all = fname_data_train_val_test.split('+')
     
-    
+    # Get the total num of samples and RGCs in each dataset
+    nsamps_alldsets = []
+    num_rgcs_all = []
+    for d in range(len(fname_data_train_val_test_all)):
+        with h5py.File(fname_data_train_val_test_all[d]) as f:
+            nsamps_alldsets.append(f['data_train']['X'].shape[0])
+            num_rgcs_all.append(f['data_train']['y'].shape[1])
+    nsamps_alldsets = np.asarray(nsamps_alldsets)
+    num_rgcs_all = np.asarray(num_rgcs_all)
+
+    # Load datasets
     idx_train_start = 0    # mins to chop off in the begining.
     d=1
     dict_train = {}
     dict_val = {}
     dict_test = {}
-    num_rgcs_all = []
     unames_allDsets = []
-    
-    nsamps_alldsets = []
-    nrgcs_alldsets = []
-    for d in range(len(fname_data_train_val_test_all)):
-        with h5py.File(fname_data_train_val_test_all[d]) as f:
-            nsamps_alldsets.append(f['data_train']['X'].shape[0])
-            nrgcs_alldsets.append(f['data_train']['y'].shape[1])
-    nsamps_alldsets = np.asarray(nsamps_alldsets)
-    nrgcs_alldsets = np.asarray(nrgcs_alldsets)
-
+    data_info = {}
     nsamps_alldsets_loaded = []
     for d in range(len(fname_data_train_val_test_all)):
         print('Loading dataset %d of %d'%(d+1,len(fname_data_train_val_test_all)))
@@ -193,41 +177,16 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         dict_train[fname_data_train_val_test_all[d]] = data_train
         dict_val[fname_data_train_val_test_all[d]] = data_val
         dict_test[fname_data_train_val_test_all[d]] = data_test
-        num_rgcs_all.append(data_train.y.shape[-1])
         unames_allDsets.append(data_quality['uname_selectedUnits'])
         nsamps_alldsets_loaded.append(data_train.X.shape[0])
 
+    # To make datasets equal length (for vectorization)
     nsamps_alldsets_loaded = np.asarray(nsamps_alldsets_loaded)
-    # nsamps_max = nsamps_alldsets_loaded.max()
-    nsamps_max = 388958
-
-# %
-# Arrange data according to the model
-    """
-    if type(idx_unitsToTake) is int:     # If a single number is provided
-        if idx_unitsToTake==0:      # if 0 then take all
-            min_rgcs = np.min(num_rgcs_all)
-            if min_rgcs%2>0:
-                min_rgcs = min_rgcs-1
-                
-            idx_unitsToTake = np.arange(min_rgcs)   # unit/cell id of the cells present in the dataset. [length should be same as 2nd dimension of data_train.y]
-        else:
-            idx_unitsToTake = np.arange(0,idx_unitsToTake)
-
-    if len(fname_data_train_val_test_all)>1:
-        idx_unitsToTake_all = []
-        mid_rgcs = int(min_rgcs/2)
-        for d in range(len(fname_data_train_val_test_all)):
-            rgb = np.arange(num_rgcs_all[d])
-            a = rgb[:mid_rgcs]
-            b = rgb[-mid_rgcs:]
-            idx_unitsToTake = np.concatenate((a,b))
-            assert len(idx_unitsToTake)==min_rgcs,"rgc num mismatch"
-            idx_unitsToTake_all.append(idx_unitsToTake)
-    else:   # The conventional approach
-        idx_unitsToTake_all = [idx_unitsToTake]
-    """
+    nsamps_max = nsamps_alldsets_loaded.max()
+    if nsamps_max>400000:  #388958
+        nsamps_max = 400000
     
+
     # Take max number of RGCs. Repeat RGCs for dsets smaller than max
     if type(idx_unitsToTake) is int:     # If a single number is provided
         if idx_unitsToTake==0:      # if 0 then take all
@@ -243,8 +202,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             rgb = np.arange(num_rgcs_all[d])
             num_rgcs_curr = rgb.shape[0]
             if num_rgcs_curr<max_rgcs:
-                rgb = np.tile(rgb,10)
-            
+                rgb = np.concatenate((rgb,np.tile(rgb[-1],max_rgcs-num_rgcs_curr)))
             idx_unitsToTake = rgb[:max_rgcs]
             mask_unitsToTake = np.ones_like(idx_unitsToTake)
             mask_unitsToTake[num_rgcs_curr:] = 0
@@ -266,7 +224,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     print('Total number of datasets: %d'%len(fname_data_train_val_test_all))
     print('RGCs per dataset: %d'%len(idx_unitsToTake_all[0]))
-    # print(idx_unitsToTake_all)
     
     # Data will be rolled so that each sample has a temporal width. Like N frames of movie in one sample. The duration of each frame is in t_frame
     # if the model has a photoreceptor layer, then the PR layer has a termporal width of pr_temporal_width, which before convs will be chopped off to temporal width
@@ -275,10 +232,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         temporal_width_prepData = pr_temporal_width
         temporal_width_eval = pr_temporal_width
         
-    elif mdl_name[:2] == 'BP':    # in this case the rolling width should be that of PR
-            temporal_width_prepData = pr_temporal_width
-            temporal_width_eval = pr_temporal_width
-            
     else:   # in all other cases its same as temporal width
         temporal_width_prepData = temporal_width
         temporal_width_eval = temporal_width    # termporal width of each sample. Like how many frames of movie in one sample
@@ -289,7 +242,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     modelNames_2D = modelNames_all[0]
     modelNames_3D = modelNames_all[1]
 
-    # prepare data according to model. Roll and adjust dimensions according to 2D or 3D model
+    # Expand dataset if needed for vectorization, and roll it for temporal dimension
     d=0
     for d in range(len(fname_data_train_val_test_all)):
         print(fname_data_train_val_test_all[d])
@@ -320,7 +273,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                     expanded_spikes = expanded_spikes+data_train.spikes
                 data_train = Exptdata_spikes(expanded_X,expanded_y,expanded_spikes)
 
-            
             filt1_3rdDim=0
             filt2_3rdDim=0
             filt3_3rdDim=0
@@ -420,13 +372,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
     
     elif lrscheduler == 'warmup_exponential_decay':
-        # lr_schedule = {}
-        # lr_schedule['name'] = 'exponential_decay'
-        # lr_schedule['lr_init'] = lr
-        # lr_schedule['transition_steps'] = 20*n_batches
-        # lr_schedule['decay_rate'] = 0.5
-        # lr_schedule['staircase'] = True
-        # lr_schedule['transition_begin'] = 1
         
         max_lr = lr
         min_lr = 0.00001
@@ -485,7 +430,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     if CONTINUE_TRAINING==1 or nb_epochs==0:       # if to continue a halted or previous training
-        # initial_epoch = len(glob.glob(path_model_save+'/*.index'))
         allEpochs = glob.glob(path_model_save+'/epoch*')
         allEpochs.sort()
         if len(allEpochs)!=0:
@@ -516,7 +460,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # create the model
         model_func = getattr(models_jax,mdl_name)
         mdl = model_func
-        # mdl_state,mdl,config = maml.initialize_model(mdl,dict_params,inp_shape,lr,save_model=True,lr_schedule=lr_schedule)
         mdl_state,mdl,config = maml.initialize_model(mdl,dict_params,inp_shape,lr,save_model=True,lr_schedule=lr_schedule)
         
         archi_name = 'model_architecture.pkl'
