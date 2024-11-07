@@ -7,7 +7,6 @@ Created on Thu Apr  4 15:26:35 2024
 @author: Saad Idrees idrees.sa@gmail.com
          jZ Lab, York University
 """
-import time
 import gc
 import h5py
 import shutil
@@ -22,7 +21,6 @@ from flax.training import train_state
 from flax.training.train_state import TrainState
 
 from model.jax import models_jax
-import copy
 import matplotlib.pyplot as plt
 
 from model.performance import model_evaluate_new
@@ -39,8 +37,6 @@ from jax.tree_util import Partial
 
 import re
 
-# class TrainState(train_state.TrainState):
-#     batch_stats: flax.core.FrozenDict
 @jax.jit
 def append_dicts(dict1, dict2):
     result = {}
@@ -66,6 +62,7 @@ def expand_dicts(dict1):
             raise ValueError("Mismatched structure or non-numpy array value at the lowest level")
     return result
 
+@jax.jit
 def mask_params(dict_params,layers_to_mask,mask_value=0):
     masked_params = dict_params
     for key in dict_params.keys():
@@ -75,7 +72,29 @@ def mask_params(dict_params,layers_to_mask,mask_value=0):
                 
     return masked_params
             
+def dict_subset(old_dict,exclude_list):
+    new_dict1 = {}
+    new_dict2 = {}
+    keys_all = list(old_dict.keys())
+    for item in keys_all:
+        for key_exclude in exclude_list:
+            rgb = re.search(key_exclude,item,re.IGNORECASE)
+            if rgb==None:
+                break;
+                new_dict1[item] = old_dict[item]
+            else:
+                new_dict2[item] = old_dict[item]
+    return new_dict1,new_dict2
+
+def split_dict(old_dict,exclude_list):
+    def should_exclude(key, patterns):
+        return any(re.match(pattern, key) for pattern in patterns)
+
+    new_dict1 = {k: v for k, v in old_dict.items() if not should_exclude(k, exclude_list)}
+    new_dict2 = {k: v for k, v in old_dict.items() if should_exclude(k, exclude_list)}
     
+    return new_dict1,new_dict2
+
 
 @jax.jit
 def compute_means_across_nested_dicts(data_list):
@@ -127,98 +146,6 @@ def task_loss(state,params,batch,mask_output):
     return loss,y_pred
 
 
-@jax.jit
-def train_step_maml(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):
-    """
-    State is the grand model state that actually gets updated
-    state_task is the "state" after gradients are applied for a specific task
-        kern = kern_all[0]
-        bias = bias_all[0]
-        train_x = train_x[0]
-        train_y = train_y[0]
-
-    """
-
-    # @jax.jit
-    def maml_grads(mdl_state,global_params,train_x,train_y,kern,bias,mask_output):
-
-        # Split the batch into inner and outer training sets
-        # PARAMETERIZE this
-        frac_train = 0.5
-        len_data = train_x.shape[0]
-        len_train = int(len_data*frac_train)
-        batch_train = (train_x[:len_train],train_y[:len_train])
-        batch_val = (train_x[len_train:],train_y[len_train:])
-
-        # Make local model by using global params but local dense layer weights
-        local_params = global_params
-        kern = kern*mask_output[None,:]
-        bias = bias*mask_output
-
-        local_params['Dense_0']['kernel'] = kern
-        local_params['Dense_0']['bias'] = bias
-        local_mdl_state = mdl_state.replace(params=local_params)
-
-        # Calculate gradients of the local model wrt to local params    
-        grad_fn = jax.value_and_grad(task_loss,argnums=1,has_aux=True)
-        (local_loss_train,y_pred_train),local_grads = grad_fn(local_mdl_state,local_params,batch_train,mask_output)
-        
-        # scale the local gradients according to ADAM's first step. Helps to stabilize
-        # And update the parameters
-        local_params = jax.tree_map(lambda p, g: p - lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads)
-
-        # Calculate gradients of the loss of the resulting local model but using the validation set
-        # local_mdl_state = mdl_state.replace(params=local_params)
-        (local_loss_val,y_pred_val),local_grads_val = grad_fn(local_mdl_state,local_params,batch_val,mask_output)
-        
-        # Update only the Dense layer weights since we retain it
-        # local_params_val = jax.tree_map(lambda p, g: p - lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads_val)
-        
-        # local_grads_total = jax.tree_map(lambda g_1, g_2: g_1+g_2, local_grads,local_grads_val)
-
-
-        # Record dense layer weights
-        kern = local_params['Dense_0']['kernel']
-        bias = local_params['Dense_0']['bias']
-        
-        return local_loss_val,y_pred_val,local_mdl_state,local_grads_val,kern,bias
-    
-    # @jax.jit
-    def maml_loss(mdl_state,global_params,train_x,train_y,kern_all,bias_all,mask_unitsToTake_all):
-        local_losses,local_y_preds,local_mdl_states,local_grads_all,local_kerns,local_biases = jax.vmap(Partial(maml_grads,\
-                                                                                                                  mdl_state,global_params))\
-                                                                                                                  (train_x,train_y,kern_all,bias_all,mask_unitsToTake_all)
-        losses = local_losses.sum()
-        return losses,(local_y_preds,local_kerns,local_biases)
-    
-    global_params = mdl_state.params
-    
-    train_x,train_y = batch
-    kern_all,bias_all = weights_dense
-    
-    grad_fn = jax.value_and_grad(maml_loss,argnums=1,has_aux=True)
-    (losses,rgb),grads = grad_fn(mdl_state,global_params,train_x,train_y,kern_all,bias_all,mask_unitsToTake_all)
-    local_kerns = rgb[1]
-    local_biases = rgb[2]
-
-    weights_dense = (local_kerns,local_biases)
-    
-    mdl_state = mdl_state.apply_gradients(grads=grads)
-    
-           
-    # print(local_losses_summed)   
-        
-    
-    """
-    for key in local_grads_summed.keys():
-        try:
-            print('%s kernel: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['kernel']))))
-        except:
-            print('%s bias: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['bias']))))
-    
-    """
-
-    return losses,mdl_state,weights_dense,grads
 
 
 @jax.jit
@@ -314,8 +241,11 @@ def train_step_maml_summed(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all
     return local_losses_summed,mdl_state,weights_dense,local_grads_summed
 
 @jax.jit
-def train_step_maml_scaled(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):
+def train_step_maml_scaled(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):      # 
     """
+    Same as maml_summed but where gradients are scaled with num RGCs. So datasets with
+    fewer RGCs are given less importance
+    
     State is the grand model state that actually gets updated
     state_task is the "state" after gradients are applied for a specific task
         task_idx = 1
@@ -511,6 +441,107 @@ def train_step_metal(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):    
 
     return local_losses_summed,mdl_state,weights_dense,local_grads_summed
 
+
+@jax.jit
+def train_step_metal_difflr(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):        # Make unit vectors then scale by num of RGCs
+    """
+    State is the grand model state that actually gets updated
+    state_task is the "state" after gradients are applied for a specific task
+        task_idx = 1
+        kern = kern_all[task_idx]
+        bias = bias_all[task_idx]
+        train_x = train_x[task_idx]
+        train_y = train_y[task_idx]
+        mask_output = mask_unitsToTake_all[task_idx]
+
+    """
+
+    @jax.jit
+    def metal_grads(mdl_state,global_params,maxRGCs,train_x,train_y,kern,bias,mask_output):
+
+        # Split the batch into inner and outer training sets
+        # PARAMETERIZE this
+        lrFac = 10
+        frac_train = 0.5
+        len_data = train_x.shape[0]
+        len_train = int(len_data*frac_train)
+        batch_train = (train_x[:len_train],train_y[:len_train])
+        batch_val = (train_x[len_train:],train_y[len_train:])
+
+        # Make local model by using global params but local dense layer weights
+        local_params = global_params
+        kern = kern*mask_output[None,:]
+        bias = bias*mask_output
+        local_params['Dense_0']['kernel'] = kern
+        local_params['Dense_0']['bias'] = bias
+        local_mdl_state = mdl_state.replace(params=local_params)
+
+        # Calculate gradients of the local model wrt to local params    
+        grad_fn = jax.value_and_grad(task_loss,argnums=1,has_aux=True)
+        (local_loss_train,y_pred_train),local_grads = grad_fn(local_mdl_state,local_params,batch_train,mask_output)
+        
+        # scale the local gradients according to ADAM's first step. Helps to stabilize
+        # And update the parameters
+        local_params = jax.tree_map(lambda p, g: p - lrFac*lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads)
+
+        # Calculate gradients of the loss of the resulting local model but using the validation set
+        # local_mdl_state = mdl_state.replace(params=local_params)
+        (local_loss_val,y_pred_val),local_grads_val = grad_fn(local_mdl_state,local_params,batch_val,mask_output)
+        
+        # Update only the Dense layer weights since we retain it
+        local_params_val = jax.tree_map(lambda p, g: p - lrFac*lr*(g/(jnp.abs(g)+1e-8)), local_params, local_grads_val)
+        
+        # Get the direction of generalization
+        local_grads_total = jax.tree_map(lambda g_1, g_2: g_1+g_2, local_grads,local_grads_val)
+        
+        # Normalize the grads to unit vector
+        local_grads_total = jax.tree_map(lambda g: g/jnp.linalg.norm(g), local_grads_total)
+        
+        # Scale vectors by num of RGCs
+        scaleFac = jnp.sum(mask_output)/maxRGCs
+        local_grads_total = jax.tree_map(lambda g: g*scaleFac, local_grads_total)
+
+
+
+        # Record dense layer weights
+        kern = local_params_val['Dense_0']['kernel']
+        bias = local_params_val['Dense_0']['bias']
+        
+        return local_loss_val,y_pred_val,local_mdl_state,local_grads_total,kern,bias
+    
+    
+    
+    global_params = mdl_state.params
+    
+    train_x,train_y = batch
+    kern_all,bias_all = weights_dense
+    maxRGCs = mask_unitsToTake_all.shape[-1] #jnp.sum(mask_unitsToTake_all)
+    local_losses,local_y_preds,local_mdl_states,local_grads_all,local_kerns,local_biases = jax.vmap(Partial(metal_grads,\
+                                                                                                              mdl_state,global_params,maxRGCs))\
+                                                                                                              (train_x,train_y,kern_all,bias_all,mask_unitsToTake_all)
+                  
+    local_losses_summed = jnp.sum(local_losses)
+    local_grads_summed = jax.tree_map(lambda g: jnp.sum(g,axis=0), local_grads_all)
+    
+    
+    weights_dense = (local_kerns,local_biases)
+    
+    mdl_state = mdl_state.apply_gradients(grads=local_grads_summed)
+    
+           
+    # print(local_losses_summed)   
+        
+    
+    """
+    for key in local_grads_summed.keys():
+        try:
+            print('%s kernel: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['kernel']))))
+        except:
+            print('%s bias: %e\n'%(key,jnp.sum(abs(local_grads_summed[key]['bias']))))
+    
+    """
+
+    return local_losses_summed,mdl_state,weights_dense,local_grads_summed
 @jax.jit
 def train_step_sequential(mdl_state,batch,weights_dense,lr,mask_unitsToTake_all):
     """
@@ -621,28 +652,6 @@ def eval_step(state,data,mask_unitsToTake_all,n_batches=1e5,):
 
 
 
-def dict_subset(old_dict,exclude_list):
-    new_dict1 = {}
-    new_dict2 = {}
-    keys_all = list(old_dict.keys())
-    for item in keys_all:
-        for key_exclude in exclude_list:
-            rgb = re.search(key_exclude,item,re.IGNORECASE)
-            if rgb==None:
-                break;
-                new_dict1[item] = old_dict[item]
-            else:
-                new_dict2[item] = old_dict[item]
-    return new_dict1,new_dict2
-
-def split_dict(old_dict,exclude_list):
-    def should_exclude(key, patterns):
-        return any(re.match(pattern, key) for pattern in patterns)
-
-    new_dict1 = {k: v for k, v in old_dict.items() if not should_exclude(k, exclude_list)}
-    new_dict2 = {k: v for k, v in old_dict.items() if should_exclude(k, exclude_list)}
-    
-    return new_dict1,new_dict2
 
     
 
@@ -661,8 +670,27 @@ def weight_regularizer(params,alpha=1e-4):
         l2_loss = l2_loss + alpha * (w**2).mean()
     return l2_loss
 
-    
-def save_epoch(state,config,weights_dense,fname_cp):
+def load_h5_to_nested_dict(group):
+    result = {}
+    for key, item in group.items():
+        if isinstance(item, h5py.Group):
+            result[key] = load_h5_to_nested_dict(item)
+        else:
+            result[key] = item[()]
+    return result
+
+def save_epoch(state,config,weights_dense,fname_cp,weights_all):
+    def save_nested_dict_to_h5(group, dictionary):
+        for key, item in dictionary.items():
+            if isinstance(item, dict):
+                # If the item is a dictionary, create a group and recurse
+                subgroup = group.create_group(key)
+                save_nested_dict_to_h5(subgroup, item)
+            else:
+                # Otherwise, create a dataset
+                group.create_dataset(key, data=item)
+
+
     if os.path.exists(fname_cp):
         shutil.rmtree(fname_cp)  # Remove any existing checkpoints from the last notebook run.
     ckpt = {'model': state, 'config': config}
@@ -674,25 +702,11 @@ def save_epoch(state,config,weights_dense,fname_cp):
         f.create_dataset('weights_dense_kernel',data=np.array(weights_dense[0],dtype='float32'),compression='gzip')
         f.create_dataset('weights_dense_bias',data=np.array(weights_dense[1],dtype='float32'),compression='gzip')
 
-
+    fname_weights_all = os.path.join(fname_cp,'weights_all.h5')
+    with h5py.File(fname_weights_all,'w') as f:
+        save_nested_dict_to_h5(f,weights_all)
     
 
-
-def create_learning_rate_scheduler(lr_schedule):
-    print(lr_schedule)
-
-    if lr_schedule['name'] == 'exponential_decay':
-        learning_rate_fn = optax.exponential_decay(
-                            init_value=lr_schedule['lr_init'], 
-                            transition_steps=lr_schedule['transition_steps'], 
-                            decay_rate=lr_schedule['decay_rate'], 
-                            staircase=lr_schedule['staircase'],
-                            transition_begin=lr_schedule['transition_begin'],
-                            )
-    else:
-        learning_rate_fn = optax.constant_schedule(value=lr_schedule['lr_init'])
-        
-    return learning_rate_fn
 
     
 def initialize_model(mdl,dict_params,inp_shape,lr,save_model=True,lr_schedule=None):
@@ -763,18 +777,16 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,ma
         for batch_train in dataloader_train:
             # elap = time.time()-t
             # print(elap)
-            current_lr = lr_schedule(mdl_state.step)
-            if approach == 'maml':
-                loss,mdl_state,weights_dense,grads = train_step_maml(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
-                
-            elif approach == 'maml_summed':
+            current_lr = lr_schedule(mdl_state.step)               
+            
+            if approach == 'maml_summed':
                 loss,mdl_state,weights_dense,grads = train_step_maml_summed(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
             elif approach == 'maml_scaled':
                 loss,mdl_state,weights_dense,grads = train_step_maml_scaled(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
-
             elif approach == 'metal':
                 loss,mdl_state,weights_dense,grads = train_step_metal(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
-
+            elif approach == 'metal_difflr':
+                loss,mdl_state,weights_dense,grads = train_step_metal_difflr(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
             elif approach == 'sequential':
                 loss,mdl_state,weights_dense,grads = train_step_sequential(mdl_state,batch_train,weights_dense,current_lr,mask_unitsToTake_all)
             else:
@@ -791,7 +803,7 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,ma
         # print(jnp.sum(grads['Conv_3']['kernel']))
         assert jnp.sum(grads['Conv_0']['kernel']) != 0, 'Gradients are Zero'
             
-        idx_master = 2
+        idx_master = 7
         
         # For validation, update the new state with weights from the idx_master task
         mdl_state_val = mdl_state
@@ -854,6 +866,23 @@ def create_mask(params,layers_finetune):
         mask = unfreeze_layer(layer, mask)  # unfreeze selected layer
         
     return mask
+
+def create_learning_rate_scheduler(lr_schedule):
+    print(lr_schedule)
+
+    if lr_schedule['name'] == 'exponential_decay':
+        learning_rate_fn = optax.exponential_decay(
+                            init_value=lr_schedule['lr_init'], 
+                            transition_steps=lr_schedule['transition_steps'], 
+                            decay_rate=lr_schedule['decay_rate'], 
+                            staircase=lr_schedule['staircase'],
+                            transition_begin=lr_schedule['transition_begin'],
+                            )
+    else:
+        learning_rate_fn = optax.constant_schedule(value=lr_schedule['lr_init'])
+        
+    return learning_rate_fn
+
     
 
 def update_optimizer(ft_mdl_state,mask=None,lr_schedule=None):
@@ -882,9 +911,6 @@ def ft_loss_fn(state,trainable_params,fixed_params,batch):
     # if training==True:
     loss = loss + weight_regularizer(trainable_params,alpha=1e-5)
     loss = loss + activity_regularizer(dense_activations,alpha=1e-5)
-    
-    # outputs_activations = intermediates['outputs_activations'][0]
-    # loss = loss + activity_regularizer(outputs_activations,alpha=1e-3)
 
     return loss,y_pred
 
@@ -1030,7 +1056,14 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         weights_dense = (weights_all['Dense_0']['kernel'],weights_all['Dense_0']['bias'])
         if save==True:
             fname_cp = os.path.join(path_model_save,'epoch-%03d'%epoch)
-            save_epoch(ft_mdl_state,config,weights_dense,fname_cp)
+            save_epoch(ft_mdl_state,config,weights_dense,fname_cp,weights_all)
             
-    return loss_epoch_train,loss_epoch_val,ft_mdl_state,fev_epoch_train,corr_epoch_train,fev_epoch_val,corr_epoch_val,fev_epoch_test,corr_epoch_test,lr_epoch,lr_step
+        perf = (fev_epoch_train,corr_epoch_train,fev_epoch_val,corr_epoch_val,fev_epoch_test,corr_epoch_test)
+
+    return loss_epoch_train,loss_epoch_val,ft_mdl_state,perf,lr_epoch,lr_step
+
+
+# %% Recycle
+
+
 
