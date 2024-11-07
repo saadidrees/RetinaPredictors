@@ -117,13 +117,14 @@ ft_fname_data_train_val_test = os.path.join(path_dataset_base,'datasets',ft_expD
 # ft_fname_data_train_val_test = os.path.join('/home/saad/postdoc_db/analyses/data_mike/20230725C/datasets/20230725C_dataset_train_val_test_NATSTIM3_CORR_mesopic-Rstar_spatResamp_f4_8ms.h5')
 
 
-# %% Paramas of pretrained model
+# %% 
+# Paramas of pretrained model
 pretrained_params = getModelParams(path_pretrained)
 lr = pretrained_params['LR']
 
 
 # % Finetuning Data load
-dur = 50
+dur = 10
 for dur in np.array([-1]):
 
     ft_trainingSamps_dur = dur#10
@@ -187,7 +188,7 @@ for dur in np.array([-1]):
     ft_dict_val[ft_fname_data_train_val_test_all] = ft_data_val
        
     # Shuffle just the training dataset
-    ft_dict_train = dataloaders.shuffle_dataset(ft_dict_train)    
+    # ft_dict_train = dataloaders.shuffle_dataset(ft_dict_train)    
     
     print('Finetuning training data duration: %0.2f mins'%(len(ft_data_train.X)*t_frame/1000/60))
     
@@ -232,10 +233,6 @@ for dur in np.array([-1]):
         mdl,config = cloudpickle.load(f)
     
     mdl_state = maml.load(mdl,raw_restored['model'],pretrained_params['LR'])
-    
-    with h5py.File(weights_dense_file,'r') as f:
-        pretrained_weights_kern = jnp.array(f['weights_dense_kernel'])
-        pretrained_weights_bias = jnp.array(f['weights_dense_bias'])
     
     
     # Arrange the data
@@ -306,9 +303,12 @@ for dur in np.array([-1]):
     fev_epoch_test = []
     
     # Train FC
-    ft_loss_epoch_train_A,ft_loss_epoch_val_A,ft_mdl_state,fev_epoch_train_A,corr_epoch_train_A,fev_epoch_val_A,corr_epoch_val_A,fev_epoch_test_A,corr_epoch_test_A,lr_epoch,lr_step = maml.ft_train(
-        ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_A,ft_path_model_save,save=True,ft_lr_schedule=ft_lr_schedule_A)
     
+    
+    ft_loss_epoch_train_A,ft_loss_epoch_val_A,ft_mdl_state,perf,lr_epoch,lr_step = maml.ft_train(
+        ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_A,ft_path_model_save,save=True,ft_lr_schedule=ft_lr_schedule_A)
+    fev_epoch_train_A,corr_epoch_train_A,fev_epoch_val_A,corr_epoch_val_A,fev_epoch_test_A,corr_epoch_test_A = perf
+
     
     # Train remaining layers
     ft_nb_epochs_B=18

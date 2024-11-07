@@ -19,7 +19,7 @@ from tqdm.auto import tqdm
 import flax
 from flax import linen as nn
 from flax.training import train_state
-from model.performance import model_evaluate_new
+from model.performance import model_evaluate_new 
 
 from model.jax.dataloaders import RetinaDataset,jnp_collate
 from torch.utils.data import DataLoader
