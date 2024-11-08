@@ -679,7 +679,7 @@ def load_h5_to_nested_dict(group):
             result[key] = item[()]
     return result
 
-def save_epoch(state,config,weights_dense,fname_cp,weights_all):
+def save_epoch(state,config,weights_dense,fname_cp,weights_all=None):
     def save_nested_dict_to_h5(group, dictionary):
         for key, item in dictionary.items():
             if isinstance(item, dict):
@@ -702,9 +702,10 @@ def save_epoch(state,config,weights_dense,fname_cp,weights_all):
         f.create_dataset('weights_dense_kernel',data=np.array(weights_dense[0],dtype='float32'),compression='gzip')
         f.create_dataset('weights_dense_bias',data=np.array(weights_dense[1],dtype='float32'),compression='gzip')
 
-    fname_weights_all = os.path.join(fname_cp,'weights_all.h5')
-    with h5py.File(fname_weights_all,'w') as f:
-        save_nested_dict_to_h5(f,weights_all)
+    if weights_all!=None:
+        fname_weights_all = os.path.join(fname_cp,'weights_all.h5')
+        with h5py.File(fname_weights_all,'w') as f:
+            save_nested_dict_to_h5(f,weights_all)
     
 
 
@@ -842,6 +843,7 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,ma
         axs[1].plot(y[:,10]);axs[1].plot(y_pred[:,10]);axs[1].set_title('Validation')
         plt.show()
         plt.close()
+
 
         if save == True:
             fname_cp = os.path.join(path_model_save,'epoch-%03d'%epoch)
