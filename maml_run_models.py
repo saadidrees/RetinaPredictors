@@ -367,7 +367,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     n_batches = len(dataloader_train)#np.ceil(len(data_train.X)/bz)
     
     if lrscheduler == 'exponential_decay':
-        lr_schedule = optax.exponential_decay(init_value=lr,transition_steps=n_batches*30,decay_rate=0.5,staircase=True,transition_begin=0)
+        lr_schedule = optax.exponential_decay(init_value=lr,transition_steps=n_batches*10,decay_rate=0.75,staircase=True,transition_begin=0)
 
         
     
