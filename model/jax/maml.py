@@ -461,7 +461,7 @@ def train_step_metal_difflr(mdl_state,batch,weights_dense,lr,mask_unitsToTake_al
 
         # Split the batch into inner and outer training sets
         # PARAMETERIZE this
-        lrFac = 10
+        lrFac = 0.1
         frac_train = 0.5
         len_data = train_x.shape[0]
         len_train = int(len_data*frac_train)
@@ -500,8 +500,6 @@ def train_step_metal_difflr(mdl_state,batch,weights_dense,lr,mask_unitsToTake_al
         # Scale vectors by num of RGCs
         scaleFac = jnp.sum(mask_output)/maxRGCs
         local_grads_total = jax.tree_map(lambda g: g*scaleFac, local_grads_total)
-
-
 
         # Record dense layer weights
         kern = local_params_val['Dense_0']['kernel']
