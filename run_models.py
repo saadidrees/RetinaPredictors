@@ -350,8 +350,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         mdl = model_func(x, n_cells, **dict_params)      
         if runOnCluster == 0:
             mdl.save(os.path.join(path_model_save,fname_model)) # save model architecture
-        else:
-            mdl.save(os.path.join(path_model_save,fname_model+'.h5'))
+        # else:
+        #     mdl.save(os.path.join(path_model_save,fname_model+'.h5'))
         # mdl.summary()
 
         # Transfer weights to new model from an existing model
