@@ -348,8 +348,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         # create the model
         model_func = getattr(model.models_primate,mdl_name.lower())
         mdl = model_func(x, n_cells, **dict_params)      
-        # mdl.save(os.path.join(path_model_save,fname_model)) # save model architecture
-        mdl.export(os.path.join(path_model_save,fname_model))
+        if runOnCluster == 0:
+            mdl.save(os.path.join(path_model_save,fname_model)) # save model architecture
+        else:
+            mdl.save(os.path.join(path_model_save,fname_model+'.h5'))
         # mdl.summary()
 
         # Transfer weights to new model from an existing model
