@@ -269,7 +269,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
     
     
-    # data_train = dataset_shuffle(data_train,n_train)
+    data_train = dataset_shuffle(data_train,n_train)
     
     
     print('Training data duration: %0.2f mins'%(n_train*t_frame/1000/60))
@@ -308,7 +308,10 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     if not os.path.exists(path_model_save):
+        print('Creating save directory')
+        print(path_model_save)
         os.makedirs(path_model_save)
+        print('Created save directory')
         
     
     if CONTINUE_TRAINING==1 or nb_epochs==0:       # if to continue a halted or previous training
@@ -665,7 +668,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
 
     
     # for i in range(100):
-    u = 1
+    u = 5
     
     fig,axs =plt.subplots(2,1,figsize=(20,5))
     axs=np.ravel(axs)
