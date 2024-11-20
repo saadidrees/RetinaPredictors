@@ -464,6 +464,8 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
             bias_all = jnp.array(f['weights_dense_bias'])
             
         weights_dense = (kern_all,bias_all)
+        
+        print('Loaded existing model')
 
     else:
         # create the model
@@ -534,7 +536,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         
         loss_currEpoch_master,loss_epoch_train,loss_epoch_val,mdl_state,weights_dense,fev_epoch_train,fev_epoch_val = maml.train_maml(mdl_state,weights_dense,config,\
                                                                                       dataloader_train,dataloader_val,mask_unitsToTake_all, nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule,\
-                                                                                          approach=APPROACH)
+                                                                                          approach=APPROACH,step_start=initial_epoch+1)
         _ = gc.collect()
             
     t_elapsed = time.time()-t

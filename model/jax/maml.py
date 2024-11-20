@@ -768,7 +768,7 @@ def train_maml(mdl_state,weights_dense,config,dataloader_train,dataloader_val,ma
 
     
     epoch=0
-    for epoch in tqdm(range(0,nb_epochs)):
+    for epoch in tqdm(range(step_start,nb_epochs)):
         _ = gc.collect()
         loss_batch_train=[]
         # t = time.time()
