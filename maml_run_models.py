@@ -456,6 +456,15 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         raw_restored = orbax_checkpointer.restore(fname_latestWeights)
         mdl_state = train_model_jax.load(mdl,raw_restored['model'],lr)
         
+        # Also load the dense layer weights
+        weights_dense_file = os.path.join(path_model_save,fname_latestWeights,'weights_dense.h5')
+
+        with h5py.File(weights_dense_file,'r') as f:
+            kern_all = jnp.array(f['weights_dense_kernel'])
+            bias_all = jnp.array(f['weights_dense_bias'])
+            
+        weights_dense = (kern_all,bias_all)
+
     else:
         # create the model
         model_func = getattr(models_jax,mdl_name)
@@ -466,18 +475,18 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         with open(os.path.join(path_model_save,archi_name), 'wb') as f:       # Save model architecture
             cloudpickle.dump([mdl,config], f)
     
-    # Initialize seperate dense layer for each task
-    kern_all = np.empty((n_tasks,*mdl_state.params['Dense_0']['kernel'].shape))
-    bias_all = np.empty((n_tasks,*mdl_state.params['Dense_0']['bias'].shape))
-
-    for i in range(n_tasks):
-        kern_all[i]=np.array(mdl_state.params['Dense_0']['kernel'])
-        bias_all[i]=np.array(mdl_state.params['Dense_0']['bias'])
-
-    kern_all = jnp.array(kern_all)
-    bias_all = jnp.array(bias_all)
-
-    weights_dense = (kern_all,bias_all)
+        # Initialize seperate dense layer for each task
+        kern_all = np.empty((n_tasks,*mdl_state.params['Dense_0']['kernel'].shape))
+        bias_all = np.empty((n_tasks,*mdl_state.params['Dense_0']['bias'].shape))
+    
+        for i in range(n_tasks):
+            kern_all[i]=np.array(mdl_state.params['Dense_0']['kernel'])
+            bias_all[i]=np.array(mdl_state.params['Dense_0']['bias'])
+    
+        kern_all = jnp.array(kern_all)
+        bias_all = jnp.array(bias_all)
+    
+        weights_dense = (kern_all,bias_all)
 
     path_save_model_performance = os.path.join(path_model_save,'performance')
     if not os.path.exists(path_save_model_performance):
