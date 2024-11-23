@@ -70,7 +70,8 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     ft_dset_name = re.split('_',ft_dset_name)[0]
 
 
-    ft_path_model_save = os.path.join(path_model_base,'finetuning_%s'%ft_dset_name,'trainingDur_%02d'%ft_trainingSamps_dur)
+    ft_path_model_save = os.path.join(path_model_base,'finetuning_%s'%ft_dset_name,'trainingDur_%0.2f'%ft_trainingSamps_dur)
+    print(ft_path_model_save)
     if not os.path.exists(ft_path_model_save):
         os.makedirs(ft_path_model_save)
 
@@ -240,9 +241,10 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     fev_epoch_test = []
     
     # Train FC
-    ft_loss_epoch_train_A,ft_loss_epoch_val_A,ft_mdl_state,fev_epoch_train_A,corr_epoch_train_A,fev_epoch_val_A,corr_epoch_val_A,fev_epoch_test_A,corr_epoch_test_A,lr_epoch,lr_step = maml.ft_train(
+    ft_loss_epoch_train_A,ft_loss_epoch_val_A,ft_mdl_state,perf,lr_epoch,lr_step = maml.ft_train(
         ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_A,ft_path_model_save,save=True,ft_lr_schedule=ft_lr_schedule_A)
     
+    fev_epoch_train_A,corr_epoch_train_A,fev_epoch_val_A,corr_epoch_val_A,fev_epoch_test_A,corr_epoch_test_A = perf
     
     # %% Remaining layers training
     # ft_nb_epochs_B=18
@@ -268,9 +270,11 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
                 tx=optimizer)
     
     
-    ft_loss_epoch_train_B,ft_loss_epoch_val_B,ft_mdl_state,fev_epoch_train_B,corr_epoch_train_B,fev_epoch_val_B,corr_epoch_val_B,fev_epoch_test_B,corr_epoch_test_B,lr_epoch,lr_step = maml.ft_train(
+    ft_loss_epoch_train_B,ft_loss_epoch_val_B,ft_mdl_state,perf,lr_epoch,lr_step = maml.ft_train(
         ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_A+ft_nb_epochs_B,\
             ft_path_model_save,save=True,ft_lr_schedule=ft_lr_schedule_B,epoch_start=ft_nb_epochs_A)
+    
+    fev_epoch_train_B,corr_epoch_train_B,fev_epoch_val_B,corr_epoch_val_B,fev_epoch_test_B,corr_epoch_test_B = perf
     
     
     ft_loss_epoch_train = ft_loss_epoch_train_A+ft_loss_epoch_train_B
