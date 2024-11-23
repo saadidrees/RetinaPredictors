@@ -74,7 +74,7 @@ def parser_finetune():
     parser.add_argument('ft_fname_data_train_val_test',type=str)
     parser.add_argument('ft_mdl_name',type=str)
     parser.add_argument('--batch_size',type=int,default=256)
-    parser.add_argument('--ft_trainingSamps_dur',type=int,default=0)
+    parser.add_argument('--ft_trainingSamps_dur',type=str2int,default=-1)
     parser.add_argument('--validationSamps_dur',type=str2int,default=0.5)
     parser.add_argument('--testSamps_dur',type=str2int,default=0.5)
     parser.add_argument('--ft_nb_epochs_A',type=int,default=2)
