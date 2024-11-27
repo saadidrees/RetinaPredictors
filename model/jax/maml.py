@@ -855,6 +855,7 @@ from model.jax.dataloaders import RetinaDataset,jnp_collate
 from torch.utils.data import DataLoader
 
 
+@jax.jit
 def create_mask(params,layers_finetune):
     def unfreeze_layer(layer_name_unfreeze, sub_dict):
         return {k: jax.tree_map(lambda _: True, v) if layer_name_unfreeze in k else v for k, v in sub_dict.items()}
@@ -867,6 +868,7 @@ def create_mask(params,layers_finetune):
         
     return mask
 
+@jax.jit
 def create_learning_rate_scheduler(lr_schedule):
     print(lr_schedule)
 
@@ -884,7 +886,7 @@ def create_learning_rate_scheduler(lr_schedule):
     return learning_rate_fn
 
     
-
+@jax.jit
 def update_optimizer(ft_mdl_state,mask=None,lr_schedule=None):
     params = ft_mdl_state.params
     
@@ -923,7 +925,6 @@ def ft_train_step(state,fixed_params,batch):
     
     return state,loss
 
-
 def ft_eval_step(state,fixed_params,data,n_batches=1e5):
     if type(data) is tuple:
         X,y = data
@@ -952,6 +953,16 @@ def ft_eval_step(state,fixed_params,data,n_batches=1e5):
             else:
                 break
     return loss,y_pred,y
+
+@jax.jit
+def ft_eval_step_jit(state,fixed_params,batch_val):
+    X,y = batch_val
+    y_pred = state.apply_fn({'params': {**fixed_params,**state.params}},X,training=True)
+    loss = (y_pred - y*jax.lax.log(y_pred)).mean()
+    
+    return loss,y_pred,y
+
+
 
 
 def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs,path_model_save,save=True,ft_lr_schedule=None,epoch_start=0):
@@ -998,12 +1009,12 @@ def ft_train(ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_da
         loss_batch_train=[]
         for batch_train in dataloader_train:
             step = step+1
-            # elap = time.time()-t
-            # print(elap)
             ft_mdl_state, loss = ft_train_step(ft_mdl_state,ft_params_fixed,batch_train)
             loss_batch_train.append(loss)
             lr_step.append(learning_rate_fn(ft_mdl_state.step))
-            
+        # elap = time.time()-t
+        # print(elap)
+
             # print(loss)
 
         loss_batch_val,y_pred,y = ft_eval_step(ft_mdl_state,ft_params_fixed,dataloader_val)
