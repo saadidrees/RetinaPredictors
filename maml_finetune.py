@@ -186,7 +186,8 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     # ft_nb_epochs_A = 2 #3
     n_batches = np.ceil(len(ft_data_train.X)/batch_size).astype('int')
     
-    # ft_lr_A = 0.1 #0.05 #0.05 #0.01
+    # ft_lr_A = 0.05 #0.05 #0.05 #0.01
+    # ft_nb_epochs_A = 7
     
     # ft_lr_schedule_A = optax.exponential_decay(init_value=max_lr,transition_steps=n_batches*1,decay_rate=0.25,staircase=True,transition_begin=0)
     ft_lr_schedule_A = optax.exponential_decay(init_value=ft_lr_A,transition_steps=n_batches*1,decay_rate=0.75,staircase=True,transition_begin=0)
@@ -231,9 +232,6 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
                 params=ft_params_trainable,
                 tx=optimizer)
     
-    
-    
-    
     ft_loss_epoch_train = []
     ft_loss_epoch_val = []
     fev_epoch_train = []
@@ -246,16 +244,23 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     
     fev_epoch_train_A,corr_epoch_train_A,fev_epoch_val_A,corr_epoch_val_A,fev_epoch_test_A,corr_epoch_test_A = perf
     
-    # %% Remaining layers training
+    # %% All layers training
     # ft_nb_epochs_B=18
     
-    ft_params_trainable = ft_params_fixed
-    ft_params_fixed = ft_mdl_state.params
+    # layers_finetune_B = ('LayerNorm_IN','Conv_2','LayerNorm_2','Conv_3','LayerNorm_3','LayerNorm_4','Dense_0','LayerNorm_5','TrainableAF_0') #
+    # layers_finetune_B = ('LayerNorm_IN','Conv_0','LayerNorm_0','Conv_1','LayerNorm_1','Conv_2','LayerNorm_2','Conv_3','LayerNorm_3') #
+    # ft_params_fixed_B,ft_params_trainable_B = maml.split_dict({**ft_params_fixed,**ft_mdl_state.params},layers_finetune_B)
+
+    ft_params_trainable_B  = {**ft_params_fixed,**ft_mdl_state.params}
+    ft_params_fixed_B = dict()#ft_mdl_state.params
     # ft_lr_schedule_B = optax.constant_schedule(1e-3)
-    # ft_lr_B = 5e-2
+    # ft_lr_B = 1e-4 #rgb_lrs_A[-1]
+    # ft_nb_epochs_B = 10
     # ft_lr_schedule_B = optax.exponential_decay(init_value=1e-2,transition_steps=n_batches*3,decay_rate=0.75,staircase=True,transition_begin=0)    # NATSTIM
-    ft_lr_schedule_B = optax.exponential_decay(init_value=ft_lr_B,transition_steps=n_batches*1,decay_rate=0.5,staircase=True,transition_begin=0)
+    ft_lr_schedule_B = optax.exponential_decay(init_value=ft_lr_B,transition_steps=n_batches*1,decay_rate=0.50,staircase=True,transition_begin=0)
     # ft_lr_schedule_B = optax.exponential_decay(init_value=1e-3,transition_steps=n_batches*2,decay_rate=0.5,staircase=True,transition_begin=0)
+    # ft_lr_schedule_B = optax.constant_schedule(ft_lr_B)
+
     
     
     epochs = np.arange(0,ft_nb_epochs_B)
@@ -266,12 +271,12 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     optimizer = optax.adam(learning_rate=ft_lr_schedule_B) #,weight_decay=1e-4)
     ft_mdl_state = maml.TrainState.create(
                 apply_fn=ft_mdl.apply,
-                params=ft_params_trainable,
+                params=ft_params_trainable_B,
                 tx=optimizer)
     
     
     ft_loss_epoch_train_B,ft_loss_epoch_val_B,ft_mdl_state,perf,lr_epoch,lr_step = maml.ft_train(
-        ft_mdl_state,ft_params_fixed,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_A+ft_nb_epochs_B,\
+        ft_mdl_state,ft_params_fixed_B,config,ft_data_train,ft_data_val,ft_data_test,obs_noise,batch_size,ft_nb_epochs_A+ft_nb_epochs_B,\
             ft_path_model_save,save=True,ft_lr_schedule=ft_lr_schedule_B,epoch_start=ft_nb_epochs_A)
     
     fev_epoch_train_B,corr_epoch_train_B,fev_epoch_val_B,corr_epoch_val_B,fev_epoch_test_B,corr_epoch_test_B = perf
@@ -289,19 +294,18 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
 
     
     
-    ft_val_loss,pred_rate_val,y_val = maml.ft_eval_step(ft_mdl_state,ft_params_fixed,dataloader_val_val)
+    ft_val_loss,pred_rate_val,y_val = maml.ft_eval_step(ft_mdl_state,ft_params_fixed_B,dataloader_val_val)
     ft_fev_val, fracExVar_val, ft_corr_val, rrCorr_val = model_evaluate_new(y_val,pred_rate_val,temporal_width,lag=int(0),obs_noise=obs_noise)
     
-    ft_test_loss,pred_rate_test,y_test = maml.ft_eval_step(ft_mdl_state,ft_params_fixed,dataloader_test)
+    ft_test_loss,pred_rate_test,y_test = maml.ft_eval_step(ft_mdl_state,ft_params_fixed_B,dataloader_test)
     ft_fev_test, fracExVar_val, ft_corr_test, rrCorr_test = model_evaluate_new(y_test,pred_rate_test,temporal_width,lag=int(0),obs_noise=obs_noise)
     
     
     # ft_fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(y_val,pred_rate_val,temporal_width,lag=0,obs_noise=obs_noise)
     
-    
     print(np.median(ft_fev_val))
     
-    fig,axs = plt.subplots(1,1,figsize=(7,5)); axs.plot(fev_epoch_val)
+    fig,axs = plt.subplots(1,1,figsize=(7,5)); axs.plot(np.nanmean(np.asarray(corr_epoch_val),axis=-1))
     axs.set_xlabel('Epochs');axs.set_ylabel('FEV'); fig.suptitle(ft_expDate + ' | '+str(ft_model_params['nout'])+' RGCs')
     axs.set_xticks(np.arange(0,ft_nb_epochs_A+ft_nb_epochs_B))
     
