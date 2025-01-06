@@ -69,8 +69,8 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     ft_dset_name = os.path.split(ft_fname_data_train_val_test)[-1]
     ft_dset_name = re.split('_',ft_dset_name)[0]
 
-
-    ft_path_model_save = os.path.join(path_model_base,'finetuning_%s'%ft_dset_name,'trainingDur_%0.2f'%ft_trainingSamps_dur)
+    fname_pretrained = os.path.split(path_pretrained[:-1])[-1]
+    ft_path_model_save = os.path.join(path_model_base,'finetuning',fname_pretrained,'finetuning_%s'%ft_dset_name,'trainingDur_%0.2f'%ft_trainingSamps_dur)
     print(ft_path_model_save)
     if not os.path.exists(ft_path_model_save):
         os.makedirs(ft_path_model_save)
@@ -196,7 +196,7 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     epochs = np.arange(0,ft_nb_epochs_A)
     epochs_steps = np.arange(0,ft_nb_epochs_A*n_batches,n_batches)
     rgb_lrs_A = [ft_lr_schedule_A(i) for i in epochs_steps]
-    plt.plot(epochs,rgb_lrs_A);plt.show()
+    # plt.plot(epochs,rgb_lrs_A);plt.show()
     
     layers_finetune = ('Dense_0','LayerNorm_4','LayerNorm_IN') #
     ft_params_fixed,ft_params_trainable = maml.split_dict(mdl_state.params,layers_finetune)
@@ -254,11 +254,10 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     ft_params_trainable_B  = {**ft_params_fixed,**ft_mdl_state.params}
     ft_params_fixed_B = dict()#ft_mdl_state.params
     # ft_lr_schedule_B = optax.constant_schedule(1e-3)
-    # ft_lr_B = 1e-4 #rgb_lrs_A[-1]
+    # ft_lr_B = 1e-3 #rgb_lrs_A[-1]
     # ft_nb_epochs_B = 10
     # ft_lr_schedule_B = optax.exponential_decay(init_value=1e-2,transition_steps=n_batches*3,decay_rate=0.75,staircase=True,transition_begin=0)    # NATSTIM
     ft_lr_schedule_B = optax.exponential_decay(init_value=ft_lr_B,transition_steps=n_batches*1,decay_rate=0.50,staircase=True,transition_begin=0)
-    # ft_lr_schedule_B = optax.exponential_decay(init_value=1e-3,transition_steps=n_batches*2,decay_rate=0.5,staircase=True,transition_begin=0)
     # ft_lr_schedule_B = optax.constant_schedule(ft_lr_B)
 
     
@@ -266,7 +265,7 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     epochs = np.arange(0,ft_nb_epochs_B)
     epochs_steps = np.arange(0,ft_nb_epochs_B*n_batches,n_batches)
     rgb_lrs_B = [ft_lr_schedule_B(i) for i in epochs_steps]
-    plt.plot(epochs,rgb_lrs_B);plt.show()
+    # plt.plot(epochs,rgb_lrs_B);plt.show()
     
     optimizer = optax.adam(learning_rate=ft_lr_schedule_B) #,weight_decay=1e-4)
     ft_mdl_state = maml.TrainState.create(
@@ -303,7 +302,7 @@ def run_finetune(ft_expDate,pretrained_expDates,path_model_base,path_pretrained,
     
     # ft_fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(y_val,pred_rate_val,temporal_width,lag=0,obs_noise=obs_noise)
     
-    print(np.median(ft_fev_val))
+    print('Corr: %0.2f'%np.nanmedian(np.asarray(corr_epoch_val),axis=-1).max())
     
     fig,axs = plt.subplots(1,1,figsize=(7,5)); axs.plot(np.nanmean(np.asarray(corr_epoch_val),axis=-1))
     axs.set_xlabel('Epochs');axs.set_ylabel('FEV'); fig.suptitle(ft_expDate + ' | '+str(ft_model_params['nout'])+' RGCs')
