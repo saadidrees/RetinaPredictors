@@ -64,7 +64,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     import orbax
     import optax
     from model.jax import models_jax
-    from model.jax import train_model_jax,train_singleRet_frmaps
+    from model.jax import train_model_jax
     from model.jax import dataloaders #import RetinaDataset,jnp_collate
     from torch.utils.data import DataLoader
     import jax.numpy as jnp
