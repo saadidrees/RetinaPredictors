@@ -314,7 +314,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         dict_params['pr_params'] = pr_params
     
     dict_params['filt_temporal_width'] = temporal_width
-    dict_params['dtype'] = DTYPE
+    # dict_params['dtype'] = DTYPE
     dict_params['nout'] = n_cells
 
     
