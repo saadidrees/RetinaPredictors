@@ -25,7 +25,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
                             BatchNorm=1,BatchNorm_train=0,MaxPool=1,c_trial=1,
                             lr=0.01,lr_fac=1,use_lrscheduler=1,lrscheduler='constant',
                             USE_CHUNKER=0,CONTINUE_TRAINING=1,info='',job_id=0,
-                            select_rgctype='',USE_WANDB=0,APPROACH='seqiential',resp_format='INDIVIDUAL',
+                            select_rgctype='',USE_WANDB=0,APPROACH='seqiential',
                             path_dataset_base='/home/saad/data/analyses/data_kiersten'):
 
 # %% prepare data
@@ -67,7 +67,6 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     from model.jax import train_model_jax
     from model.jax import dataloaders #import RetinaDataset,jnp_collate
     from torch.utils.data import DataLoader
-    import jax.numpy as jnp
 
 
     # from model.train_model import train, chunker
@@ -172,23 +171,11 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     
         t_frame = parameters['t_frame']     # time in ms of one frame/sample 
         
-        if data_train.y.ndim>3 and data_train.y.shape[:3]==data_train.X.shape[:3]:
-            resp_format = 'MAPS'
-        else:
-            resp_format = 'INDIVIDUAL'
-            
-
         dict_train[fname_data_train_val_test_all[d]] = data_train
         dict_val[fname_data_train_val_test_all[d]] = data_val
         dict_test[fname_data_train_val_test_all[d]] = data_test
 
     # Get RGC type info
-    
-    if data_train.y.ndim>3 and data_train.y.shape[:3]==data_train.X.shape[:3]:
-        resp_format = 'MAPS'
-    else:
-        resp_format = 'INDIVIDUAL'
-    print('Response Format: %s'%resp_format)
     
 # Arrange data according to the model
     # for monkey01 experiments. Need to find a BETTER way to do this
@@ -232,15 +219,9 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         data_val = dict_val[fname_data_train_val_test_all[d]]
 
         if mdl_name in modelNames_2D:
-            if resp_format=='INDIVIDUAL':
-                data_train = data_handler.prepare_data_cnn2d(data_train,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)     # [samples,temporal_width,rows,columns]
-                data_test = data_handler.prepare_data_cnn2d(data_test,temporal_width_prepData,idx_unitsToTake)
-                data_val = data_handler.prepare_data_cnn2d(data_val,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)   
-            elif resp_format=='MAPS':
-                data_train = data_handler.prepare_data_cnn2d_maps(data_train,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)     # [samples,temporal_width,rows,columns]
-                data_test = data_handler.prepare_data_cnn2d_maps(data_test,temporal_width_prepData,idx_unitsToTake)
-                data_val = data_handler.prepare_data_cnn2d_maps(data_val,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)   
-
+            data_train = prepare_data_cnn2d(data_train,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)     # [samples,temporal_width,rows,columns]
+            data_test = prepare_data_cnn2d(data_test,temporal_width_prepData,idx_unitsToTake)
+            data_val = prepare_data_cnn2d(data_val,temporal_width_prepData,idx_unitsToTake,MAKE_LISTS=True)   
             
             filt1_3rdDim=0
             filt2_3rdDim=0
@@ -297,8 +278,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     DTYPE = data_train.X[0].dtype
 
     # x = Input(shape=inp_shape,dtype=DTYPE) # keras input layer
-    
-    n_cells = out_shape[-1]         # number of units in output layer
+    n_cells = out_shape[0]         # number of units in output layer
     
     dset_details = dict(n_train=n_train,inp_shape=inp_shape,out_shape=out_shape)
     
@@ -334,7 +314,7 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         dict_params['pr_params'] = pr_params
     
     dict_params['filt_temporal_width'] = temporal_width
-    # dict_params['dtype'] = DTYPE
+    dict_params['dtype'] = DTYPE
     dict_params['nout'] = n_cells
 
     
@@ -461,34 +441,21 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     # validation_batch_size = 100 # samples
     # validation_freq = 1
     
-    # Pack what information about the data should be sent to training pipeline
-    data_info = dict()
-    if resp_format == 'MAPS':
-        data_info['unames'] = parameters['unames']
-        data_info['unit_locs'] = jnp.array(parameters['unit_locs'])
-        data_info['unit_types'] = jnp.array(parameters['unit_types'])
         
-
-    
-    batch_size=bz
-
     if initial_epoch < nb_epochs:
         print('-----RUNNING MODEL-----')
-        if resp_format=='MAPS':
-            loss_epoch_train,loss_epoch_val,mdl_state = train_singleRet_frmaps.train(mdl_state,config,data_train,data_val,bz,nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule,
-                                                                              resp_format=resp_format,data_info=data_info)
-        else:
-            loss_epoch_train,loss_epoch_val,mdl_state = train_model_jax.train(mdl_state,config,data_train,data_val,bz,nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule,
-                                                                              resp_format=resp_format,data_info=data_info)
+        
+        loss_epoch_train,loss_epoch_val,mdl_state = train_model_jax.train(mdl_state,config,data_train,data_val,bz,nb_epochs,path_model_save,save=True,lr_schedule=lr_schedule)
+        
+        # _ = gc.collect()
+        
         
     # t_elapsed = time.time()-t
     # print('time elapsed: '+str(t_elapsed)+' seconds')
     
+
+    
     # %% Model Evaluation
-    
-    if resp_format=='MAPS':
-        n_cells = len(data_info['unames'])
-    
     nb_epochs = np.max([initial_epoch,nb_epochs])   # number of epochs. Update this variable based on the epoch at which training ended
     val_loss_allEpochs = np.empty(nb_epochs)
     val_loss_allEpochs[:] = np.nan
@@ -562,37 +529,20 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
         weight_file = os.path.join(path_model_save,weight_file)
         if os.path.isdir(weight_file):
             raw_restored = orbax_checkpointer.restore(weight_file)
-
-            if resp_format == 'MAPS':
-                mdl_state = train_singleRet_frmaps.load(mdl,raw_restored['model'],lr)
-                val_loss = [];pred_rate=[];y=[]
-                for batch_val in dataloader_val:
-                    batch_val = batch_val + (data_info['unit_locs'],data_info['unit_types'])
-                    loss,y_pred,y_temp = train_singleRet_frmaps.eval_step(mdl_state,batch_val)
-                    val_loss.append(loss)
-                    pred_rate.append(y_pred)
-                    y.append(y_temp)
-                val_loss = np.atleast_1d(np.mean(np.asarray(val_loss)))
-                pred_rate = np.concatenate(pred_rate,axis=0)
-                y = np.concatenate(y,axis=0)
-                
-                pred_rate = train_singleRet_frmaps.mapToUnits(pred_rate,data_info['unit_locs'],data_info['unit_types'])
-                y = train_singleRet_frmaps.mapToUnits(y,data_info['unit_locs'],data_info['unit_types'])
-
-
-            else:
-                mdl_state = train_model_jax.load(mdl,raw_restored['model'],lr)
-                val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,dataloader_val)
+            mdl_state = train_model_jax.load(mdl,raw_restored['model'],lr)
+    
+        
+            val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,dataloader_val)
     
             val_loss_allEpochs[i] = val_loss[0]
             
-            fev_loop = np.zeros((num_iters,y.shape[-1]))
-            fracExVar_loop = np.zeros((num_iters,y.shape[-1]))
-            predCorr_loop = np.zeros((num_iters,y.shape[-1]))
-            rrCorr_loop = np.zeros((num_iters,y.shape[-1]))
+            fev_loop = np.zeros((num_iters,n_cells))
+            fracExVar_loop = np.zeros((num_iters,n_cells))
+            predCorr_loop = np.zeros((num_iters,n_cells))
+            rrCorr_loop = np.zeros((num_iters,n_cells))
     
             for j in range(num_iters):  # nunm_iters is 1 with my dataset. This was mainly for greg's data where we would randomly split the dataset to calculate performance metrics 
-                fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(y,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+                fev_loop[j,:], fracExVar_loop[j,:], predCorr_loop[j,:], rrCorr_loop[j,:] = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
                 
             fev = np.mean(fev_loop,axis=0)
             fracExVar = np.mean(fracExVar_loop,axis=0)
@@ -648,49 +598,40 @@ def run_model(expFold,mdl_name,path_model_save_base,fname_data_train_val_test,
     mdl_state = train_model_jax.load(mdl,raw_restored['model'],lr)
     
 
-    if resp_format == 'MAPS':
-        val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,dataloader_val)
-        pred_rate = train_singleRet_frmaps.mapToUnits(pred_rate,data_info['unit_locs'],data_info['unit_types'])
-        y = train_singleRet_frmaps.mapToUnits(y,data_info['unit_locs'],data_info['unit_types'])
-    else:
-        val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,dataloader_val)
-
-
+    val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,dataloader_val)
     fname_bestWeight = np.array(weight_file,dtype='bytes')
-    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(y,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
+    fev_val, fracExVar_val, predCorr_val, rrCorr_val = model_evaluate_new(obs_rate_allStimTrials,pred_rate,temporal_width_eval,lag=int(samps_shift),obs_noise=obs_noise)
     print(np.median(fev_val))
 
-    
-    idx=43;plt.plot(y[:500,idx]);plt.plot(pred_rate[:500,idx])
 
 # %% Test
 
-#     x_train = np.array(data_train.X[-2000:])
-#     y_train = np.array(data_train.y[-2000:])
-#     x_val = np.array(data_val.X[-2000:])
-#     y_val = np.array(data_val.y[-2000:])
-#     x_test = np.array(data_test.X[-2000:])
-#     y_test = np.array(data_test.y[-2000:])
+    x_train = np.array(data_train.X[-2000:])
+    y_train = np.array(data_train.y[-2000:])
+    x_val = np.array(data_val.X[-2000:])
+    y_val = np.array(data_val.y[-2000:])
+    x_test = np.array(data_test.X[-2000:])
+    y_test = np.array(data_test.y[-2000:])
 
     
-# # val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,(x_train,y_train))
-#     _,pred_train,_ = train_model_jax.eval_step(mdl_state,(x_train,y_train))
-#     _,pred_val,_ = train_model_jax.eval_step(mdl_state,(x_val,y_val))
-#     _,pred_test,_ = train_model_jax.eval_step(mdl_state,(x_test,y_test))
+# val_loss,pred_rate,y = train_model_jax.eval_step(mdl_state,(x_train,y_train))
+    _,pred_train,_ = train_model_jax.eval_step(mdl_state,(x_train,y_train))
+    _,pred_val,_ = train_model_jax.eval_step(mdl_state,(x_val,y_val))
+    _,pred_test,_ = train_model_jax.eval_step(mdl_state,(x_test,y_test))
 
     
-#     # for i in range(100):
-#     u = 53
+    # for i in range(100):
+    u = 53
     
-#     fig,axs =plt.subplots(2,1,figsize=(20,5))
-#     axs=np.ravel(axs)
-#     axs[0].plot(y_train[-2000:,u])
-#     axs[0].plot(pred_train[-2000:,u])
-#     axs[0].set_title(str(u))
-#     axs[1].plot(y_test[-2000:,u])
-#     axs[1].plot(pred_test[-2000:,u])
-#     axs[1].set_title('Validation')
-#     plt.show()
+    fig,axs =plt.subplots(2,1,figsize=(20,5))
+    axs=np.ravel(axs)
+    axs[0].plot(y_train[-2000:,u])
+    axs[0].plot(pred_train[-2000:,u])
+    axs[0].set_title(str(u))
+    axs[1].plot(y_test[-2000:,u])
+    axs[1].plot(pred_test[-2000:,u])
+    axs[1].set_title('Validation')
+    plt.show()
 
 
 
